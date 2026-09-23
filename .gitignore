@@ -4,6 +4,8 @@ __pycache__/
 .pytest_cache/
 .venv/
 *.egg-info/
+/labels/images/*
+/labels/_annotations.coco.json
 # review page references local crops of real documents
 labels/tour_review.html
 # local dataset (never commit scans)
