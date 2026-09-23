@@ -161,6 +161,25 @@ def paddle_reference(cfg, crops: list, log) -> dict:
     return out
 
 
+def write_pages_csv(path: Path, test, dt_rows, real_rows, tour_rows, prim: str) -> None:
+    """One row per page: result of every stage with its reason (for the operator view)."""
+    import csv
+
+    dt = {r["file_name"]: r for r in dt_rows}
+    pos = {r["file_name"]: r for r in real_rows}
+    tour = {r["file_name"]: r for r in tour_rows}
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f, delimiter=";")
+        w.writerow(["file_name", "doc_type_gt", "doc_type", "doc_type_grund", "position_gt", "position",
+                    "position_grund", "tour_gt", "tour_ocr", "tour_akzeptiert", "tour_grund"])
+        for p in test:
+            d, q, t = dt.get(p.file_name, {}), pos.get(p.file_name, {}), tour.get(p.file_name)
+            x = (t or {}).get("pred_box", {}).get(prim) or {}
+            w.writerow([p.file_name, p.doc_type, d.get("pred"), d.get("reason"), q.get("gt_status"),
+                        q.get("status"), q.get("reason"), p.tour_number or "", x.get("text", ""),
+                        x.get("accepted", ""), x.get("reason", "keine tour_nummer erkannt" if t else "")])
+
+
 # ------------------------------------------------------------------ main
 
 def run_eval(cfg, log) -> int:
@@ -505,6 +524,7 @@ def run_eval(cfg, log) -> int:
     out = artifacts(cfg, "report")
     out.mkdir(parents=True, exist_ok=True)
     (out / "results.json").write_text(json.dumps(R, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
+    write_pages_csv(out / "pages.csv", test, dt_rows, real_rows, tour_rows, prim)
     from .report import render
 
     render(cfg, R, out, log)

@@ -12,6 +12,19 @@ WRONG_POSITION = "falsche_position"
 UNCERTAIN = "unsicher"
 NOT_REQUIRED = "nicht_gefordert"
 
+# display name and negation article for the reason texts
+DISPLAY = {"unterschrift": ("Unterschrift", "keine"), "stempel": ("Stempel", "kein"),
+           "tour_nummer": ("Tournummer", "keine"), "cmr_count": ("CMR-Zählung", "keine")}
+
+
+def _name(cls: str) -> str:
+    return DISPLAY.get(cls, (cls, "kein"))[0]
+
+
+def _none(cls: str) -> str:
+    n, art = DISPLAY.get(cls, (cls, "kein"))
+    return f"{art} {n}"
+
 
 def percentile(values: list[float], p: float) -> float:
     v = sorted(values)
@@ -69,7 +82,7 @@ def check_requirement(cls: str, zone: list[float] | None, detections: list[dict]
                       min_overlap: float, score_accept: float, score_uncertain: float) -> dict:
     """detections: [{"cls", "box" (normalized), "score"}]. Returns status + reason."""
     if zone is None:
-        return {"cls": cls, "status": UNCERTAIN, "reason": f"keine Zone für {cls} definiert"}
+        return {"cls": cls, "status": UNCERTAIN, "reason": f"keine Zone für {_name(cls)} definiert"}
     strong_in, weak_in, strong_out = [], [], []
     for d in detections:
         if d["cls"] != cls or d["score"] < score_uncertain:
@@ -81,17 +94,17 @@ def check_requirement(cls: str, zone: list[float] | None, detections: list[dict]
             weak_in.append(d)
     if strong_in:
         best = max(d["score"] for d in strong_in)
-        return {"cls": cls, "status": OK, "reason": f"{cls} in Soll-Zone (Score {best:.2f})"}
+        return {"cls": cls, "status": OK, "reason": f"{_name(cls)} in Soll-Zone (Score {best:.2f})"}
     if weak_in:
         best = max(d["score"] for d in weak_in)
         return {"cls": cls, "status": UNCERTAIN,
-                "reason": f"{cls} in Soll-Zone nur mit niedrigem Score {best:.2f}"}
+                "reason": f"{_name(cls)} in Soll-Zone nur mit niedrigem Score {best:.2f}"}
     if strong_out:
         d = max(strong_out, key=lambda x: x["score"])
         c = [(d["box"][0] + d["box"][2]) / 2, (d["box"][1] + d["box"][3]) / 2]
         return {"cls": cls, "status": WRONG_POSITION,
-                "reason": f"{cls} erkannt, aber außerhalb der Soll-Zone (Zentrum {c[0]:.2f}/{c[1]:.2f})"}
-    return {"cls": cls, "status": MISSING, "reason": f"kein {cls} erkannt"}
+                "reason": f"{_name(cls)} erkannt, aber außerhalb der Soll-Zone (Zentrum {c[0]:.2f}/{c[1]:.2f})"}
+    return {"cls": cls, "status": MISSING, "reason": f"{_none(cls)} erkannt"}
 
 
 # severity order when combining several requirements with mode "all"
