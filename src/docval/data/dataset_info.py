@@ -209,9 +209,11 @@ def analyze_doc_type_csv(data: dict, path, doc_types: list[str],
                          file_col: str | None = None, value_col: str | None = None) -> dict:
     """Coverage and value distribution of an external doc type CSV."""
     values, info = read_label_table(path, value_col=value_col, file_col=file_col)
+    records = info.pop("records")
     out = {"info": info}
     if not info["exists"]:
         return out
+    out["grouping"] = csv_grouping(records, info["value_col"])
     file_names = [i["file_name"] for i in data["images"]]
     matched, stats = match_to_coco(values, file_names)
     dist: dict[str, int] = {}
@@ -228,6 +230,47 @@ def analyze_doc_type_csv(data: dict, path, doc_types: list[str],
         "values_not_in_doc_types": sorted(v for v in dist if v.lower() not in doc_types),
         "matched_values": matched,
     })
+    return out
+
+
+PAGE_COL_HINT = re.compile(r"(page|seite|strona)", re.I)
+
+
+def csv_grouping(records: dict[str, dict], type_col: str | None) -> dict:
+    """Group columns (e.g. source_pdf/source_page) in a label CSV.
+
+    Also returns the doc type sequence in page order per group, so logical
+    documents inside one scanned batch can be seen (e.g. 'CCSSSS').
+    """
+    if not records:
+        return {}
+    cols = list(next(iter(records.values())).keys())
+    page_col = next((c for c in cols if PAGE_COL_HINT.search(c)), None)
+    group_col = next((c for c in cols if c != page_col and GROUP_KEY_HINT.search(c)
+                      and c != type_col and not c.lower().startswith("file")), None)
+    out = {"group_col": group_col, "page_col": page_col}
+    if group_col is None:
+        return out
+    groups: dict[str, list] = {}
+    for fn, r in records.items():
+        groups.setdefault(r.get(group_col, ""), []).append(r)
+    out["n_groups"] = len(groups)
+    out["group_sizes"] = sorted(len(v) for v in groups.values())
+    legend: dict[str, str] = {}
+    for r in records.values():
+        t = r.get(type_col) or "?" if type_col else "?"
+        if t not in legend:
+            letters = [ch.upper() for ch in t if ch.isalpha()] + list("XYZWVQ")
+            legend[t] = next(ch for ch in letters if ch not in legend.values())
+    out["legend"] = {v: k for k, v in legend.items()}
+    seqs = {}
+    for g, rows in groups.items():
+        def page_key(r):
+            v = r.get(page_col, "") if page_col else ""
+            return int(v) if v.isdigit() else 0
+        rows = sorted(rows, key=page_key)
+        seqs[g] = "".join(legend[r.get(type_col) or "?" if type_col else "?"] for r in rows)
+    out["type_sequence"] = seqs
     return out
 
 

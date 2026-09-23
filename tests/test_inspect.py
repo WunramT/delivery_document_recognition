@@ -139,3 +139,12 @@ def test_tour_template_prefilled_from_partial_gt(tiny_coco, tmp_path):
     assert rows["loading_list_77.jpg"] == ""
     rep = json.loads((tmp_path / "out" / "inspect.json").read_text())
     assert rep["tour_text"]["format_check"]["n_invalid"] == 1  # "1234567" is not number/number
+
+
+def test_csv_grouping_by_source_pdf():
+    recs = {f"p{i}.png": {"file_name": f"p{i}.png", "doc_type": t, "source_pdf": "a.pdf", "source_page": str(i)}
+            for i, t in [(2, "cmr"), (1, "loading_list"), (3, "lieferschein")]}
+    g = di.csv_grouping(recs, "doc_type")
+    assert (g["group_col"], g["page_col"], g["n_groups"]) == ("source_pdf", "source_page", 1)
+    assert g["type_sequence"]["a.pdf"] == "LCI"  # lieferschein gets I (L is taken)
+    assert g["legend"] == {"L": "loading_list", "C": "cmr", "I": "lieferschein"}

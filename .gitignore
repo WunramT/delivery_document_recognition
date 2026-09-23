@@ -8,8 +8,3 @@ __pycache__/
 /labels/_annotations.coco.json
 # review page references local crops of real documents
 labels/tour_review.html
-# local dataset (never commit scans)
-labels/images/
-labels/_annotations.coco.json
-labels/README.txt
-labels/README.roboflow.txt

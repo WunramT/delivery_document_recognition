@@ -43,7 +43,8 @@ def read_label_table(path: str | Path, value_col: str | None = None,
     """
     p = Path(path)
     info = {"path": str(p), "exists": p.is_file(), "columns": [], "file_col": None,
-            "value_col": None, "delimiter": None, "rows": 0, "empty_values": 0}
+            "value_col": None, "delimiter": None, "rows": 0, "empty_values": 0,
+            "records": {}}  # file_name -> full row (all columns)
     if not p.is_file():
         return {}, info
     text = _read_text(p)
@@ -65,6 +66,7 @@ def read_label_table(path: str | Path, value_col: str | None = None,
         if not fn:
             continue
         info["rows"] += 1
+        info["records"][fn] = {k: (v or "").strip() for k, v in row.items() if k is not None}
         val = (row.get(vc) or "").strip()
         if val:
             out[fn] = val

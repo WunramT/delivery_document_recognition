@@ -381,6 +381,15 @@ def to_markdown(r: dict) -> str:
     for name, pages in fp["examples"][:5]:
         L.append(f"   - `{name}` Seiten {pages}")
     L.append(f"- Bilder mit `cmr_count`-Box: {g['images_with_cmr_count']}")
+    cg = (r["doc_type"].get("csv") or {}).get("grouping") or {}
+    if cg.get("group_col"):
+        L.append(f"- Label-CSV: Gruppenspalte `{cg['group_col']}`, Seitenspalte `{cg['page_col']}` → "
+                 f"**{cg['n_groups']} Gruppe(n)**, Größen {cg['group_sizes'][:20]}")
+        if cg["n_groups"] < 5:
+            L.append("  - **Warnung:** zu wenige Gruppen für einen gruppierten Split train/valid/test.")
+        L.append(f"  - Typfolge je Gruppe in Seitenreihenfolge ({', '.join(f'{k}={v}' for k, v in cg['legend'].items())}):")
+        for name, seq in list(cg["type_sequence"].items())[:5]:
+            L.append(f"    - `{name}`: `{seq}`")
     nd = g.get("near_duplicates")
     if nd is not None:
         L.append(f"- Nahezu identische Bilder (dHash ≤ {r['config']['near_duplicate_hash_distance']}): {len(nd)} Paare")
