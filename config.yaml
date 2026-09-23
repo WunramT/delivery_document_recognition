@@ -1,0 +1,36 @@
+# docval configuration. Paths are relative to the repo root unless absolute.
+# Sections for training, OCR, zones and thresholds are added in later steps.
+
+paths:
+  coco: /data/coco.json          # read-only mount
+  images: /data/images           # read-only mount
+  artifacts: artifacts           # all derived data (gitignored)
+  labels: labels
+
+classes: [unterschrift, stempel, tour_nummer, cmr_count]
+doc_types: [cmr, lieferschein, loading_list]
+
+# Where ground truth for doc type and tour number comes from.
+labels:
+  doc_type:
+    # coco_attribute | coco_category | filename | folder | csv
+    source: csv
+    coco_attribute: null           # e.g. "extra.doc_type" (dotted path in image dict)
+    csv: labels/doc_types.csv
+  tour_number:
+    # coco_attribute | csv
+    source: csv
+    coco_attribute: attributes.text  # dotted path in annotation dict
+    csv: labels/tour_numbers.csv
+
+inspect:
+  bbox_tolerance_px: 1.0
+  tour_crop_padding: 0.12          # fraction of box size on each side
+  near_duplicate_hash_distance: 6  # dHash (256 bit) Hamming distance
+  compute_image_hashes: true
+  # Only used to detect doc type hints in file/folder names (not as GT).
+  # Keywords with <= 3 chars must match a whole token.
+  name_keywords:
+    cmr: [cmr]
+    lieferschein: [lieferschein, delivery, ls, wz, dn]
+    loading_list: [loading, ladeliste, ladeschein, loadinglist, zaladunk, packlist]

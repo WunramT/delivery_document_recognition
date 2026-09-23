@@ -1,0 +1,8 @@
+artifacts/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+*.egg-info/
+# review page references local crops of real documents
+labels/tour_review.html

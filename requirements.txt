@@ -1,0 +1,4 @@
+# Step 0 (inspection) dependencies. Training/OCR/export pins follow in step 1.
+Pillow==11.3.0
+PyYAML==6.0.2
+pytest==8.4.2
