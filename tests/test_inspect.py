@@ -4,8 +4,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
 from docval.data import dataset_info as di
-from docval.data.labels import write_template
+from docval.data.labels import match_to_coco, read_label_table, write_template
 
 ROOT = Path(__file__).resolve().parents[1]
 KW = {"cmr": ["cmr"], "lieferschein": ["lieferschein", "ls"], "loading_list": ["loading"]}
@@ -55,11 +57,61 @@ def test_template_never_overwrites(tmp_path):
     assert rows[0]["doc_type"] == "cmr"
 
 
+def isolated_config(tmp_path, doc_csv=None):
+    """Repo config, but label CSVs point into tmp_path (never the real labels/)."""
+    cfg = yaml.safe_load(open(ROOT / "config.yaml"))
+    cfg["labels"]["doc_type"]["csv"] = str(doc_csv or tmp_path / "no_page_types.csv")
+    p = tmp_path / "config.yaml"
+    p.write_text(yaml.safe_dump(cfg))
+    return str(p)
+
+
+def run_inspect(tmp_path, coco, images, doc_csv=None, *extra):
+    return subprocess.run([sys.executable, str(ROOT / "scripts/inspect_dataset.py"),
+                           "--config", isolated_config(tmp_path, doc_csv),
+                           "--coco", str(coco), "--images", str(images),
+                           "--out", str(tmp_path / "out"), "--labels", str(tmp_path / "labels"), *extra],
+                          capture_output=True, text=True)
+
+
+def test_read_label_table_excel_style(tmp_path):
+    p = tmp_path / "page_types.csv"
+    p.write_bytes("\ufeffDateiname;Seitentyp\nCMR_1.jpg;cmr\nLS_2.jpg;\n".encode("utf-8"))
+    values, info = read_label_table(p)
+    assert info["delimiter"] == ";"
+    assert (info["file_col"], info["value_col"]) == ("Dateiname", "Seitentyp")
+    assert values == {"CMR_1.jpg": "cmr"}
+    assert info["empty_values"] == 1
+
+
+def test_match_to_coco_handles_roboflow_names():
+    values = {"CMR_4711_p1.jpg": "cmr", "other.jpg": "lieferschein"}
+    coco = ["CMR_4711_p1_jpg.rf.0123456789abcdef0123456789abcdef.jpg", "x.jpg"]
+    matched, stats = match_to_coco(values, coco)
+    assert matched == {coco[0]: "cmr"}
+    assert stats["by_stem"] == 1
+    assert stats["unmatched_coco"] == ["x.jpg"]
+    assert stats["unmatched_csv"] == ["other.jpg"]
+
+
+def test_doc_type_csv_used_as_source(tiny_coco, tmp_path):
+    path, img_dir = tiny_coco
+    data = json.loads(path.read_text())
+    doc_csv = tmp_path / "page_types.csv"
+    doc_csv.write_text("file_name,page_type\n" + "".join(f"{i['file_name']},cmr\n" for i in data["images"]))
+    r = run_inspect(tmp_path, path, img_dir, doc_csv, "--no-hash")
+    assert r.returncode == 0, r.stderr
+    rep = json.loads((tmp_path / "out" / "inspect.json").read_text())
+    assert rep["doc_type"]["source"]["kind"] == "csv"
+    assert not (tmp_path / "labels" / "doc_types.csv").exists()
+
+
 def test_inspect_script_end_to_end(tiny_coco, tmp_path):
     path, img_dir = tiny_coco
     out, labels = tmp_path / "out", tmp_path / "labels"
     before = {p.name: p.stat().st_mtime for p in img_dir.iterdir()}
     r = subprocess.run([sys.executable, str(ROOT / "scripts/inspect_dataset.py"),
+                        "--config", isolated_config(tmp_path),
                         "--coco", str(path), "--images", str(img_dir),
                         "--out", str(out), "--labels", str(labels)],
                        capture_output=True, text=True)
@@ -81,10 +133,9 @@ def test_inspect_script_end_to_end(tiny_coco, tmp_path):
 def test_tour_template_prefilled_from_partial_gt(tiny_coco, tmp_path):
     path, img_dir = tiny_coco
     labels = tmp_path / "labels"
-    subprocess.run([sys.executable, str(ROOT / "scripts/inspect_dataset.py"), "--no-hash",
-                    "--coco", str(path), "--images", str(img_dir),
-                    "--out", str(tmp_path / "out"), "--labels", str(labels)], check=True,
-                   capture_output=True)
+    assert run_inspect(tmp_path, path, img_dir, None, "--no-hash").returncode == 0
     rows = {r["file_name"]: r["tour_number"] for r in csv.DictReader(open(labels / "tour_numbers.csv"))}
     assert rows["CMR_4711_p1_jpg.rf.0123456789abcdef0123456789abcdef.jpg"] == "1234567"
     assert rows["loading_list_77.jpg"] == ""
+    rep = json.loads((tmp_path / "out" / "inspect.json").read_text())
+    assert rep["tour_text"]["format_check"]["n_invalid"] == 1  # "1234567" is not number/number

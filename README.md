@@ -8,7 +8,9 @@ Unterschrift/Stempel in den Soll-Zonen, Tournummer per OCR.
 
 ## Eingabedaten
 
-- `/data/coco.json` und `/data/images/` werden **read-only** gemountet und nie verändert.
+- Aktuell: Roboflow-Export lokal in `labels/` (`_annotations.coco.json`, `images/`) plus
+  eigene Dokumenttyp-Labels in `labels/page_types.csv`. Bilder und COCO-Datei sind gitignored.
+- Im Devcontainer (ab Schritt 1) werden die Daten **read-only** gemountet und nie verändert.
 - Alles Abgeleitete landet in `artifacts/` (gitignored).
 - Pfade stehen in `config.yaml` unter `paths`.
 
@@ -17,6 +19,7 @@ Unterschrift/Stempel in den Soll-Zonen, Tournummer per OCR.
 ```bash
 pip install -r requirements.txt
 make inspect                                   # nutzt paths.* aus config.yaml
+python scripts/inspect_dataset.py              # dasselbe ohne make (z. B. Windows)
 python3 scripts/inspect_dataset.py --coco pfad/coco.json --images pfad/bilder   # ohne Container
 ```
 
@@ -35,12 +38,16 @@ Bestehende CSVs werden **nie überschrieben**, nur um neue Dateinamen ergänzt.
 
 ### Label-CSVs ausfüllen
 
-- `labels/doc_types.csv`: Spalte `doc_type` mit einem Wert aus `doc_types` in `config.yaml`
+- Dokumenttyp aus eigener CSV: `labels.doc_type.csv` in `config.yaml` (Standard
+  `labels/page_types.csv`). Trennzeichen (`,` `;` Tab) und Spalten werden erkannt,
+  sonst `csv_file_column`/`csv_value_column` setzen. Dateinamen werden auch ohne
+  Roboflow-Suffix (`_jpg.rf.<hash>`) und Endung zugeordnet.
+- `labels/doc_types.csv` (nur ohne eigene CSV): Spalte `doc_type` mit einem Wert aus `doc_types` in `config.yaml`
   (`cmr`, `lieferschein`, `loading_list`).
 - `labels/tour_numbers.csv`: am einfachsten über `labels/tour_review.html` im Browser
   (Datei direkt öffnen). Enter springt zum nächsten Feld, Eingaben werden lokal
   zwischengespeichert, „herunterladen“ erzeugt die CSV, die nach `labels/` kopiert wird.
-  Unleserlich: `?` eintragen. Mehrere Boxen auf einer Seite: Werte mit `;` trennen.
+  Format: `Zahl/Zahl`, z. B. `200/01` (`labels.tour_number.format_regex`). Unleserlich: `?` eintragen. Mehrere Boxen auf einer Seite: Werte mit `;` trennen.
 - Welche Quelle die Pipeline nutzt, steht in `config.yaml` unter `labels.doc_type.source`
   bzw. `labels.tour_number.source` (`csv` oder `coco_attribute`, beim Dokumenttyp auch
   `filename`/`folder`/`coco_category`).

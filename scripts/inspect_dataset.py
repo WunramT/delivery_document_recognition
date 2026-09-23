@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -276,7 +277,9 @@ def to_markdown(r: dict) -> str:
              f"- Erstellt: {r['inputs']['created']}\n")
     L.append("## Überblick\n")
     L.append(f"| Kennzahl | Wert |\n|---|---|\n| Bilder | {s['n_images']} |\n| Annotationen | {s['n_annotations']} |\n"
-             f"| Kategorien | {', '.join(s['categories'])} |\n| Bilder ohne Annotation | {s['images_without_annotations']} |\n")
+             f"| Kategorien | {', '.join(s['categories'])} |\n"
+             f"| Kategorien ohne Annotation | {', '.join(s['categories_without_annotations']) or '-'} |\n"
+             f"| Bilder ohne Annotation | {s['images_without_annotations']} |\n")
     L.append("## Annotationen pro Klasse\n")
     L.append("Relative Größen als Anteil an Bildbreite/-höhe, Perzentile p0 / p5 / p50 / p95 / p100.\n")
     L.append("| Klasse | Annot. | Bilder | pro Bild (0 fehlt) | Breite rel. | Höhe rel. | kürzeste Seite px |\n|---|---|---|---|---|---|---|")
@@ -330,6 +333,24 @@ def to_markdown(r: dict) -> str:
     if f["unmatched_examples"]:
         L.append("   - Beispiele ohne Treffer: " + ", ".join(f"`{x}`" for x in f["unmatched_examples"][:6]))
     L.append("3. Ordnerstruktur: " + (str(d["folders"]) if d["folders"] else "alle Bilder in einem Ordner"))
+    c = d.get("csv")
+    if c is not None:
+        i = c["info"]
+        if not i["exists"]:
+            L.append(f"4. Externe CSV `{i['path']}`: nicht vorhanden")
+        else:
+            L.append(f"4. Externe CSV `{i['path']}`: Spalten {i['columns']} (Trenner `{i['delimiter']}`), "
+                     f"genutzt: Datei=`{i['file_col']}`, Typ=`{i['value_col']}`; {i['rows']} Zeilen, "
+                     f"{i['empty_values']} ohne Wert")
+            L.append(f"   - Zugeordnet: {c['matched']} von {d['n_images']} COCO-Bildern ({c['coverage']:.0%}); "
+                     f"Zuordnung {c['match_stats']}")
+            L.append(f"   - Verteilung: {c['value_distribution']}")
+            if c["values_not_in_doc_types"]:
+                L.append(f"   - **Werte nicht in `doc_types` der config.yaml:** {c['values_not_in_doc_types']}")
+            if c["unmatched_coco_examples"]:
+                L.append("   - COCO-Bilder ohne CSV-Zeile: " + ", ".join(f"`{x}`" for x in c["unmatched_coco_examples"][:6]))
+            if c["unmatched_csv_examples"]:
+                L.append("   - CSV-Zeilen ohne COCO-Bild: " + ", ".join(f"`{x}`" for x in c["unmatched_csv_examples"][:6]))
 
     t = r["tour_text"]
     L.append("\n## Ground-Truth-Text der Tournummer\n")
@@ -342,6 +363,10 @@ def to_markdown(r: dict) -> str:
         L.append(f"   - Kandidat `{c['key']}`: Abdeckung {c['coverage']:.0%}, Beispiele {c['examples']}")
     if t["text_shapes"]:
         L.append("- Formate (9 = Ziffer, A = Buchstabe): " + ", ".join(f"`{k}` ({n})" for k, n in t["text_shapes"][:8]))
+    fc = t.get("format_check")
+    if fc and fc["n"]:
+        L.append(f"- Formatprüfung `{fc['regex']}`: {fc['n'] - fc['n_invalid']} von {fc['n']} gültig"
+                 + (f"; ungültig z. B. {fc['invalid_examples']}" if fc["n_invalid"] else ""))
 
     g = r["grouping"]
     L.append("\n## Gruppierung zu Stapeln/Dokumenten\n")
@@ -372,6 +397,12 @@ def to_markdown(r: dict) -> str:
 # --------------------------------------------------------------------------- main
 
 def main() -> int:
+    # Windows consoles default to cp1252; the report contains umlauts and arrows
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except AttributeError:
+            pass
     args = parse_args()
     cfg = yaml.safe_load(open(args.config, encoding="utf-8"))
     icfg = cfg.get("inspect", {})
@@ -401,7 +432,23 @@ def main() -> int:
     imstats = image_stats(data, image_dir_ok, want_hash)
     hashes = imstats.pop("hashes")
     doc = di.analyze_doc_type_sources(data, cfg["doc_types"], icfg.get("name_keywords", {}), classes)
+    dcfg = cfg.get("labels", {}).get("doc_type", {})
+    doc_csv_path = resolve(dcfg["csv"]) if dcfg.get("csv") else None
+    if doc_csv_path is not None:
+        doc["csv"] = di.analyze_doc_type_csv(data, doc_csv_path, cfg["doc_types"],
+                                             dcfg.get("csv_file_column"), dcfg.get("csv_value_column"))
+        if doc["csv"].get("coverage", 0) >= 0.99 and doc["source"]["kind"] == "missing":
+            doc["source"] = {"kind": "csv", "key": str(dcfg["csv"])}
+        elif doc["csv"]["info"]["exists"] and doc["source"]["kind"] == "missing":
+            doc["source"] = {"kind": "csv_partial", "key": str(dcfg["csv"])}
     tour = di.analyze_tour_text(data, "tour_nummer")
+    fmt = cfg.get("labels", {}).get("tour_number", {}).get("format_regex")
+    if fmt:
+        texts = [v for vv in tour["known_text_by_image_id"].values() for v in vv.split(";")]
+        bad = [v for v in texts if not re.fullmatch(fmt, v)]
+        tour["format_check"] = {"regex": fmt, "n": len(texts), "n_invalid": len(bad), "invalid_examples": bad[:10]}
+    used_cats = {a.get("category_id") for a in data["annotations"]}
+    empty_cats = [c["name"] for c in data["categories"] if c["id"] not in used_cats]
     grouping = di.analyze_grouping(data, "cmr_count")
     if hashes:
         grouping["near_duplicates"] = di.near_duplicates(hashes, icfg.get("near_duplicate_hash_distance", 6))
@@ -413,6 +460,7 @@ def main() -> int:
         "summary": {"n_images": len(data["images"]), "n_annotations": len(data["annotations"]),
                     "categories": [f"{c['id']}:{c['name']}" for c in data["categories"]],
                     "images_without_annotations": len(no_ann),
+                    "categories_without_annotations": empty_cats,
                     "images_without_annotations_examples": no_ann[:20]},
         "boxes": di_sorted(box_stats(data), classes),
         "images": imstats,
@@ -426,7 +474,7 @@ def main() -> int:
 
     file_names = [i["file_name"] for i in data["images"]]
     if not args.no_templates:
-        if doc["source"]["kind"] == "missing":
+        if doc["source"]["kind"] == "missing" and not (doc_csv_path and doc_csv_path.is_file()):
             st = write_template(labels_dir / "doc_types.csv", DOC_TYPES_HEADER, file_names)
             report["outputs"]["labels/doc_types.csv"] = st
         existing_tour: dict[str, str] = {}

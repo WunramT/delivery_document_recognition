@@ -2,8 +2,10 @@
 # Sections for training, OCR, zones and thresholds are added in later steps.
 
 paths:
-  coco: /data/coco.json          # read-only mount
-  images: /data/images           # read-only mount
+  # Roboflow export in labels/ (gitignored). In the devcontainer (step 1) this
+  # becomes a read-only mount under /data.
+  coco: labels/_annotations.coco.json
+  images: labels/images
   artifacts: artifacts           # all derived data (gitignored)
   labels: labels
 
@@ -16,12 +18,16 @@ labels:
     # coco_attribute | coco_category | filename | folder | csv
     source: csv
     coco_attribute: null           # e.g. "extra.doc_type" (dotted path in image dict)
-    csv: labels/doc_types.csv
+    csv: labels/page_types.csv     # own labels; delimiter and columns auto-detected
+    csv_file_column: null          # null = auto (file_name, filename, image, ...)
+    csv_value_column: null         # null = auto (doc_type, page_type, type, ...)
   tour_number:
     # coco_attribute | csv
     source: csv
     coco_attribute: attributes.text  # dotted path in annotation dict
     csv: labels/tour_numbers.csv
+    # "number/number", e.g. 200/01. Kept as a string: leading zeros matter.
+    format_regex: '^\d+/\d+$'
 
 inspect:
   bbox_tolerance_px: 1.0

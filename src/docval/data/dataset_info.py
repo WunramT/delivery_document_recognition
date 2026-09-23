@@ -10,9 +10,7 @@ import re
 from pathlib import PurePosixPath
 
 from .coco import STANDARD_ANN_KEYS, STANDARD_IMAGE_KEYS
-
-# Roboflow export suffix: "<orig>_jpg.rf.<32 hex>.jpg"
-RF_SUFFIX = re.compile(r"_(jpe?g|png|tiff?|bmp|pdf|webp)\.rf\.[0-9a-f]{16,}(\.\w+)?$", re.I)
+from .labels import RF_SUFFIX, match_to_coco, read_label_table
 PAGE_SUFFIX = re.compile(
     r"^(?P<prefix>.*?)[\s_\-.]*(?:p|pg|page|seite|s|strona)?[\s_\-.]*(?<!\d)(?P<page>\d{1,3})$",
     re.I,
@@ -205,6 +203,32 @@ def analyze_doc_type_sources(data: dict, doc_types: list[str],
     else:
         result["source"] = {"kind": "missing"}
     return result
+
+
+def analyze_doc_type_csv(data: dict, path, doc_types: list[str],
+                         file_col: str | None = None, value_col: str | None = None) -> dict:
+    """Coverage and value distribution of an external doc type CSV."""
+    values, info = read_label_table(path, value_col=value_col, file_col=file_col)
+    out = {"info": info}
+    if not info["exists"]:
+        return out
+    file_names = [i["file_name"] for i in data["images"]]
+    matched, stats = match_to_coco(values, file_names)
+    dist: dict[str, int] = {}
+    for v in matched.values():
+        dist[v] = dist.get(v, 0) + 1
+    n = len(file_names)
+    out.update({
+        "matched": len(matched),
+        "coverage": len(matched) / n if n else 0,
+        "match_stats": {k: (v if isinstance(v, int) else len(v)) for k, v in stats.items()},
+        "unmatched_coco_examples": stats["unmatched_coco"][:10],
+        "unmatched_csv_examples": stats["unmatched_csv"][:10],
+        "value_distribution": dict(sorted(dist.items(), key=lambda kv: -kv[1])),
+        "values_not_in_doc_types": sorted(v for v in dist if v.lower() not in doc_types),
+        "matched_values": matched,
+    })
+    return out
 
 
 def analyze_tour_text(data: dict, tour_class: str) -> dict:
