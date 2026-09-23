@@ -1,0 +1,14 @@
+# Top-level dependencies (core pipeline). Pinned result: requirements.txt
+# torch/torchvision come from the PyTorch index (CPU or CUDA, see Dockerfile).
+torch==2.14.0
+torchvision==0.29.0
+rfdetr[train,onnx]==1.10.1
+onnxruntime==1.30.0
+timm==1.0.30
+opencv-python-headless==4.10.0.84  # roboflow needs headless; paddlex (reference) the same version as contrib
+pyclipper==1.4.0
+huggingface_hub
+PyYAML==6.0.2
+Pillow==11.3.0
+tensorboard
+pytest==8.4.2

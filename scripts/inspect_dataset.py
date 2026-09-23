@@ -25,8 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-import yaml  # noqa: E402
-
+from docval.config import load_config  # noqa: E402
 from docval.data import dataset_info as di  # noqa: E402
 from docval.data.coco import find_image, load_coco, validate_coco  # noqa: E402
 from docval.data.labels import (  # noqa: E402
@@ -46,7 +45,7 @@ def resolve(p: str | Path) -> Path:
 
 def parse_args():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--config", default=str(ROOT / "config.yaml"))
+    ap.add_argument("--config", default=None, help="default: $DOCVAL_CONFIG or config.yaml")
     ap.add_argument("--coco", help="override paths.coco")
     ap.add_argument("--images", help="override paths.images")
     ap.add_argument("--out", help="output dir (default <artifacts>/inspect)")
@@ -496,7 +495,7 @@ def main() -> int:
         except AttributeError:
             pass
     args = parse_args()
-    cfg = yaml.safe_load(open(args.config, encoding="utf-8"))
+    cfg = load_config(args.config)
     icfg = cfg.get("inspect", {})
     coco_path = resolve(args.coco or cfg["paths"]["coco"])
     image_dir = resolve(args.images or cfg["paths"]["images"])

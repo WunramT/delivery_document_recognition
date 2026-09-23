@@ -1,0 +1,4 @@
+# Optional: PaddleOCR Python pipeline as OCR reference (ocr.paddle_reference).
+# Pulls LGPL packages (crc32c, python-bidi) via paddlex - therefore separate.
+paddlepaddle==3.3.1
+paddleocr==3.7.0

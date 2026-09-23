@@ -1,13 +1,15 @@
 # docval configuration. Paths are relative to the repo root unless absolute.
-# Sections for training, OCR, zones and thresholds are added in later steps.
+# ${VAR:-default} is expanded from the environment (the devcontainer sets
+# DOCVAL_DATA=/data, a read-only mount of labels/).
+
+seed: 42
 
 paths:
-  # Roboflow export in labels/ (gitignored). In the devcontainer (step 1) this
-  # becomes a read-only mount under /data.
-  coco: labels/_annotations.coco.json
-  images: labels/images
-  artifacts: artifacts           # all derived data (gitignored)
-  labels: labels
+  coco: ${DOCVAL_DATA:-labels}/_annotations.coco.json
+  images: ${DOCVAL_DATA:-labels}/images
+  artifacts: ${DOCVAL_ARTIFACTS:-artifacts}   # all derived data (gitignored)
+  labels: labels                               # writable label CSVs / review page
+  models: ${DOCVAL_MODELS:-artifacts/models_cache}  # downloaded weights (docker volume)
 
 classes: [unterschrift, stempel, tour_nummer, cmr_count]
 doc_types: [cmr, lieferschein, loading_list]
@@ -15,28 +17,132 @@ doc_types: [cmr, lieferschein, loading_list]
 # Where ground truth for doc type and tour number comes from.
 labels:
   doc_type:
-    # coco_attribute | coco_category | filename | folder | csv
-    source: csv
+    source: csv                    # csv | coco_attribute
     coco_attribute: null           # e.g. "extra.doc_type" (dotted path in image dict)
-    csv: labels/page_types.csv     # own labels; delimiter and columns auto-detected
+    csv: ${DOCVAL_DATA:-labels}/page_types.csv  # delimiter and columns auto-detected
     csv_file_column: null          # null = auto (file_name, filename, image, ...)
     csv_value_column: null         # null = auto (doc_type, page_type, type, ...)
   tour_number:
-    # coco_attribute | csv
-    source: csv
-    coco_attribute: attributes.text  # dotted path in annotation dict
-    csv: labels/tour_numbers.csv
+    source: csv                    # csv | coco_attribute
+    coco_attribute: attributes.text
+    csv: labels/tour_numbers.csv   # "?" = unreadable in GT
     # "number/number", e.g. 200/01. Kept as a string: leading zeros matter.
     format_regex: '^\d+/\d+$'
 
+# ---------------------------------------------------------------- step 2: split
+split:
+  ratios: {train: 0.70, valid: 0.15, test: 0.15}
+  # segment: shipments inside a scan batch (new segment at each block of
+  #          segment_start_types, own segment for own_segment_types)
+  # source_pdf | tour_number | none are the alternatives
+  group_by: segment
+  segment_start_types: [cmr]
+  own_segment_types: [loading_list]
+  # Only one loading list exists -> its pages are split individually so every
+  # split contains one. Leakage risk, stated in the report.
+  ungroup_doc_types: [loading_list]
+
+# ---------------------------------------------------------------- step 3: detector
+detector:
+  size: nano                  # nano | small | medium (Apache-2.0 only; no XL/2XL)
+  # page is squashed to res x res: at 384 (nano default) a tour_nummer box is
+  # ~9 px tall, at 640 ~15 px. Must be a multiple of 32. null = model default.
+  resolution: 640
+  epochs: 60
+  batch_size: 2
+  grad_accum_steps: 4
+  lr: 1.0e-4
+  num_workers: 2
+  early_stopping: true
+  early_stopping_patience: 15
+  device: auto                # auto | cpu | cuda
+  onnx_opset: 17
+  # evaluation
+  score_threshold: 0.5        # detections >= this count as "found"
+  score_uncertain: 0.3        # in [uncertain, threshold) -> "unsicher"
+  iou_match: 0.5
+  parity:                     # PyTorch vs. ONNX Runtime (CPU)
+    n_images: 20
+    max_box_diff: 0.005       # normalized coords (0.005 = ~3 px at 640 px input)
+    max_score_diff: 0.005
+    # additionally: every PyTorch detection >= score_threshold needs an ONNX counterpart
+
+# ---------------------------------------------------------------- step 4: doc type
+doctype:
+  header_fraction: 0.20       # OCR on the top 20 % of the page
+  fuzzy_min_len: 7            # keywords >= 7 chars tolerate 1 OCR error
+  priority: []                # tie-break if several types match, e.g. [cmr]
+  keywords:
+    cmr: [CMR, Frachtbrief, List przewozowy, Lettre de voiture, Consignment note]
+    lieferschein: [Lieferschein, Delivery note, Dowód dostawy, Wydanie zewnętrzne, Dokument WZ]
+    loading_list: [Loading List, Ladeliste, List załadunkowy, Lista załadunkowa, Lista załadowcza]
+  classifier:
+    enabled: true
+    model: mobilenetv3_small_100  # timm, Apache-2.0
+    img_size: 320
+    epochs: 15
+    batch_size: 8
+    lr: 1.0e-3
+    min_confidence: 0.80      # below -> unsicher (if no keyword)
+    conflict_confidence: 0.90 # keyword vs. confident classifier disagree -> unsicher
+
+# ---------------------------------------------------------------- step 5: zones
+zones:
+  percentiles: [2, 98]        # of the box centers in the train split
+  margin: 0.03                # added on every side (fraction of the page)
+  min_samples: 3
+  min_overlap: 0.5            # share of a detected box that must lie in the zone
+  rules:                      # what is required per doc type
+    cmr: {require: [unterschrift, stempel], mode: all}
+    lieferschein: {require: [unterschrift, stempel], mode: all}
+    loading_list: {require: []}
+  synthetic:
+    fill: median              # median | white
+    kinds: [remove_one, remove_all, move_one]
+
+# ---------------------------------------------------------------- step 6: OCR
+ocr:
+  crop_padding: 0.12          # 10-15 % around the tour_nummer box
+  min_score: 0.90             # auto-accept only above this recognition score
+  # official ONNX exports (Hugging Face, Apache-2.0); first engine = primary
+  engines:
+    ppocrv5:
+      det: PaddlePaddle/PP-OCRv5_mobile_det_onnx
+      rec: PaddlePaddle/PP-OCRv5_mobile_rec_onnx
+      header_rec: PaddlePaddle/latin_PP-OCRv5_mobile_rec_onnx   # de/pl keywords
+    ppocrv6:
+      det: PaddlePaddle/PP-OCRv6_small_det_onnx
+      rec: PaddlePaddle/PP-OCRv6_small_rec_onnx
+      header_rec: PaddlePaddle/PP-OCRv6_small_rec_onnx
+  det_limit_side_len: 960
+  modes: [rec_only, det_rec]
+  paddle_reference: true      # PaddleOCR Python pipeline on GT crops as reference
+  read_cmr_count: true
+
+# ---------------------------------------------------------------- step 7: acceptance
+acceptance:
+  detector_recall:            # Recall@IoU0.5 on the test split
+    unterschrift: 0.95
+    stempel: 0.95
+    tour_nummer: 0.98
+  doctype_accuracy: 0.98      # without "unsicher"
+  doctype_uncertain_max: 0.05
+  position_recall_negatives: 0.95
+  position_false_alarm_max: 0.05
+  tour_exact_match_accepted: 0.99
+  tour_acceptance_target: 0.90  # reported, not a hard criterion
+  fail_on_missing_gt: true    # e.g. no tour numbers entered yet -> criterion failed
+  enforce: true               # exit code != 0 if a criterion is missed
+
+report:
+  gallery_size: 30
+
 inspect:
   bbox_tolerance_px: 1.0
-  tour_crop_padding: 0.12          # fraction of box size on each side
-  near_duplicate_hash_distance: 6  # dHash (256 bit) Hamming distance
+  tour_crop_padding: 0.12
+  near_duplicate_hash_distance: 6
   compute_image_hashes: true
-  # Only used to detect doc type hints in file/folder names (not as GT).
-  # Keywords with <= 3 chars must match a whole token.
-  name_keywords:
+  name_keywords:              # only hints in file/folder names, never GT
     cmr: [cmr]
     lieferschein: [lieferschein, delivery, ls, wz, dn]
     loading_list: [loading, ladeliste, ladeschein, loadinglist, zaladunk, packlist]

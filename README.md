@@ -1,59 +1,140 @@
 # Dokumentvalidierung – lokale Test- und Evaluationsumgebung
 
-Prüft gescannte Versanddokumente (Loading List, Lieferschein, CMR): Dokumenttyp,
-Unterschrift/Stempel in den Soll-Zonen, Tournummer per OCR.
+Prüft gescannte Versanddokumente (Loading List, Lieferschein, CMR) seitenweise:
 
-> Stand: **Schritt 0 (Datensatz-Inspektion)**. Devcontainer, Split, Training,
-> Export, Evaluation und der vollständige Make-Umfang folgen in den nächsten Schritten.
+1. **Dokumenttyp** – OCR-Keywords im Kopfbereich (PP-OCR), optional Bildklassifikator als zweite Stimme
+2. **Objekte** – RF-DETR erkennt `unterschrift`, `stempel`, `tour_nummer`, `cmr_count`
+3. **Positionsprüfung** – liegen Unterschrift/Stempel in den Soll-Zonen des Dokumenttyps?
+4. **Tournummer** – Crop der `tour_nummer`-Box → PP-OCR → Formatprüfung + Konfidenz-Schwelle
 
-## Eingabedaten
+Die Produktion läuft später im Browser (ONNX Runtime Web). Deshalb wertet `make eval`
+**ausschließlich die ONNX-Modelle** aus, und Vor-/Nachverarbeitung (RF-DETR, PP-OCR-CTC,
+DB-Textdetektion, Zonen- und Regel-Logik) sind selbst implementiert – ohne Python-Tricks,
+damit sie 1:1 nach JavaScript portiert werden können.
 
-- Aktuell: Roboflow-Export lokal in `labels/` (`_annotations.coco.json`, `images/`) plus
-  eigene Dokumenttyp-Labels in `labels/page_types.csv`. Bilder und COCO-Datei sind gitignored.
-- Im Devcontainer (ab Schritt 1) werden die Daten **read-only** gemountet und nie verändert.
-- Alles Abgeleitete landet in `artifacts/` (gitignored).
-- Pfade stehen in `config.yaml` unter `paths`.
+## Setup
 
-## Schritt 0: `make inspect`
+### Variante A: Devcontainer (empfohlen)
+
+VS Code → „Reopen in Container“ → **`docval (CPU)`** oder **`docval (GPU, NVIDIA)`** wählen
+(`.devcontainer/cpu/` bzw. `.devcontainer/gpu/`, gemeinsames `.devcontainer/Dockerfile`).
+
+- Python 3.11, OpenCV-Systembibliotheken, poppler (PDF-Rendering).
+- GPU-Variante: `--gpus all`, PyTorch mit CUDA 12.6. Alles läuft auch auf der CPU, nur langsamer.
+- `labels/` wird **read-only** nach `/data` gemountet (`DOCVAL_DATA=/data`); Eingabedaten werden nie verändert.
+- Modellgewichte liegen im benannten Docker-Volume `docval-models` (`/models`).
+  `postCreateCommand` führt einmal `make fetch-models` aus – danach läuft alles **offline**.
+
+### Variante B: ohne Container
 
 ```bash
+python3.11 -m venv .venv && . .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.0 torchvision==0.29.0
 pip install -r requirements.txt
-make inspect                                   # nutzt paths.* aus config.yaml
-python scripts/inspect_dataset.py              # dasselbe ohne make (z. B. Windows)
-python3 scripts/inspect_dataset.py --coco pfad/coco.json --images pfad/bilder   # ohne Container
+pip install -r requirements-reference.txt   # optional: PaddleOCR-Python-Referenz
+pip install --force-reinstall --no-deps opencv-contrib-python==4.10.0.84   # nur mit Referenz
+make fetch-models
 ```
 
-Ergebnis:
+Ohne `make` (Windows, PowerShell): `$env:PYTHONPATH="src"`, dann `python -m docval <befehl>`
+(`split`, `train`, `export`, `eval`, `report`, `fetch-models`) bzw. `python scripts/inspect_dataset.py`.
 
-| Datei | Inhalt |
+### Abhängigkeiten und Lizenzen
+
+- `requirements.in` = direkte Abhängigkeiten, `requirements.txt` = alle exakt gepinnt (Python 3.11).
+- Nur Apache-2.0/MIT/BSD im Kern. RF-DETR nur **N/S/M** (Apache-2.0; XL/2XL sind PML und werden
+  abgelehnt). Kein ultralytics/YOLO, Chandra, Surya.
+- MPL-2.0 (unverändert genutzt): `certifi`, `tqdm`.
+- `requirements-reference.txt` (PaddleOCR/paddlex) zieht die LGPL-Pakete `crc32c` und
+  `python-bidi` nach und ist deshalb **optional** (nur für den Referenzvergleich,
+  `ocr.paddle_reference`). Der Kern läuft ohne.
+
+## Make-Targets
+
+| Target | Was passiert |
 |---|---|
-| `artifacts/inspect/inspect.md` | Zusammenfassung: Klassen, Boxgrößen, Auflösungen, Validierungsfehler, Herkunft Dokumenttyp, Tournummer-GT, Gruppierbarkeit |
-| `artifacts/inspect/inspect.json` | dieselben Befunde maschinenlesbar |
-| `artifacts/inspect/tour_crops/` | Crops aller `tour_nummer`-Boxen (12 % Rand) |
-| `labels/doc_types.csv` | Vorlage `file_name,doc_type`, nur wenn der Dokumenttyp nicht im Datensatz steckt |
-| `labels/tour_numbers.csv` | Vorlage `file_name,tour_number`, nur wenn der Tournummer-Text fehlt |
-| `labels/tour_review.html` | Review-Seite: Crop + Eingabefeld je Bild |
+| `make inspect` | Schritt 0: Statistik, Validierung, Herkunft Dokumenttyp/Tournummer, Gruppierung → `artifacts/inspect/inspect.md`; legt ggf. Label-Vorlagen + `labels/tour_review.html` an |
+| `make split` | train/valid/test 70/15/15, fester Seed, **gruppiert nach Sendung**, stratifiziert nach Dokumenttyp → `artifacts/splits/detector/{train,valid,test}/_annotations.coco.json` (Bilder verlinkt), `artifacts/splits/split.json` |
+| `make train` | RF-DETR (`detector.size`, Standard Nano, 640 px) + Dokumenttyp-Klassifikator (timm MobileNetV3); Logs: TensorBoard + `metrics.csv` in `artifacts/detector/run/` |
+| `make export` | Detektor → `artifacts/detector/detector.onnx` + **Paritätstest** PyTorch vs. ONNX Runtime (CPU) auf 20 Bildern → `parity.json` (Exit 3 bei Abweichung) |
+| `make eval` | alle Stufen auf dem Test-Split mit ONNX → `artifacts/report/report.md` + `report.html`; **Exit-Code 1, wenn ein Kriterium verfehlt wird** |
+| `make report` | Report aus `artifacts/report/results.json` neu rendern (ohne neu zu rechnen) |
+| `make test` | pytest-Unit-Tests |
+| `make smoke` | ganze Pipeline auf 12 synthetischen Seiten, 1 Epoche, CPU (~1 min, Grenze 5 min) – prüft, ob die Umgebung intakt ist |
+| `make fetch-models` | alle Gewichte in den Cache (einmalig, online) |
+| `make all` | split → train → export → eval |
 
-Bestehende CSVs werden **nie überschrieben**, nur um neue Dateinamen ergänzt.
+Richtwert Training auf der CPU (Nano, 640 px, 55 Trainingsseiten): grob 2–5 min pro Epoche, mit
+Early Stopping typischerweise 1–3 h. Auf einer GPU wenige Minuten.
 
-### Label-CSVs ausfüllen
+## Konfiguration (`config.yaml`)
 
-- Dokumenttyp aus eigener CSV: `labels.doc_type.csv` in `config.yaml` (Standard
-  `labels/page_types.csv`). Trennzeichen (`,` `;` Tab) und Spalten werden erkannt,
-  sonst `csv_file_column`/`csv_value_column` setzen. Dateinamen werden auch ohne
-  Roboflow-Suffix (`_jpg.rf.<hash>`) und Endung zugeordnet.
-- `labels/doc_types.csv` (nur ohne eigene CSV): Spalte `doc_type` mit einem Wert aus `doc_types` in `config.yaml`
-  (`cmr`, `lieferschein`, `loading_list`).
-- `labels/tour_numbers.csv`: am einfachsten über `labels/tour_review.html` im Browser
-  (Datei direkt öffnen). Enter springt zum nächsten Feld, Eingaben werden lokal
-  zwischengespeichert, „herunterladen“ erzeugt die CSV, die nach `labels/` kopiert wird.
-  Format: `Zahl/Zahl`, z. B. `200/01` (`labels.tour_number.format_regex`). Unleserlich: `?` eintragen. Mehrere Boxen auf einer Seite: Werte mit `;` trennen.
-- Welche Quelle die Pipeline nutzt, steht in `config.yaml` unter `labels.doc_type.source`
-  bzw. `labels.tour_number.source` (`csv` oder `coco_attribute`, beim Dokumenttyp auch
-  `filename`/`folder`/`coco_category`).
+Alles Einstellbare steht dort: Pfade, Klassen, Label-Quellen, Split, Detektor-Hyperparameter,
+Keywords (DE/PL, erweiterbar), Zonen-Regeln, Regex der Tournummer, OCR-Modelle, Schwellen und
+Akzeptanzkriterien. `configs/smoke.yaml` überschreibt nur einzelne Werte (`extends:`).
 
-## Tests
+Wichtige Stellen:
 
-```bash
-make test
+- `split.group_by: segment` – eine neue Sendung beginnt bei jedem CMR-Block; die Loading List
+  ist ein eigenes Segment. Weil es nur eine Loading List gibt, werden ihre Seiten einzeln
+  verteilt (`ungroup_doc_types`) – das Leck-Risiko steht im Report.
+  Alternativen: `source_pdf`, `tour_number` (sobald die Tournummern erfasst sind), `none`.
+- `zones.rules` – was pro Dokumenttyp gefordert ist (`require`, `mode: all` = und, `any` = oder).
+- `labels.tour_number.format_regex` – Format `Zahl/Zahl`, z. B. `200/01`.
+- `acceptance` – Schwellen für `make eval`.
+
+## Label-CSVs ausfüllen
+
+- **Dokumenttyp:** `labels/page_types.csv` (`file_name;doc_type;source_pdf;source_page`) –
+  vorhanden. Werte müssen in `doc_types` stehen (`cmr`, `lieferschein`, `loading_list`).
+  Trennzeichen und Spalten werden erkannt; Dateinamen werden auch ohne Ordner/Endung zugeordnet.
+- **Tournummer:** `labels/tour_numbers.csv` (`file_name,tour_number`). Am einfachsten:
+  1. `make inspect` (erzeugt Crops unter `artifacts/inspect/tour_crops/`)
+  2. `labels/tour_review.html` im Browser öffnen, Nummern eintippen (Enter = nächstes Feld;
+     Eingaben bleiben im Browser gespeichert), „herunterladen“, Datei als `labels/tour_numbers.csv` speichern.
+  3. Unleserlich: `?` eintragen – eine automatisch akzeptierte OCR-Lesung dort zählt als Fehler.
+- Quelle umschalten: `labels.*.source` (`csv` oder `coco_attribute`, z. B. `attributes.text`).
+- Bestehende CSVs werden nie überschrieben, nur um neue Dateinamen ergänzt.
+
+## Soll-Zonen
+
+`make eval` leitet die Zonen aus dem **Train-Split** ab (Perzentile 2–98 % der Box-Zentren plus
+Rand und halbe Median-Boxgröße) und schreibt `artifacts/zones.yaml`. Zum manuellen Korrigieren
+Werte ändern und `locked: true` setzen – dann wird die Datei nicht mehr überschrieben;
+frisch abgeleitete Werte stehen weiter in `artifacts/zones.derived.yaml`.
+
+## Report lesen (`artifacts/report/report.html`)
+
+1. **Gesamtergebnis und Fazit** – was funktioniert, was verfehlt ist, wo der größte Hebel liegt.
+2. **Akzeptanzkriterien** – Wert, Schwelle, Stichprobengröße `n` und **95%-Konfidenzintervall**
+   (Wilson). Bei kleinen `n` ist das Intervall breit: 10 von 10 richtig heißt nur „≥ 69 %“ mit
+   95 % Sicherheit. Ein Kriterium „ohne Daten/GT“ gilt als verfehlt (`fail_on_missing_gt`).
+3. **Detektor** – Paritätstest, Recall/Precision/AP50 je Klasse und eine **P/R-Tabelle über die
+   Schwelle**, um `detector.score_threshold` bewusst zu wählen.
+4. **Dokumenttyp** – Konfusionsmatrix, Metriken je Typ, Keyword vs. Klassifikator einzeln.
+5. **Positionsprüfung** – Fehlalarmrate auf echten korrekten Seiten, Recall auf synthetischen
+   Negativen (Unterschrift/Stempel entfernt oder in eine falsche Zone verschoben; unter
+   `artifacts/synthetic/`), abgeleitete Zonen und Abgleich mit den CMR-Feldern 22/23/24.
+   Seiten, die schon laut GT die Regel nicht erfüllen, sind separat aufgeführt.
+6. **Tournummer** – v5 vs. v6, nur Recognition vs. Det+Rec, GT-Box vs. vorhergesagte Box,
+   Schwellen-Tabelle (Akzeptanzquote vs. Exact Match) und Referenz PaddleOCR-Python.
+7. **Laufzeit** pro Seite und Stufe (CPU).
+8. **Fehlergalerie** – bis zu 30 schlimmste Fälle je Stufe: grün = GT, rot = Vorhersage,
+   blau = Soll-Zone bzw. OCR-Kopfbereich.
+
+## Struktur
+
+```
+.devcontainer/{cpu,gpu}/devcontainer.json, Dockerfile
+config.yaml, configs/smoke.yaml
+src/docval/data      COCO laden/validieren, Label-Quellen, Split, RF-DETR-Ordner
+src/docval/detect    RF-DETR Training/Export/Parität, ONNX-Inferenz
+src/docval/doctype   Keyword-Regeln + Kombination, Klassifikator (ONNX)
+src/docval/zones     Zonen ableiten, Positionsprüfung, synthetische Negative
+src/docval/ocr       PP-OCR ONNX (Det + Rec), Tournummer-Korrektur, CMR-Zählung
+src/docval/eval      Metriken, Evaluation, Report
+scripts/             inspect_dataset.py, make_smoke_dataset.py, fetch_models.py
+labels/              page_types.csv, tour_numbers.csv, tour_review.html
+tests/               pytest
+artifacts/           (gitignored) Splits, Modelle, ONNX, zones.yaml, report/
 ```

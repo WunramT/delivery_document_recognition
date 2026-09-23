@@ -1,0 +1,34 @@
+# Smoke test: synthetic mini dataset, 1 epoch, CPU. `make smoke`
+extends: ../config.yaml
+paths:
+  coco: artifacts/smoke/data/_annotations.coco.json
+  images: artifacts/smoke/data/images
+  artifacts: artifacts/smoke
+labels:
+  doc_type: {csv: artifacts/smoke/data/page_types.csv}
+  tour_number: {csv: artifacts/smoke/data/tour_numbers.csv}
+split:
+  group_by: none
+  ungroup_doc_types: []
+detector:
+  resolution: null   # model default (384), keeps smoke fast
+  epochs: 1
+  batch_size: 2
+  grad_accum_steps: 1
+  num_workers: 0
+  early_stopping: false
+  device: cpu
+  parity: {n_images: 3}
+doctype:
+  classifier: {epochs: 1}
+ocr:
+  engines:
+    ppocrv5:
+      det: PaddlePaddle/PP-OCRv5_mobile_det_onnx
+      rec: PaddlePaddle/PP-OCRv5_mobile_rec_onnx
+      header_rec: PaddlePaddle/latin_PP-OCRv5_mobile_rec_onnx
+  paddle_reference: false
+acceptance:
+  enforce: false   # smoke checks that the pipeline runs, not its quality
+report:
+  gallery_size: 5
