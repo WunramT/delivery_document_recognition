@@ -5,7 +5,7 @@ SMOKE_CONFIG := configs/smoke.yaml
 export PYTHONPATH := $(CURDIR)/src
 DOCVAL := $(PY) -m docval --config
 
-.PHONY: help inspect split train export eval report test smoke fetch-models all clean-smoke
+.PHONY: help inspect split train export eval report test smoke fetch-models all clean-smoke gpu-check
 
 help:
 	@echo "inspect  Schritt 0: Datensatz analysieren, Label-Vorlagen + Review-Seite"
@@ -17,6 +17,7 @@ help:
 	@echo "test     Unit-Tests"
 	@echo "smoke    ganze Pipeline auf synthetischer Mini-Teilmenge (CPU, < 5 min)"
 	@echo "fetch-models  alle Gewichte in den Cache laden (danach offline)"
+	@echo "gpu-check     prüfen, ob PyTorch und ONNX Runtime die GPU sehen"
 
 inspect:
 	$(PY) scripts/inspect_dataset.py --config $(CONFIG)
@@ -40,6 +41,9 @@ fetch-models:
 	$(DOCVAL) $(CONFIG) fetch-models
 
 all: split train export eval
+
+gpu-check:
+	@$(PY) -c "import torch; ok = torch.cuda.is_available(); print('torch', torch.__version__, '| CUDA verfügbar:', ok, '|', torch.cuda.get_device_name(0) if ok else 'keine GPU - Training läuft auf der CPU')"
 
 test:
 	$(PY) -m pytest -q tests

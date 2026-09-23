@@ -25,6 +25,30 @@ VS Code → „Reopen in Container“ → **`docval (CPU)`** oder **`docval (GPU
 - Modellgewichte liegen im benannten Docker-Volume `docval-models` (`/models`).
   `postCreateCommand` führt einmal `make fetch-models` aus – danach läuft alles **offline**.
 
+### GPU mit Podman unter Windows (einmalig)
+
+Fehler `unresolvable CDI devices nvidia.com/gpu=all` beim Start des GPU-Containers heißt:
+In der Podman-Maschine fehlt die CDI-Beschreibung der NVIDIA-GPU. Voraussetzung ist ein
+aktueller NVIDIA-Treiber unter Windows (die GPU wird per WSL durchgereicht). Dann einmalig:
+
+```powershell
+podman machine ssh
+```
+```bash
+# in der Podman-Maschine (Fedora):
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo \
+  | sudo tee /etc/yum.repos.d/nvidia-container-toolkit.repo
+sudo yum install -y nvidia-container-toolkit
+sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+nvidia-ctk cdi list          # muss nvidia.com/gpu=all anzeigen
+exit
+```
+
+Test: `podman run --rm --device nvidia.com/gpu=all ubuntu nvidia-smi`. Danach den Container
+neu öffnen („Rebuild Container“ ist nicht nötig, „Reopen in Container“ reicht) und im Container
+`make gpu-check` ausführen. Nach einem Treiber-Update die `cdi generate`-Zeile wiederholen.
+Bis dahin funktioniert die Variante **`docval (CPU)`** ohne weitere Einrichtung.
+
 ### Variante B: ohne Container
 
 ```bash
@@ -62,6 +86,7 @@ Ohne `make` (Windows, PowerShell): `$env:PYTHONPATH="src"`, dann `python -m docv
 | `make test` | pytest-Unit-Tests |
 | `make smoke` | ganze Pipeline auf 12 synthetischen Seiten, 1 Epoche, CPU (~1 min, Grenze 5 min) – prüft, ob die Umgebung intakt ist |
 | `make fetch-models` | alle Gewichte in den Cache (einmalig, online) |
+| `make gpu-check` | zeigt, ob PyTorch die GPU sieht (sonst Training auf der CPU) |
 | `make all` | split → train → export → eval |
 
 Richtwert Training auf der CPU (Nano, 640 px, 55 Trainingsseiten): grob 2–5 min pro Epoche, mit
