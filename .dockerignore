@@ -1,0 +1,4 @@
+# only requirements*.txt are needed for the image; code/data are bind-mounted
+*
+!requirements.txt
+!requirements-reference.txt
