@@ -28,7 +28,7 @@ sys.path.insert(0, str(ROOT / "src"))
 import yaml  # noqa: E402
 
 from docval.data import dataset_info as di  # noqa: E402
-from docval.data.coco import load_coco, validate_coco  # noqa: E402
+from docval.data.coco import find_image, load_coco, validate_coco  # noqa: E402
 from docval.data.labels import (  # noqa: E402
     DOC_TYPES_HEADER, TOUR_NUMBERS_HEADER, read_label_csv, write_template,
 )
@@ -57,6 +57,59 @@ def parse_args():
 
 
 # --------------------------------------------------------------------------- stats
+
+def out_of_image_summary(val, data: dict) -> dict:
+    cats = {c["id"]: c["name"] for c in data["categories"]}
+    ann_cat = {a.get("id"): cats.get(a.get("category_id")) for a in data["annotations"]}
+    issues = [i for i in val.issues if i.kind == "bbox_out_of_image"]
+    sides: dict[str, int] = {}
+    by_class: dict[str, int] = {}
+    amounts = []
+    for i in issues:
+        for side, v in (i.detail or {}).items():
+            sides[side] = sides.get(side, 0) + 1
+            amounts.append(v)
+        c = ann_cat.get(i.ann_id) or "?"
+        by_class[c] = by_class.get(c, 0) + 1
+    pc = di.percentiles(amounts, (50, 100))
+    return {"n": len(issues), "sides": sides, "by_class": by_class,
+            "overshoot_p50": round(pc.get("p50", 0), 1), "overshoot_max": round(pc.get("p100", 0), 1)}
+
+
+def by_doc_type(data: dict, doc_of: dict[str, str], classes: list[str]) -> dict:
+    """Per doc type: pages, pages with >=1 box per class, box centers per class."""
+    cats = {c["id"]: c["name"] for c in data["categories"]}
+    imgs = {i["id"]: i for i in data["images"]}
+    out: dict[str, dict] = {}
+    for img in data["images"]:
+        t = doc_of.get(img["file_name"], "?")
+        out.setdefault(t, {"pages": 0, "pages_with": {c: 0 for c in classes},
+                           "cx": {c: [] for c in classes}, "cy": {c: [] for c in classes},
+                           "pages_without_any": 0})
+        out[t]["pages"] += 1
+    seen: dict = {}
+    for a in data["annotations"]:
+        img = imgs.get(a.get("image_id"))
+        name = cats.get(a.get("category_id"))
+        if img is None or name not in classes or not img.get("width"):
+            continue
+        t = doc_of.get(img["file_name"], "?")
+        key = (img["id"], name)
+        if key not in seen:
+            seen[key] = True
+            out[t]["pages_with"][name] += 1
+        x, y, w, h = a["bbox"]
+        out[t]["cx"][name].append((x + w / 2) / img["width"])
+        out[t]["cy"][name].append((y + h / 2) / img["height"])
+    with_ann = {a.get("image_id") for a in data["annotations"]}
+    for img in data["images"]:
+        if img["id"] not in with_ann:
+            out[doc_of.get(img["file_name"], "?")]["pages_without_any"] += 1
+    for t, d in out.items():
+        d["center_x"] = {c: di.percentiles(v, (2, 50, 98)) for c, v in d.pop("cx").items()}
+        d["center_y"] = {c: di.percentiles(v, (2, 50, 98)) for c, v in d.pop("cy").items()}
+    return out
+
 
 def box_stats(data: dict) -> dict:
     imgs = {i["id"]: i for i in data["images"]}
@@ -103,7 +156,8 @@ def box_stats(data: dict) -> dict:
     return out
 
 
-def image_stats(data: dict, image_dir: Path | None, want_hash: bool) -> dict:
+def image_stats(data: dict, image_dir: Path | None, want_hash: bool,
+                coco_dir: Path | None = None) -> dict:
     res: dict[str, int] = {}
     orient = {"hochformat": 0, "querformat": 0}
     exts: dict[str, int] = {}
@@ -118,12 +172,12 @@ def image_stats(data: dict, image_dir: Path | None, want_hash: bool) -> dict:
            "n_distinct_resolutions": len(res), "orientation": orient, "extensions": exts,
            "size_mismatch": [], "exif_rotated": [], "unreadable": [], "hashes": {},
            "mode": {}}
-    if Image is None or image_dir is None:
+    if Image is None or (image_dir is None and coco_dir is None):
         out["note"] = "Pillow nicht installiert oder kein Bildordner - Dateiprüfung übersprungen"
         return out
     for img in data["images"]:
-        p = image_dir / img["file_name"]
-        if not p.is_file():
+        p = find_image(img["file_name"], image_dir, coco_dir)
+        if p is None:
             continue
         try:
             with Image.open(p) as im:
@@ -147,7 +201,8 @@ def image_stats(data: dict, image_dir: Path | None, want_hash: bool) -> dict:
 
 # --------------------------------------------------------------------------- crops + review page
 
-def tour_crops(data: dict, image_dir: Path, crop_dir: Path, tour_class: str, pad: float) -> list[dict]:
+def tour_crops(data: dict, image_dir: Path | None, crop_dir: Path, tour_class: str, pad: float,
+               coco_dir: Path | None = None) -> list[dict]:
     if Image is None:
         return []
     crop_dir.mkdir(parents=True, exist_ok=True)
@@ -160,8 +215,8 @@ def tour_crops(data: dict, image_dir: Path, crop_dir: Path, tour_class: str, pad
             by_image.setdefault(a["image_id"], []).append(a)
     for iid, anns in by_image.items():
         img = imgs[iid]
-        p = image_dir / img["file_name"]
-        if not p.is_file():
+        p = find_image(img["file_name"], image_dir, coco_dir)
+        if p is None:
             continue
         try:
             im = Image.open(p)
@@ -313,8 +368,16 @@ def to_markdown(r: dict) -> str:
         L.append("| Fehlerart | Anzahl |\n|---|---|")
         for k, n in sorted(v["counts"].items()):
             L.append(f"| {k} | {n} |")
-        L.append("\nBeispiele:\n")
-        for i in v["examples"][:25]:
+        oo = v.get("out_of_image")
+        if oo and oo["n"]:
+            L.append(f"\n`bbox_out_of_image`: {oo['n']} Boxen, Seiten {oo['sides']}, Überstand px "
+                     f"(p50 / max) {oo['overshoot_p50']} / {oo['overshoot_max']}, Klassen {oo['by_class']}")
+        L.append("\nBeispiele (max. 5 je Fehlerart):\n")
+        shown: dict[str, int] = {}
+        for i in v["examples"]:
+            if shown.get(i["kind"], 0) >= 5:
+                continue
+            shown[i["kind"]] = shown.get(i["kind"], 0) + 1
             L.append(f"- `{i['kind']}`: {i['message']} (image_id={i['image_id']}, ann_id={i['ann_id']}, {i['file_name']})")
 
     d = r["doc_type"]
@@ -351,6 +414,26 @@ def to_markdown(r: dict) -> str:
                 L.append("   - COCO-Bilder ohne CSV-Zeile: " + ", ".join(f"`{x}`" for x in c["unmatched_coco_examples"][:6]))
             if c["unmatched_csv_examples"]:
                 L.append("   - CSV-Zeilen ohne COCO-Bild: " + ", ".join(f"`{x}`" for x in c["unmatched_csv_examples"][:6]))
+
+    pd = r.get("by_doc_type") or {}
+    if pd:
+        cls = list(next(iter(pd.values()))["pages_with"].keys())
+        L.append("\n## Klassen je Dokumenttyp\n")
+        L.append("Seiten mit ≥ 1 Box der Klasse (Anteil):\n")
+        L.append("| Dokumenttyp | Seiten | " + " | ".join(cls) + " | ohne Annotation |")
+        L.append("|---|---|" + "---|" * len(cls) + "---|")
+        for t, d in sorted(pd.items()):
+            cells = [f"{d['pages_with'][c]} ({d['pages_with'][c] / d['pages']:.0%})" for c in cls]
+            L.append(f"| {t} | {d['pages']} | " + " | ".join(cells) + f" | {d['pages_without_any']} |")
+        L.append("\nBox-Zentren je Dokumenttyp (x p2/p50/p98 ; y p2/p50/p98):\n")
+        L.append("| Dokumenttyp | " + " | ".join(cls) + " |")
+        L.append("|---|" + "---|" * len(cls))
+        for t, d in sorted(pd.items()):
+            cells = []
+            for c in cls:
+                cx, cy = d["center_x"][c], d["center_y"][c]
+                cells.append(f"{fmt_pct(cx, ('p2','p50','p98'), 2)} ; {fmt_pct(cy, ('p2','p50','p98'), 2)}" if cx else "-")
+            L.append(f"| {t} | " + " | ".join(cells) + " |")
 
     t = r["tour_text"]
     L.append("\n## Ground-Truth-Text der Tournummer\n")
@@ -434,11 +517,12 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     t0 = time.time()
-    val = validate_coco(data, image_dir_ok, icfg.get("bbox_tolerance_px", 1.0), classes)
+    coco_dir = coco_path.parent
+    val = validate_coco(data, image_dir_ok, icfg.get("bbox_tolerance_px", 1.0), classes, coco_dir)
     ann_imgs = {a.get("image_id") for a in data["annotations"]}
     no_ann = [i["file_name"] for i in data["images"] if i["id"] not in ann_imgs]
     want_hash = icfg.get("compute_image_hashes", True) and not args.no_hash
-    imstats = image_stats(data, image_dir_ok, want_hash)
+    imstats = image_stats(data, image_dir_ok, want_hash, coco_dir)
     hashes = imstats.pop("hashes")
     doc = di.analyze_doc_type_sources(data, cfg["doc_types"], icfg.get("name_keywords", {}), classes)
     dcfg = cfg.get("labels", {}).get("doc_type", {})
@@ -456,6 +540,8 @@ def main() -> int:
         texts = [v for vv in tour["known_text_by_image_id"].values() for v in vv.split(";")]
         bad = [v for v in texts if not re.fullmatch(fmt, v)]
         tour["format_check"] = {"regex": fmt, "n": len(texts), "n_invalid": len(bad), "invalid_examples": bad[:10]}
+    doc_of = (doc.get("csv") or {}).get("matched_values") or {}
+    per_doc = by_doc_type(data, doc_of, classes) if doc_of else {}
     used_cats = {a.get("category_id") for a in data["annotations"]}
     empty_cats = [c["name"] for c in data["categories"] if c["id"] not in used_cats]
     grouping = di.analyze_grouping(data, "cmr_count")
@@ -474,8 +560,10 @@ def main() -> int:
         "boxes": di_sorted(box_stats(data), classes),
         "images": imstats,
         "validation": {"counts": val.count_by_kind(),
-                       "examples": [vars(i) for i in val.issues[:200]]},
+                       "examples": [vars(i) for i in val.issues[:500]],
+                       "out_of_image": out_of_image_summary(val, data)},
         "doc_type": doc,
+        "by_doc_type": per_doc,
         "tour_text": tour,
         "grouping": grouping,
         "outputs": {},
@@ -493,15 +581,15 @@ def main() -> int:
             st = write_template(labels_dir / "tour_numbers.csv", TOUR_NUMBERS_HEADER, file_names, prefill)
             report["outputs"]["labels/tour_numbers.csv"] = st
             existing_tour = read_label_csv(labels_dir / "tour_numbers.csv", "tour_number")
-        if image_dir_ok is not None:
-            crop_dir = out_dir / "tour_crops"
-            crops = tour_crops(data, image_dir_ok, crop_dir, "tour_nummer", icfg.get("tour_crop_padding", 0.12))
-            report["outputs"]["tour_crops"] = f"{len(crops)} Crops in {crop_dir}"
-            if tour["source"]["kind"] == "missing":
-                html_path = labels_dir / "tour_review.html"
-                rel = Path(os.path.relpath(crop_dir, labels_dir)).as_posix()
-                write_review_html(html_path, file_names, crops, rel, existing_tour)
-                report["outputs"]["labels/tour_review.html"] = "erstellt"
+        crop_dir = out_dir / "tour_crops"
+        crops = tour_crops(data, image_dir_ok, crop_dir, "tour_nummer",
+                           icfg.get("tour_crop_padding", 0.12), coco_dir)
+        report["outputs"]["tour_crops"] = f"{len(crops)} Crops in {crop_dir}"
+        if tour["source"]["kind"] == "missing":
+            html_path = labels_dir / "tour_review.html"
+            rel = Path(os.path.relpath(crop_dir, labels_dir)).as_posix()
+            write_review_html(html_path, file_names, crops, rel, existing_tour)
+            report["outputs"]["labels/tour_review.html"] = "erstellt"
     report["runtime_s"] = round(time.time() - t0, 2)
 
     (out_dir / "inspect.json").write_text(json.dumps(report, indent=2, ensure_ascii=False, default=str),

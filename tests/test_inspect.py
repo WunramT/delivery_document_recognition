@@ -148,3 +148,36 @@ def test_csv_grouping_by_source_pdf():
     assert (g["group_col"], g["page_col"], g["n_groups"]) == ("source_pdf", "source_page", 1)
     assert g["type_sequence"]["a.pdf"] == "LCI"  # lieferschein gets I (L is taken)
     assert g["legend"] == {"L": "loading_list", "C": "cmr", "I": "lieferschein"}
+
+
+def test_file_names_relative_to_coco_dir(tmp_path):
+    """Export layout: labels/_annotations.coco.json + labels/images/, file_name 'images/x.png'."""
+    from PIL import Image
+    root = tmp_path / "labels"
+    (root / "images").mkdir(parents=True)
+    Image.new("RGB", (100, 200), "white").save(root / "images" / "p1.png")
+    coco = {"images": [{"id": 1, "file_name": "images/p1.png", "width": 100, "height": 200}],
+            "annotations": [{"id": 1, "image_id": 1, "category_id": 3, "bbox": [10, 10, 40, 10]},
+                            {"id": 2, "image_id": 1, "category_id": 2, "bbox": [80, 190, 30, 15]}],
+            "categories": [{"id": 1, "name": "unterschrift"}, {"id": 2, "name": "stempel"},
+                           {"id": 3, "name": "tour_nummer"}]}
+    (root / "_annotations.coco.json").write_text(json.dumps(coco))
+    r = run_inspect(tmp_path, root / "_annotations.coco.json", root / "images")
+    assert r.returncode == 0, r.stderr
+    rep = json.loads((tmp_path / "out" / "inspect.json").read_text())
+    assert "missing_image_file" not in rep["validation"]["counts"]
+    assert rep["validation"]["out_of_image"]["sides"] == {"right": 1, "bottom": 1}
+    assert len(list((tmp_path / "out" / "tour_crops").glob("*.png"))) == 1
+
+
+def test_by_doc_type_table(tiny_coco, tmp_path):
+    path, img_dir = tiny_coco
+    data = json.loads(path.read_text())
+    doc_csv = tmp_path / "page_types.csv"
+    doc_csv.write_text("file_name;doc_type\n" + "".join(
+        f"{i['file_name']};{'cmr' if i['id'] <= 2 else 'lieferschein'}\n" for i in data["images"]))
+    assert run_inspect(tmp_path, path, img_dir, doc_csv, "--no-hash").returncode == 0
+    rep = json.loads((tmp_path / "out" / "inspect.json").read_text())
+    assert rep["by_doc_type"]["cmr"]["pages"] == 2
+    assert rep["by_doc_type"]["cmr"]["pages_with"]["unterschrift"] == 1
+    assert "Klassen je Dokumenttyp" in (tmp_path / "out" / "inspect.md").read_text()

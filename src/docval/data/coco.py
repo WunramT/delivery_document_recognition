@@ -27,6 +27,7 @@ class Issue:
     image_id: object = None
     ann_id: object = None
     file_name: str | None = None
+    detail: dict | None = None
 
 
 @dataclass
@@ -50,6 +51,22 @@ def load_coco(path: str | Path) -> dict:
         if key not in data or not isinstance(data[key], list):
             raise ValueError(f"COCO file lacks list '{key}'")
     return data
+
+
+def find_image(file_name: str, image_dir: str | Path | None,
+               coco_dir: str | Path | None = None) -> Path | None:
+    """Locate an image file. COCO exports store file_name either relative to the
+    image dir ("x.png") or relative to the COCO file ("images/x.png")."""
+    fn = file_name.replace("\\", "/")
+    cands = []
+    if image_dir is not None:
+        cands += [Path(image_dir) / fn, Path(image_dir) / Path(fn).name]
+    if coco_dir is not None:
+        cands.append(Path(coco_dir) / fn)
+    for c in cands:
+        if c.is_file():
+            return c
+    return None
 
 
 def xywh_to_xyxy(bbox):
@@ -77,7 +94,8 @@ def box_center(xyxy):
 
 def validate_coco(data: dict, image_dir: str | Path | None = None,
                   tolerance_px: float = 1.0,
-                  expected_classes: list[str] | None = None) -> ValidationResult:
+                  expected_classes: list[str] | None = None,
+                  coco_dir: str | Path | None = None) -> ValidationResult:
     """Structural and geometric checks. Never modifies `data`."""
     res = ValidationResult()
 
@@ -98,8 +116,8 @@ def validate_coco(data: dict, image_dir: str | Path | None = None,
         if not img.get("width") or not img.get("height"):
             res.add("missing_image_size", "width/height missing or 0",
                     image_id=iid, file_name=fn)
-        if image_dir is not None and fn is not None:
-            if not (Path(image_dir) / fn).is_file():
+        if (image_dir is not None or coco_dir is not None) and fn is not None:
+            if find_image(fn, image_dir, coco_dir) is None:
                 res.add("missing_image_file", f"{fn} not found in image dir",
                         image_id=iid, file_name=fn)
 
@@ -142,8 +160,10 @@ def validate_coco(data: dict, image_dir: str | Path | None = None,
         if img is not None and img.get("width") and img.get("height"):
             W, H = img["width"], img["height"]
             t = tolerance_px
-            if x < -t or y < -t or x + w > W + t or y + h > H + t:
+            over = {"left": -x, "top": -y, "right": x + w - W, "bottom": y + h - H}
+            over = {k: round(v, 1) for k, v in over.items() if v > t}
+            if over:
                 res.add("bbox_out_of_image",
-                        f"bbox {bbox} exceeds image {W}x{H}",
-                        ann_id=aid, image_id=iid, file_name=fn)
+                        f"bbox {[round(v, 1) for v in bbox]} exceeds image {W}x{H} by {over} px",
+                        ann_id=aid, image_id=iid, file_name=fn, detail=over)
     return res
