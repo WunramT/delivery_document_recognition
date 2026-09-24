@@ -114,6 +114,10 @@ def load_pages(cfg: dict) -> tuple[list[Page], dict]:
     if tcfg.get("source", "csv") == "csv":
         values, _ = read_label_table(resolve(tcfg["csv"]), "tour_number", "file_name")
         matched, _ = match_to_coco(values, file_names)
+        if tcfg.get("export_csv"):  # per-export tour_numbers.csv fill in what the main CSV lacks
+            ev, _ = read_label_table(resolve(tcfg["export_csv"]), "tour_number", "file_name")
+            em, _ = match_to_coco(ev, file_names)
+            matched = {**em, **matched}
         for fn, v in matched.items():
             by_fn[fn].tour_number = v
     else:

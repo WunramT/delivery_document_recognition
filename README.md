@@ -137,6 +137,30 @@ Wichtige Stellen:
   (O→0, l→1, `\`→`/`, `,`→`.`) nur an Stellen, an denen das Format eine Ziffer/Trenner erwartet.
 - `acceptance` – Schwellen für `make eval`.
 
+## Mehrere Exporte
+
+Neue Scan-Stapel als eigene Unterordner unter `labels/exports/` ablegen – je Ordner ein
+kompletter Export aus dem Labeling-Tool:
+
+```
+labels/exports/
+  2026-09-07/  _annotations.coco.json  images/  page_types.csv  tour_numbers.csv (optional)
+  2026-09-15/  ...
+```
+
+Sobald dort mindestens ein Export liegt, werden alle bei jedem Befehl automatisch
+zusammengeführt (`artifacts/merged/`, nur JSON/CSV – Bilder werden nicht kopiert);
+`paths.coco`/`paths.images` werden dann ignoriert.
+
+- Dateinamen werden zu `<Export>/images/<Datei>` – gleiche Namen in zwei Exporten sind kein Problem.
+- Jeder Export ist eine eigene Gruppe im Split (`source_pdf` wird mit dem Exportnamen
+  versehen), Seiten verschiedener Exporte vermischen sich also nie in einer Gruppe.
+- Dieselbe PDF-Seite in zwei Exporten wird als Warnung gemeldet („doppelte Seiten“).
+- Tournummern: am besten je Export in dessen `tour_numbers.csv`. Die globale
+  `labels/tour_numbers.csv` (Review-Seite) hat Vorrang, ist bei gleichen Dateinamen in
+  mehreren Exporten aber nicht eindeutig zuordenbar – dann die Werte in den Export-Ordner übernehmen.
+- Nach dem Hinzufügen eines Exports: `make inspect split train export eval`.
+
 ## Label-CSVs ausfüllen
 
 - **Dokumenttyp:** `labels/page_types.csv` (`file_name;doc_type;source_pdf;source_page`) –

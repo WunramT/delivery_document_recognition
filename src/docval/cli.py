@@ -129,6 +129,8 @@ def main(argv=None) -> int:
         except AttributeError:
             pass
     cfg = load_config(args.config)
+    from .data.exports import apply_exports
+    cfg = apply_exports(cfg, log)
     if args.split:
         cfg.setdefault("eval", {})["split"] = args.split
     if args.command != "fetch-models" and not os.environ.get("DOCVAL_ONLINE"):

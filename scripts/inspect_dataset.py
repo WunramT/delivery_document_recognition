@@ -496,6 +496,9 @@ def main() -> int:
             pass
     args = parse_args()
     cfg = load_config(args.config)
+    if not args.coco:  # several exports in labels/exports -> inspect the merged dataset
+        from docval.data.exports import apply_exports
+        cfg = apply_exports(cfg, print)
     icfg = cfg.get("inspect", {})
     coco_path = resolve(args.coco or cfg["paths"]["coco"])
     image_dir = resolve(args.images or cfg["paths"]["images"])

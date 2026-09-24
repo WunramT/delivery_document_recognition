@@ -5,6 +5,10 @@
 seed: 42
 
 paths:
+  # Several label exports side by side (optional): <exports>/<name>/{_annotations.coco.json,
+  # images/, page_types.csv, tour_numbers.csv}. If present they are merged automatically and
+  # coco/images/page_types below are ignored.
+  exports: ${DOCVAL_DATA:-labels}/exports
   coco: ${DOCVAL_DATA:-labels}/_annotations.coco.json
   images: ${DOCVAL_DATA:-labels}/images
   artifacts: ${DOCVAL_ARTIFACTS:-artifacts}   # all derived data (gitignored)

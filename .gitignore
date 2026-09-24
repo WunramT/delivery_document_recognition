@@ -8,3 +8,6 @@ __pycache__/
 /labels/_annotations.coco.json
 # review page references local crops of real documents
 labels/tour_review.html
+# several exports: never commit scans / COCO files
+/labels/exports/*/images/
+/labels/exports/*/_annotations.coco.json

@@ -1,6 +1,7 @@
 # Smoke test: synthetic mini dataset, 1 epoch, CPU. `make smoke`
 extends: ../config.yaml
 paths:
+  exports: artifacts/smoke/no_exports   # never merge real exports into the smoke test
   coco: artifacts/smoke/data/_annotations.coco.json
   images: artifacts/smoke/data/images
   artifacts: artifacts/smoke
