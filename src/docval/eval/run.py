@@ -31,6 +31,19 @@ from .metrics import average_precision, match, ratio
 DET_THRESHOLDS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 OCR_THRESHOLDS = [0.0, 0.5, 0.7, 0.8, 0.85, 0.9, 0.95, 0.98, 0.99, 0.995]
 
+class StageClock:
+    """Wall-clock seconds per evaluation stage (finds slow stages like model loading)."""
+
+    def __init__(self):
+        self.t = time.time()
+        self.laps: dict[str, float] = {}
+
+    def lap(self, name: str):
+        now = time.time()
+        self.laps[name] = round(now - self.t, 1)
+        self.t = now
+
+
 class Timer:
     def __init__(self):
         self.t: dict[str, list[float]] = {}
@@ -272,16 +285,20 @@ def working_thresholds(cfg, detector, pages, split, classes, iou_thr, log, prep=
         fallback = d.get("score_threshold_fallback", 0.5)
         for c in classes:
             n_gt, scored = scored_matches(valid, vpreds, c, iou_thr)
-            best, best_f1 = fallback, -1.0
+            f1s = []
             for t in CALIB_GRID:
                 r = pr_at(scored, n_gt, t)
                 if not n_gt or r["precision"] is None:
                     continue
-                f1 = 2 * r["precision"] * r["recall"] / (r["precision"] + r["recall"]) if r["recall"] else 0.0
-                if f1 >= best_f1:
-                    best, best_f1 = t, f1
+                f1s.append((t, 2 * r["precision"] * r["recall"] / (r["precision"] + r["recall"]) if r["recall"] else 0.0))
+            best_f1 = max((f for _, f in f1s), default=-1.0)
+            # several thresholds are often equally good on the small valid split: take the
+            # middle of that plateau, not an edge (the high edge overfits, see stamp 0.8)
+            plateau = [t for t, f in f1s if f >= best_f1 - 1e-9] if f1s else []
+            best = plateau[len(plateau) // 2] if plateau else fallback
             thr[c] = best
             calib["per_class"][c] = {"n_gt": n_gt, "threshold": best, "f1": best_f1 if best_f1 >= 0 else None,
+                                     "plateau": [plateau[0], plateau[-1]] if plateau else None,
                                      "ap50": average_precision(scored, n_gt),
                                      "at_threshold": pr_at(scored, n_gt, best)}
         calib["detector"] = detector_stats(valid, vpreds, classes, thr, iou_thr)
@@ -318,6 +335,7 @@ def run_eval(cfg, log) -> int:
     detector = OnnxDetector(det_dir, min_score=0.01)
     classes = detector.classes
     iou_thr = cfg["detector"]["iou_match"]
+    stage_clock = StageClock()
     prep = PagePrep(cfg)
     thr, unc, calib = working_thresholds(cfg, detector, pages, split, classes, iou_thr, log, prep)
     timer = Timer()
@@ -345,6 +363,11 @@ def run_eval(cfg, log) -> int:
     det_res = detector_stats(test, preds, classes, thr, iou_thr)
     det_res["thresholds"] = thr
     det_res["calibration"] = calib
+    det_res["by_doc_type"] = {}
+    for t in sorted({p.doc_type for p in test if p.doc_type}):
+        tp_pages = [p for p in test if p.doc_type == t]
+        det_res["by_doc_type"][t] = {c: detector_stats(tp_pages, preds, [c], thr, iou_thr)["per_class"][c]["recall"]
+                                     for c in classes}
     # gallery: pages with most errors at the working threshold
     for p in test:
         errs, reasons = 0, []
@@ -367,6 +390,7 @@ def run_eval(cfg, log) -> int:
     log("[eval] Detektor: " + ", ".join(
         f"{c} R={v['recall']['value'] if v['recall']['value'] is not None else '-'}" for c, v in det_res["per_class"].items()))
 
+    stage_clock.lap('Detektor (inkl. Laden, Maske)')
     # ---------------------------------------------------------- 2. doc type
     engines = load_engines(cfg)
     primary = next(iter(engines.values()))
@@ -421,6 +445,7 @@ def run_eval(cfg, log) -> int:
         "confusion": conf, "per_type": per_type, "rows": dt_rows, "classifier": bool(clf)}
     log(f"[eval] Dokumenttyp: Accuracy {R['doctype']['accuracy']['value']}, unsicher {R['doctype']['uncertain']['value']}")
 
+    stage_clock.lap('Dokumenttyp')
     # ---------------------------------------------------------- 3. position check
     zones, zinfo = zones_for(cfg, train_pages, log)
     zcfg = cfg["zones"]
@@ -500,6 +525,7 @@ def run_eval(cfg, log) -> int:
     log(f"[eval] Position: Fehlalarm {R['position']['false_alarm']['value']}, "
         f"Recall Negative {R['position']['recall_negatives']['value']} ({len(syn_rows)} synthetisch)")
 
+    stage_clock.lap('Positionsprüfung inkl. synthetische Negative')
     # ---------------------------------------------------------- 4. tour number OCR
     ocfg = cfg["ocr"]
     regex = cfg["labels"]["tour_number"]["format_regex"]
@@ -524,7 +550,8 @@ def run_eval(cfg, log) -> int:
             b = [d["box"][0] * p.width, d["box"][1] * p.height, d["box"][2] * p.width, d["box"][3] * p.height]
             pc = pad_crop(im, b, ocfg["crop_padding"])
             for name, eng in engines.items():
-                row["pred_box"][f"{name}/rec_only"] = ocr_tour(eng, pc, "rec_only", ocfg, regex)
+                for mode in ocfg["modes"]:
+                    row["pred_box"][f"{name}/{mode}"] = ocr_tour(eng, pc, mode, ocfg, regex)
             row["pred_iou"] = iou(d["box"], gb[0].norm(p.width, p.height))
         tour_rows.append(row)
     variants = sorted({k for r in tour_rows for k in r["gt_box"]} | {f"pred:{k}" for r in tour_rows for k in r["pred_box"]})
@@ -541,7 +568,7 @@ def run_eval(cfg, log) -> int:
         fmt = sum(1 for r, x in vals if x and x["valid_format"])
         ocr_res["variants"][v] = {"acceptance": ratio(len(acc), n), "exact_accepted": ratio(exact_acc, len(acc)),
                                   "exact_all": ratio(exact_all, n), "valid_format": ratio(fmt, n)}
-    prim = f"{next(iter(engines))}/rec_only"
+    prim = ocfg.get("primary") or f"{next(iter(engines))}/{ocfg['modes'][0]}"
     th_rows = []
     for t in OCR_THRESHOLDS:
         acc = [r for r in with_gt if r["gt_box"][prim]["valid_format"] and r["gt_box"][prim]["score"] >= t]
@@ -592,6 +619,7 @@ def run_eval(cfg, log) -> int:
     R["ocr"] = ocr_res
     log(f"[eval] Tournummer: {len(tour_rows)} Boxen, {len(with_gt)} mit GT")
 
+    stage_clock.lap('Tournummer-OCR inkl. Paddle-Referenz')
     # ---------------------------------------------------------- form mask summary
     minfo = {fn: i for fn, i in prep.info.items() if fn in {p.file_name for p in test}}
     gallery["maske"] = []
@@ -638,6 +666,7 @@ def run_eval(cfg, log) -> int:
     R["acceptance"] = crit
     R["timing"] = timer.summary()
     R["runtime_s"] = round(time.time() - t_start, 1)
+    R["stage_seconds"] = stage_clock.laps
     size = cfg["report"]["gallery_size"]
     R["gallery"] = {k: sorted(v, key=lambda g: -g["severity"])[:size] for k, v in gallery.items()}
 

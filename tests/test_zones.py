@@ -78,10 +78,13 @@ def test_synthetic_variants_expected_results():
     assert kinds["verschoben_unterschrift"] == WRONG_POSITION
     removed = next(v for v in vs if v["kind"] == "entfernt_alle")["image"]
     assert removed.getpixel((160, 170)) == (255, 255, 255)
-    # stamp removed, signature area that overlaps is kept
+    # removal erases the whole box, also where it overlaps the other object - otherwise
+    # leftover ink (signature on the stamp) lets the detector still find it
     rs = next(v for v in vs if v["kind"] == "entfernt_stempel")["image"]
-    assert rs.getpixel((145, 170)) == (0, 0, 200)
+    assert rs.getpixel((145, 170)) == (255, 255, 255)
     assert rs.getpixel((170, 170)) == (255, 255, 255)
+    ru = next(v for v in vs if v["kind"] == "entfernt_unterschrift")["image"]
+    assert ru.getpixel((125, 170)) == (255, 255, 255)
     assert im.getpixel((170, 170)) == (0, 0, 200, 255)  # original untouched
 
 

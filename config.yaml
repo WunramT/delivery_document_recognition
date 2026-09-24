@@ -81,8 +81,10 @@ doctype:
   priority: []                # tie-break if several types match, e.g. [cmr]
   keywords:
     cmr: [CMR, Frachtbrief, List przewozowy, Lettre de voiture, Consignment note]
-    lieferschein: [Lieferschein, Delivery note, Dowód dostawy, Wydanie zewnętrzne, Dokument WZ]
-    loading_list: [Loading List, Ladeliste, List załadunkowy, Lista załadunkowa, Lista załadowcza]
+    # from the OCR header texts in the report (keyword misses): the Lieferschein header
+    # has no title in the top 20 %, but the address block "Lieferanschrift"
+    lieferschein: [Lieferschein, Delivery note, Dowód dostawy, Wydanie zewnętrzne, Dokument WZ, Lieferanschrift]
+    loading_list: [Loading List, Ladeliste, List załadunkowy, Lista załadunkowa, Lista załadowcza, Lista załadunku]
   classifier:
     enabled: true
     model: mobilenetv3_small_100  # timm, Apache-2.0
@@ -155,6 +157,9 @@ ocr:
       header_rec: PaddlePaddle/PP-OCRv6_small_rec_onnx
   det_limit_side_len: 960
   modes: [rec_only, det_rec]
+  # variant for the acceptance criterion and the pipeline. det_rec: the annotated box
+  # holds several lines (label + number) - recognition alone reads them as one line.
+  primary: ppocrv5/det_rec
   paddle_reference: true      # PaddleOCR Python pipeline on GT crops as reference
   read_cmr_count: true
 

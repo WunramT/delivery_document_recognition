@@ -51,9 +51,11 @@ def erase(im: Image.Image, box, pad: int = 4, fill: str = "median") -> None:
 
 
 def erase_keep(im: Image.Image, original: Image.Image, box, keep: list, fill: str = "median") -> None:
-    """Erase `box` but restore the parts that intersect `keep` boxes, so e.g. a
-    signature drawn over a stamp survives when the stamp is removed. (Stamp ink
-    inside the signature box remains - documented limitation.)"""
+    """Erase `box` but restore the parts that intersect `keep` boxes.
+
+    Not used for the negatives any more: on CMR pages the signature sits on the stamp,
+    so restoring the overlap left enough signature ink for the detector to still find
+    it - the "removed" negative was no negative. Removals now erase the whole box."""
     erase(im, box, fill=fill)
     for k in keep:
         ix1, iy1 = max(box[0], k[0]), max(box[1], k[1])
@@ -110,7 +112,7 @@ def make_variants(page, image: Image.Image, zones: dict, rule: dict, rng: random
             im = base.copy()
             keep = [b.xyxy for b in page.boxes if b.cls != cls]
             for b in page.boxes_of(cls):
-                erase_keep(im, base, b.xyxy, keep, fill=fill)
+                erase(im, b.xyxy, fill=fill)
             # with mode "any" removing one class is still ok if another remains
             exp = MISSING if mode == "all" or len(required) == 1 else None
             if exp:
@@ -128,7 +130,7 @@ def make_variants(page, image: Image.Image, zones: dict, rule: dict, rng: random
                     ok = False
                     break
                 crop = base.crop(tuple(int(v) for v in b.xyxy))
-                erase_keep(im, base, b.xyxy, [o.xyxy for o in page.boxes if o.cls != cls], fill=fill)
+                erase(im, b.xyxy, fill=fill)
                 im.paste(crop, (int(target[0]), int(target[1])))
                 avoid.append(target)
                 moved.append(type(b)(cls, list(target), b.ann_id))
@@ -150,7 +152,7 @@ def make_variants(page, image: Image.Image, zones: dict, rule: dict, rng: random
                 ok = False
                 break
             crop = base.crop(tuple(int(v) for v in b.xyxy))
-            erase_keep(im, base, b.xyxy, [o.xyxy for o in page.boxes if o.cls != cls], fill=fill)
+            erase(im, b.xyxy, fill=fill)
             im.paste(crop, (int(target[0]), int(target[1])))
             avoid.append(target)
             moved.append(type(b)(cls, list(target), b.ann_id))
@@ -190,7 +192,7 @@ def make_field_variants(page, image: Image.Image, fields: dict, rng: random.Rand
         if "remove_one" in kinds:
             im = base.copy()
             for b in hit:
-                erase_keep(im, base, b.xyxy, keep, fill=fill)
+                erase(im, b.xyxy, fill=fill)
             out.append({"kind": f"entfernt_feld_{name.split()[0]}", "image": im, "expected": MISSING,
                         "boxes": [b for b in page.boxes if b not in hit]})
         if "move_one" in kinds:
@@ -205,7 +207,7 @@ def make_field_variants(page, image: Image.Image, fields: dict, rng: random.Rand
                     ok = False
                     break
                 crop = base.crop(tuple(int(v) for v in b.xyxy))
-                erase_keep(im, base, b.xyxy, keep, fill=fill)
+                erase(im, b.xyxy, fill=fill)
                 im.paste(crop, (int(target[0]), int(target[1])))
                 avoid.append(target)
                 moved.append(type(b)(b.cls, list(target), b.ann_id))

@@ -184,6 +184,13 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
             L.append(f"| {c} | {fr(a.get('recall'))} | {fr(b['recall'])} | {num(a.get('ap50'))} | {num(b['ap50'])} |")
         if m["split"] == "valid":
             L.append("\n**Hinweis:** ausgewertet wird der Split, auf dem auch die Schwellen kalibriert wurden – optimistisch.")
+    bdt = det.get("by_doc_type") or {}
+    if bdt:
+        cls_ = list(det["per_class"])
+        L += ["", "Recall je Dokumenttyp (gefordert ist Unterschrift/Stempel nur auf CMR):", "",
+              "| Typ | " + " | ".join(cls_) + " |", "|---|" + "---|" * len(cls_)]
+        for t, rr in bdt.items():
+            L.append(f"| {t} | " + " | ".join(fr(rr[c]) if rr[c]["n"] else "-" for c in cls_) + " |")
     L += ["", "Precision/Recall über die Konfidenzschwelle:", ""]
     cls = list(R["detector"]["pr_table"])
     L.append("| Schwelle | " + " | ".join(f"{c} P / R" for c in cls) + " |")
@@ -275,6 +282,10 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
     L.append("")
 
     # timing
+    if R.get("stage_seconds"):
+        L += ["## Laufzeit der Evaluation je Stufe (Wanduhr)", "", "| Stufe | Sekunden |", "|---|---|"]
+        L += [f"| {k} | {v} |" for k, v in R["stage_seconds"].items()]
+        L.append("")
     L += ["## Laufzeit pro Seite (CPU)", "", "| Stufe | Mittel ms | Median ms | Max ms | n |", "|---|---|---|---|---|"]
     for k, v in R["timing"].items():
         L.append(f"| {k} | {v['mean_ms']:.0f} | {v['median_ms']:.0f} | {v['max_ms']:.0f} | {v['n']} |")
