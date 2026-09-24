@@ -7,9 +7,10 @@ ARG WITH_REFERENCE=1
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     DOCVAL_DATA=/data DOCVAL_MODELS=/models PYTHONPATH=/workspace/src
 
-# OpenCV (libgl1, libglib2.0-0), PDF rendering (poppler-utils), fonts for the smoke dataset
+# OpenCV (libgl1, libglib2.0-0), PDF rendering (poppler-utils), fonts for the smoke dataset,
+# C compiler: Triton JIT-compiles a helper on the GPU path (Hungarian matcher)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libgl1 libglib2.0-0 libgomp1 poppler-utils fonts-dejavu-core make git \
+        libgl1 libglib2.0-0 libgomp1 poppler-utils fonts-dejavu-core make git gcc libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp/req

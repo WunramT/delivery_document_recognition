@@ -53,6 +53,9 @@ detector:
   grad_accum_steps: 4
   lr: 1.0e-4
   num_workers: 2
+  # rfdetr default multi_scale=true trains at the largest scale (e.g. 800 px for
+  # resolution 640) while export/eval run at `resolution`. false = same size everywhere.
+  multi_scale: false
   early_stopping: true
   early_stopping_patience: 15
   device: auto                # auto | cpu | cuda

@@ -39,6 +39,8 @@ def train(cfg: dict, dataset_dir: Path, out_dir: Path, log=print) -> dict:
         kwargs["resolution"] = d["resolution"]
     model = _model_class(d["size"])(device=device, **kwargs)
     classes = json.loads((dataset_dir / "classes.json").read_text())
+    if out_dir.exists():  # never export a stale checkpoint from an earlier run
+        shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     model.train(
@@ -48,6 +50,7 @@ def train(cfg: dict, dataset_dir: Path, out_dir: Path, log=print) -> dict:
         early_stopping_patience=d.get("early_stopping_patience", 10), tensorboard=True,
         seed=cfg.get("seed", 42), class_names=classes, device=device,
         checkpoint_interval=max(1, d["epochs"]), progress_bar=None,
+        multi_scale=d.get("multi_scale", False),
     )
     info = {"device": device, "size": d["size"], "train_seconds": round(time.time() - t0, 1),
             "classes": classes}
