@@ -89,14 +89,12 @@ def main():
         d.rectangle(tb, fill="white")
         d.text((tb[0] + 4, tb[1] + 1), tour, fill="black", font=f)
         boxes = [("tour_nummer", tb)]
-        if t == "cmr":  # CMR: signature in each of the fields 22/23/24, one stamp
+        if t == "cmr":  # CMR: signatures in fields 22/23/24, one stamp
             st = [0.70 * W, 0.74 * H, 0.70 * W + 0.26 * W, 0.74 * H + 0.10 * H]
             stamp(d, st, rng)
             boxes.append(("stempel", st))
-            skip_field = rng.random() < 0.25  # some pages incomplete -> real negatives
-            for k, x0 in enumerate((0.04, 0.37, 0.70)):
-                if skip_field and k == 0:
-                    continue
+            # three signatures (fields 22/23/24), all annotated as "unterschrift"
+            for x0 in (0.04, 0.37, 0.70):
                 sb = [x0 * W, 0.86 * H, (x0 + 0.25) * W, 0.93 * H]
                 scribble(d, sb, rng)
                 boxes.append(("unterschrift", sb))

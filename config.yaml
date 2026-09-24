@@ -100,21 +100,24 @@ zones:
   min_samples: 3
   min_overlap: 0.5            # share of a detected box that must lie in the zone
   rules:                      # what is required per doc type
-    # CMR: signed only if EVERY field 22, 23, 24 has a signature. A detection belongs
-    # to the field containing its box center. Boxes = approximate standard CMR layout
-    # (normalized x1, y1, x2, y2) - check against the per-field statistics in the report
-    # and correct here. Add `stempel` to `require` if a stamp is needed per field, too.
-    cmr:
-      fields:
-        "22 Absender":     {box: [0.00, 0.72, 0.34, 1.00], require: [unterschrift]}
-        "23 Frachtführer": {box: [0.34, 0.72, 0.67, 1.00], require: [unterschrift]}
-        "24 Empfänger":    {box: [0.67, 0.72, 1.00, 1.00], require: [unterschrift]}
+    # CMR: the searched signature (mostly field 24, but may be elsewhere) + stamp
+    # anywhere in the signature area at the bottom (fields 22-24, see overrides).
+    cmr: {require: [unterschrift, stempel], mode: all}
+    # Strict alternative, if every field must be signed (needs ALL signatures annotated):
+    # cmr:
+    #   fields:
+    #     "22 Absender":     {box: [0.00, 0.72, 0.34, 1.00], require: [unterschrift]}
+    #     "23 Frachtführer": {box: [0.34, 0.72, 0.67, 1.00], require: [unterschrift]}
+    #     "24 Empfänger":    {box: [0.67, 0.72, 1.00, 1.00], require: [unterschrift]}
     # other types: no signature required, position not checked
     lieferschein: {require: []}
     loading_list: {require: []}
-  # manual corrections of derived zones (only the given edges), e.g.
-  # overrides: {lieferschein: {stempel: {y1: 0.6}}}
-  overrides: {}
+  # manual corrections of the derived zones (only the given edges are replaced).
+  # CMR: the searched signature/stamp may be in field 22, 23 or 24 -> full width.
+  overrides:
+    cmr:
+      unterschrift: {x1: 0.0, x2: 1.0}
+      stempel: {x1: 0.0, x2: 1.0}
   synthetic:
     fill: median              # median | white
     kinds: [remove_one, remove_all, move_one]
