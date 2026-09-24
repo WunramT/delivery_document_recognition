@@ -514,6 +514,21 @@ def run_eval(cfg, log) -> int:
         k[0] += int(s["caught"])
         k[1] += 1
     real_neg = [r for r in real_rows if r["gt_status"] in (MISSING, WRONG_POSITION)]
+    # end-to-end decision quality on pages with a rule: what does the operator see?
+    dq = {"auto_richtig": 0, "person": 0, "auto_falsch_fehler_uebersehen": 0, "auto_falsch_fehlalarm": 0}
+    ruled = [r for r in real_rows if r["gt_status"] != NOT_REQUIRED]
+    for r in ruled:
+        gt, st = r["gt_status"], r["status"]
+        bad = (MISSING, WRONG_POSITION)
+        if st == "unsicher":
+            dq["person"] += 1                        # a person looks at it - never silently wrong
+        elif st == OK and gt != OK:
+            dq["auto_falsch_fehler_uebersehen"] += 1  # incl. field-13 pages accepted without review
+        elif st in bad and gt not in bad:
+            dq["auto_falsch_fehlalarm"] += 1
+        else:
+            dq["auto_richtig"] += 1
+    dq["n"] = len(ruled)
     outside = []
     for p in pages:  # all splits: where do annotated objects lie outside the target zone?
         rule = rules.get(p.doc_type) or {}
@@ -534,6 +549,7 @@ def run_eval(cfg, log) -> int:
         "zones": zones, "zones_info": zinfo, "field_stats": field_stats(pages, rules),
         "fields": {t: r["fields"] for t, r in rules.items() if (r or {}).get("fields")},
         "outside_zone": outside,
+        "decision_quality": dq,
         "review_real": ratio(sum(r["status"] == "unsicher" and "Prüfung durch Person" in r["reason"] for r in real_rows),
                              len(real_rows)),
         "recall_real_negatives": ratio(sum(r["status"] in (MISSING, WRONG_POSITION) for r in real_neg), len(real_neg)),
@@ -678,9 +694,14 @@ def run_eval(cfg, log) -> int:
         crit.append({"stage": stage, "metric": metric, "value": v, "threshold": thrv, "cmp": cmp,
                      "passed": ok, "n": r["n"] if r else 0, "ci95": r["ci95"] if r else None, "note": note})
 
-    for c, t in A["detector_recall"].items():
-        pc = det_res["acceptance_per_class"].get(c)
-        add("Detektor", f"Recall@IoU{iou_thr} {c}" + (f" ({', '.join(acc_types)})" if acc_types else ""),
+    for c, spec in A["detector_recall"].items():
+        if isinstance(spec, dict):  # {min, doc_types}: only pages where the object matters
+            t, types = spec["min"], spec.get("doc_types") or acc_types
+        else:
+            t, types = spec, acc_types
+        cp = [p for p in test if not types or p.doc_type in types]
+        pc = detector_stats(cp, preds, [c], thr, iou_thr)["per_class"][c] if c in classes else None
+        add("Detektor", f"Recall@IoU{iou_thr} {c}" + (f" ({', '.join(types)})" if types else ""),
             pc["recall"] if pc else None, t)
     add("Dokumenttyp", "Accuracy (ohne unsicher)", R["doctype"]["accuracy"], A["doctype_accuracy"])
     add("Dokumenttyp", "Anteil unsicher", R["doctype"]["uncertain"], A["doctype_uncertain_max"], "<=")

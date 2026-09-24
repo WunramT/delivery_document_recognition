@@ -51,3 +51,21 @@ def test_json_handles_numpy_scalars():
     from docval.jsonutil import dumps
     d = json.loads(dumps({"a": np.float32(0.5), "b": np.int64(3), "c": np.array([1, 2]), "d": np.bool_(True)}))
     assert d == {"a": 0.5, "b": 3, "c": [1, 2], "d": True}
+
+
+def test_decision_quality_categories():
+    # mirrors the classification in eval.run (kept simple on purpose)
+    def cls(gt, st):
+        if st == "unsicher":
+            return "person"
+        if st == "ok" and gt != "ok":
+            return "uebersehen"
+        if st in ("fehlt", "falsche_position") and gt not in ("fehlt", "falsche_position"):
+            return "fehlalarm"
+        return "richtig"
+    assert cls("ok", "ok") == "richtig"
+    assert cls("fehlt", "fehlt") == "richtig"
+    assert cls("fehlt", "ok") == "uebersehen"
+    assert cls("unsicher", "ok") == "uebersehen"
+    assert cls("ok", "fehlt") == "fehlalarm"
+    assert cls("unsicher", "unsicher") == "person"

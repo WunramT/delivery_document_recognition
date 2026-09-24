@@ -230,6 +230,12 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
     p = R["position"]
     L += ["## 3. Positionsprüfung", ""]
     L.append(f"- Zonen: {p['zones_info']['source']}, Datei `{p['zones_info']['path']}`")
+    dq = p.get("decision_quality")
+    if dq and dq["n"]:
+        L += [f"**Entscheidungsqualität** (echte Seiten mit Regel, n={dq['n']}) – was beim Operator ankommt:", "",
+              "| automatisch richtig | an Person | automatisch falsch: Fehler übersehen | automatisch falsch: Fehlalarm |",
+              "|---|---|---|---|",
+              f"| {dq['auto_richtig']} | {dq['person']} | **{dq['auto_falsch_fehler_uebersehen']}** | {dq['auto_falsch_fehlalarm']} |", ""]
     L.append(f"- Fehlalarmrate auf echten korrekten Seiten: {fr(p['false_alarm'])}; davon zusätzlich unsicher: {fr(p['uncertain_real'])}")
     L.append(f"- Recall auf echten Negativen (Seiten, die laut GT die Regel verletzen): {fr(p.get('recall_real_negatives'))}")
     L.append(f"- Recall auf synthetischen Negativen: {fr(p['recall_negatives'])}; richtige Art (fehlt vs. falsche Position): {fr(p['correct_kind'])}")

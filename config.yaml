@@ -175,10 +175,10 @@ ocr:
 # ---------------------------------------------------------------- step 7: acceptance
 acceptance:
   doc_types: [cmr, lieferschein]   # criteria only on relevant documents (loading list excluded)
-  detector_recall:            # Recall@IoU0.5 on the test split
-    unterschrift: 0.95
-    stempel: 0.95
-    tour_nummer: 0.98
+  detector_recall:            # Recall@IoU0.5 on the test split, only where the object matters
+    unterschrift: {min: 0.95, doc_types: [cmr]}   # required only on CMR
+    stempel: {min: 0.95, doc_types: [cmr]}
+    tour_nummer: {min: 0.98, doc_types: [cmr, lieferschein]}
   doctype_accuracy: 0.98      # without "unsicher"
   doctype_uncertain_max: 0.05
   position_recall_negatives: 0.95
