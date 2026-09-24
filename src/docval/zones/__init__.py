@@ -101,11 +101,15 @@ def overlap_fraction(box: list[float], zone: list[float]) -> float:
 
 
 def check_requirement(cls: str, zone: list[float] | None, detections: list[dict],
-                      min_overlap: float, score_accept, score_uncertain, optional: bool = False) -> dict:
+                      min_overlap: float, score_accept, score_uncertain, optional: bool = False,
+                      review_zones: dict | None = None) -> dict:
     """detections: [{"cls", "box" (normalized), "score"}]. Returns status + reason.
 
     optional=True: the object is not required, but if it is present it must be in
     the zone (absent -> ok, only outside -> falsche_position).
+    review_zones: {name: {"box": [...], "action": "review" | "ok"}} - allowed secondary
+    places (e.g. CMR field 13). An object found only there -> "unsicher" (a person
+    checks) or "ok", instead of "falsche_position".
     """
     score_accept, score_uncertain = _thr(score_accept, cls), _thr(score_uncertain, cls)
     if zone is None and optional:
@@ -128,6 +132,15 @@ def check_requirement(cls: str, zone: list[float] | None, detections: list[dict]
         best = max(d["score"] for d in weak_in)
         return {"cls": cls, "status": UNCERTAIN,
                 "reason": f"{_name(cls)} in Soll-Zone nur mit niedrigem Score {best:.2f}"}
+    for name, rz in (review_zones or {}).items():
+        hits = [d for d in strong_out if overlap_fraction(d["box"], rz["box"]) >= min_overlap]
+        if hits:
+            best = max(d["score"] for d in hits)
+            if rz.get("action", "review") == "ok":
+                return {"cls": cls, "status": OK, "review": name,
+                        "reason": f"{_name(cls)} in {name} (zugelassen, Score {best:.2f})"}
+            return {"cls": cls, "status": UNCERTAIN, "review": name,
+                    "reason": f"{_name(cls)} in {name} (zugelassen, Prüfung durch Person, Score {best:.2f})"}
     if strong_out:
         d = max(strong_out, key=lambda x: x["score"])
         c = [(d["box"][0] + d["box"][2]) / 2, (d["box"][1] + d["box"][3]) / 2]
@@ -203,10 +216,12 @@ def check_page(doc_type: str | None, detections: list[dict], zones: dict, rules:
         return {"status": NOT_REQUIRED, "reason": f"für {doc_type} nichts gefordert", "details": []}
     dz = zones.get(doc_type, {})
     details = []
+    review = rule.get("review_zones") or {}
     for cls in required:
         z = dz.get(cls)
+        rz = {n: r for n, r in review.items() if cls in (r.get("classes") or [cls])}
         details.append(check_requirement(cls, z["box"] if z else None, detections,
-                                         min_overlap, score_accept, score_uncertain))
+                                         min_overlap, score_accept, score_uncertain, review_zones=rz))
     opt_details = []
     for cls in optional:
         z = dz.get(cls)

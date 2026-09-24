@@ -150,3 +150,18 @@ def test_cmr_field_variants():
     for v in vs:  # every variant really violates the rule on its own GT boxes
         g = [{"cls": b.cls, "box": b.norm(100, 100), "score": 1.0} for b in v["boxes"]]
         assert fcheck(g)["status"] == MISSING, v["kind"]
+
+
+def test_review_zone_field_13():
+    rules = {"cmr": {"require": ["unterschrift"], "mode": "all",
+                     "review_zones": {"Feld 13": {"box": [0.0, 0.5, 0.6, 0.75], "action": "review"}}}}
+    zones = {"cmr": {"unterschrift": {"box": [0.0, 0.75, 1.0, 1.0]}}}
+    in13 = [det("unterschrift", [0.1, 0.6, 0.3, 0.68])]
+    r = check_page("cmr", in13, zones, rules, 0.5, 0.5, 0.3)
+    assert r["status"] == UNCERTAIN and "Feld 13" in r["reason"] and "Prüfung durch Person" in r["reason"]
+    rules["cmr"]["review_zones"]["Feld 13"]["action"] = "ok"
+    assert check_page("cmr", in13, zones, rules, 0.5, 0.5, 0.3)["status"] == OK
+    elsewhere = [det("unterschrift", [0.7, 0.1, 0.9, 0.2])]
+    assert check_page("cmr", elsewhere, zones, rules, 0.5, 0.5, 0.3)["status"] == WRONG_POSITION
+    main = [det("unterschrift", [0.7, 0.8, 0.9, 0.9])] + in13
+    assert check_page("cmr", main, zones, rules, 0.5, 0.5, 0.3)["status"] == OK

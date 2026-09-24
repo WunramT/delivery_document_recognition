@@ -104,7 +104,15 @@ zones:
   rules:                      # what is required per doc type
     # CMR: the searched signature (mostly field 24, but may be elsewhere) + stamp
     # anywhere in the signature area at the bottom (fields 22-24, see overrides).
-    cmr: {require: [unterschrift, stempel], mode: all}
+    cmr:
+      require: [unterschrift, stempel]
+      mode: all
+      # allowed secondary place: CMR field 13 is also used for signature/stamp.
+      # Found only there -> "unsicher" = a person checks (action: ok -> accepted).
+      # Box is an approximation - check it against the list "außerhalb der Soll-Zone"
+      # in the report (section 3) and correct it here.
+      review_zones:
+        "Feld 13": {box: [0.00, 0.50, 0.60, 0.75], action: review, classes: [unterschrift, stempel]}
     # Strict alternative, if every field must be signed (needs ALL signatures annotated):
     # cmr:
     #   fields:
@@ -157,6 +165,7 @@ ocr:
       header_rec: PaddlePaddle/PP-OCRv6_small_rec_onnx
   det_limit_side_len: 960
   modes: [rec_only, det_rec]
+  doc_types: [cmr, lieferschein]   # tour number is read/evaluated only here (loading list: not relevant)
   # variant for the acceptance criterion and the pipeline. det_rec: the annotated box
   # holds several lines (label + number) - recognition alone reads them as one line.
   primary: ppocrv5/det_rec
@@ -165,6 +174,7 @@ ocr:
 
 # ---------------------------------------------------------------- step 7: acceptance
 acceptance:
+  doc_types: [cmr, lieferschein]   # criteria only on relevant documents (loading list excluded)
   detector_recall:            # Recall@IoU0.5 on the test split
     unterschrift: 0.95
     stempel: 0.95

@@ -70,17 +70,18 @@ def boxes_overlap(a, b) -> bool:
 
 
 def find_wrong_place(page_w, page_h, box, zone_norm, avoid: list, rng: random.Random,
-                     tries: int = 200):
-    """A position for `box` (same size) whose center lies outside the zone and
-    does not overlap `avoid` boxes. Prefers the upper half of the page."""
+                     tries: int = 200, forbidden: list | None = None):
+    """A position for `box` (same size) outside the zone (and outside `forbidden`
+    normalized areas, e.g. allowed review zones) that does not overlap `avoid` boxes.
+    Prefers the upper part of the page."""
     w, h = box[2] - box[0], box[3] - box[1]
-    zx1, zy1, zx2, zy2 = (zone_norm[0] * page_w, zone_norm[1] * page_h,
-                          zone_norm[2] * page_w, zone_norm[3] * page_h)
+    zones = [zone_norm] + list(forbidden or [])
+    zpx = [(z[0] * page_w, z[1] * page_h, z[2] * page_w, z[3] * page_h) for z in zones]
     for _ in range(tries):
         x = rng.uniform(0, max(1, page_w - w))
         y = rng.uniform(0, max(1, page_h * 0.6 - h))
         cand = (x, y, x + w, y + h)
-        if boxes_overlap(cand, (zx1, zy1, zx2, zy2)):
+        if any(boxes_overlap(cand, z) for z in zpx):
             continue
         if any(boxes_overlap(cand, a) for a in avoid):
             continue
@@ -96,6 +97,7 @@ def make_variants(page, image: Image.Image, zones: dict, rule: dict, rng: random
         return make_field_variants(page, image, rule["fields"], rng, fill, kinds)
     required = rule.get("require") or []
     optional = rule.get("optional") or []
+    forbidden = [r["box"] for r in (rule.get("review_zones") or {}).values()]
     mode = rule.get("mode", "all")
     kinds = kinds or ["remove_one", "remove_all", "move_one"]
     base = to_rgb(image)
@@ -125,7 +127,7 @@ def make_variants(page, image: Image.Image, zones: dict, rule: dict, rng: random
             ok = True
             for b in page.boxes_of(cls):
                 target = find_wrong_place(page.width, page.height, b.xyxy, dz[cls]["box"],
-                                          avoid, rng)
+                                          avoid, rng, forbidden=forbidden)
                 if target is None:
                     ok = False
                     break

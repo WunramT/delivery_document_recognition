@@ -112,7 +112,13 @@ Wichtige Stellen:
     Box-Mittelpunkt). Die Feld-Boxen sind eine Näherung des Standard-CMR und stehen direkt in
     der Config; der Report zeigt je Feld, wie oft es laut GT unterschrieben ist. Soll pro Feld
     auch ein Stempel da sein: `stempel` in `require` des Felds ergänzen.
+  - **CMR, Nebenzone Feld 13:** `review_zones` – liegt Unterschrift/Stempel nicht im
+    Unterschriftsbereich, aber in Feld 13 (zugelassen), wird die Seite `unsicher` =
+    Prüfung durch eine Person (`action: ok` würde sie akzeptieren). Der Report listet alle
+    annotierten Objekte außerhalb der Soll-Zone mit Position, um die Feld-13-Box zu prüfen.
   - **Lieferschein, Loading List:** nichts gefordert, Position nicht geprüft.
+  - Die Loading List ist für Tournummer und Akzeptanzkriterien nicht relevant
+    (`ocr.doc_types`, `acceptance.doc_types`); sie bleibt für den Dokumenttyp im Datensatz.
   - Allgemein möglich: `require` + `mode` (`all`/`any`) mit abgeleiteten Zonen je Klasse und
     `optional` (nur geprüft, falls vorhanden).
 - `zones.overrides` – manuelle Korrektur einzelner Kanten abgeleiteter Zonen.

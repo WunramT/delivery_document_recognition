@@ -252,6 +252,15 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
             L.append(f"\n- Seiten mit allen Feldern erfüllt: **{st['pages_all_fields']} von {st['pages']}**")
             if st["outside_all_fields"]:
                 L.append(f"- Boxen außerhalb aller Felder: {st['outside_all_fields']} – Feld-Boxen in `zones.rules.{t}.fields` prüfen")
+    if p.get("review_real") and p["review_real"]["n"]:
+        L.append(f"\nZur Prüfung durch eine Person (zugelassene Nebenzone, z. B. Feld 13): {fr(p['review_real'])} der Seiten")
+    if p.get("outside_zone"):
+        L += ["", f"Annotierte Unterschriften/Stempel außerhalb der Soll-Zone (alle Splits, {len(p['outside_zone'])}) – "
+              "zum Prüfen der Nebenzonen-Box (z. B. Feld 13):", "",
+              "| Seite | Split | Klasse | Zentrum x / y | Box | Nebenzone |", "|---|---|---|---|---|---|"]
+        for o in p["outside_zone"][:40]:
+            L.append(f"| {Path(o['file_name']).name} | {o['split']} | {o['cls']} | {o['center'][0]:.2f} / {o['center'][1]:.2f} | "
+                     f"{', '.join(f'{v:.2f}' for v in o['box'])} | {o['review_zone'] or '– (nicht abgedeckt)'} |")
     if p["gt_not_ok"]:
         L += ["", f"Seiten, die schon laut GT die Regel nicht erfüllen ({len(p['gt_not_ok'])}) – nicht in der Fehlalarmrate enthalten:", ""]
         for r in p["gt_not_ok"][:20]:

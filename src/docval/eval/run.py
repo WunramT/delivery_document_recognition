@@ -23,7 +23,7 @@ from ..models import ocr_model_dir, offline, setup_cache
 from ..ocr.onnx_ocr import OcrEngine, Recognizer, crop_quad, pad_crop, pil_to_bgr
 from ..ocr.postprocess import evaluate_text, parse_cmr_count, stack_complete
 from ..zones import (MISSING, NOT_REQUIRED, OK, WRONG_POSITION, apply_overrides, box_center_in, check_page,
-                     derive_zones)
+                     derive_zones, overlap_fraction)
 from ..zones.synthetic import make_variants, to_rgb
 from ..jsonutil import dumps
 from .metrics import average_precision, match, ratio
@@ -363,6 +363,10 @@ def run_eval(cfg, log) -> int:
     det_res = detector_stats(test, preds, classes, thr, iou_thr)
     det_res["thresholds"] = thr
     det_res["calibration"] = calib
+    acc_types = cfg["acceptance"].get("doc_types")
+    acc_pages = [p for p in test if not acc_types or p.doc_type in acc_types]
+    det_res["acceptance_pages"] = len(acc_pages)
+    det_res["acceptance_per_class"] = detector_stats(acc_pages, preds, classes, thr, iou_thr)["per_class"]
     det_res["by_doc_type"] = {}
     for t in sorted({p.doc_type for p in test if p.doc_type}):
         tp_pages = [p for p in test if p.doc_type == t]
@@ -510,9 +514,28 @@ def run_eval(cfg, log) -> int:
         k[0] += int(s["caught"])
         k[1] += 1
     real_neg = [r for r in real_rows if r["gt_status"] in (MISSING, WRONG_POSITION)]
+    outside = []
+    for p in pages:  # all splits: where do annotated objects lie outside the target zone?
+        rule = rules.get(p.doc_type) or {}
+        for b in p.boxes:
+            if b.cls not in (rule.get("require") or []):
+                continue
+            z = zones.get(p.doc_type, {}).get(b.cls)
+            nb = b.norm(p.width, p.height)
+            if z and overlap_fraction(nb, z["box"]) >= zcfg["min_overlap"]:
+                continue
+            rz = [n for n, r in (rule.get("review_zones") or {}).items()
+                  if overlap_fraction(nb, r["box"]) >= zcfg["min_overlap"]]
+            outside.append({"file_name": p.file_name, "doc_type": p.doc_type, "cls": b.cls,
+                            "split": split.get(p.file_name), "center": [round((nb[0] + nb[2]) / 2, 3),
+                                                                        round((nb[1] + nb[3]) / 2, 3)],
+                            "box": [round(v, 3) for v in nb], "review_zone": rz[0] if rz else None})
     R["position"] = {
         "zones": zones, "zones_info": zinfo, "field_stats": field_stats(pages, rules),
         "fields": {t: r["fields"] for t, r in rules.items() if (r or {}).get("fields")},
+        "outside_zone": outside,
+        "review_real": ratio(sum(r["status"] == "unsicher" and "Prüfung durch Person" in r["reason"] for r in real_rows),
+                             len(real_rows)),
         "recall_real_negatives": ratio(sum(r["status"] in (MISSING, WRONG_POSITION) for r in real_neg), len(real_neg)),
         "false_alarm": ratio(len(false_alarms), len(ok_pages)),
         "uncertain_real": ratio(len(uncertain_real), len(ok_pages)),
@@ -531,9 +554,10 @@ def run_eval(cfg, log) -> int:
     regex = cfg["labels"]["tour_number"]["format_regex"]
     tour_rows = []
     gt_crops = []
+    ocr_types = ocfg.get("doc_types")
     for p in test:
         gb = p.boxes_of("tour_nummer")
-        if not gb:
+        if not gb or (ocr_types and p.doc_type not in ocr_types):
             continue
         im = originals[p.file_name]
         crop = pad_crop(im, gb[0].xyxy, ocfg["crop_padding"])
@@ -655,8 +679,9 @@ def run_eval(cfg, log) -> int:
                      "passed": ok, "n": r["n"] if r else 0, "ci95": r["ci95"] if r else None, "note": note})
 
     for c, t in A["detector_recall"].items():
-        pc = det_res["per_class"].get(c)
-        add("Detektor", f"Recall@IoU{iou_thr} {c}", pc["recall"] if pc else None, t)
+        pc = det_res["acceptance_per_class"].get(c)
+        add("Detektor", f"Recall@IoU{iou_thr} {c}" + (f" ({', '.join(acc_types)})" if acc_types else ""),
+            pc["recall"] if pc else None, t)
     add("Dokumenttyp", "Accuracy (ohne unsicher)", R["doctype"]["accuracy"], A["doctype_accuracy"])
     add("Dokumenttyp", "Anteil unsicher", R["doctype"]["uncertain"], A["doctype_uncertain_max"], "<=")
     add("Position", "Recall synthetische Negative", R["position"]["recall_negatives"], A["position_recall_negatives"])
