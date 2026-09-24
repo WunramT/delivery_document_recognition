@@ -273,8 +273,8 @@ def detector_stats(pages, preds, classes, thr: dict, iou_thr) -> dict:
 
 def working_thresholds(cfg, detector, pages, split, classes, iou_thr, log, prep=None):
     """detector.score_threshold: number (all classes) or "auto" = per class the
-    threshold with the best F1 on the valid split (ties -> higher threshold), so the
-    test split stays untouched. score_uncertain = factor x threshold."""
+    threshold with the best F-beta on the valid split (detector.calibration_beta, 1 = F1,
+    2 = recall weighted), so the test split stays untouched. score_uncertain = factor x threshold."""
     d = cfg["detector"]
     fixed = d["score_threshold"]
     factor = d.get("score_uncertain_factor", 0.6)
@@ -284,6 +284,8 @@ def working_thresholds(cfg, detector, pages, split, classes, iou_thr, log, prep=
         vpreds = {p.file_name: detector(prep(p)[1] if prep else Image.open(p.path)) for p in valid}
         thr, calib = {}, {"split": "valid", "n_pages": len(valid), "per_class": {}}
         fallback = d.get("score_threshold_fallback", 0.5)
+        b2 = float(d.get("calibration_beta", 1.0)) ** 2
+        calib["beta"] = b2 ** 0.5
         for c in classes:
             n_gt, scored = scored_matches(valid, vpreds, c, iou_thr)
             f1s = []
@@ -291,7 +293,8 @@ def working_thresholds(cfg, detector, pages, split, classes, iou_thr, log, prep=
                 r = pr_at(scored, n_gt, t)
                 if not n_gt or r["precision"] is None:
                     continue
-                f1s.append((t, 2 * r["precision"] * r["recall"] / (r["precision"] + r["recall"]) if r["recall"] else 0.0))
+                pr, rc = r["precision"], r["recall"]
+                f1s.append((t, (1 + b2) * pr * rc / (b2 * pr + rc) if rc else 0.0))
             best_f1 = max((f for _, f in f1s), default=-1.0)
             # several thresholds are often equally good on the small valid split: take the
             # middle of that plateau, not an edge (the high edge overfits, see stamp 0.8)
@@ -679,6 +682,7 @@ def run_eval(cfg, log) -> int:
                       "pages": ratio(sum(1 for i in minfo.values() if i["found"]), len(minfo)),
                       "not_found": [fn for fn, i in minfo.items() if not i["found"]],
                       "dropped_gt_boxes": prep.dropped}
+    R["exports"] = cfg.get("_exports")
 
     # ---------------------------------------------------------- acceptance
     A = cfg["acceptance"]

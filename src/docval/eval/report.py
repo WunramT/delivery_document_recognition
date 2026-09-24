@@ -83,9 +83,25 @@ def plausibility(R: dict) -> list[str]:
              and r["gt_box"][prim]["accepted"] and r["gt_box"][prim]["score"] >= 0.98
              and r["gt_box"][prim]["text"] != r["gt"]]
     if len(wrong) >= 2:
-        texts = sorted({r["gt_box"][prim]["text"] for r in wrong})
-        out.append(f"{len(wrong)} Tournummern mit sehr hoher OCR-Konfidenz weichen von der GT ab "
-                   f"(gelesen {', '.join(texts[:3])}) – stimmt tour_numbers.csv für diese Seiten?")
+        by_exp: dict = {}
+        for r in wrong:
+            e = r["file_name"].split("/")[0] if "/" in r["file_name"] else ""
+            by_exp.setdefault(e, {"n": 0, "gt": r["gt"], "read": set()})
+            by_exp[e]["n"] += 1
+            by_exp[e]["read"].add(r["gt_box"][prim]["text"])
+        parts = [f"{e or 'Seiten'}: {v['n']}× gelesen {', '.join(sorted(v['read']))} statt GT {v['gt']}"
+                 for e, v in by_exp.items()]
+        out.append(f"{len(wrong)} Tournummern mit sehr hoher OCR-Konfidenz weichen von der GT ab ("
+                   + "; ".join(parts) + ") – stimmt der Ordnername bzw. tour_numbers.csv?")
+    dups = (R.get("exports") or {}).get("image_duplicates") or []
+    if dups:
+        pairs: dict = {}
+        for _a, _b, ea, eb in dups:
+            k = " ↔ ".join(sorted((ea, eb)))
+            pairs[k] = pairs.get(k, 0) + 1
+        out.append(f"{len(dups)} Bilder liegen in mehreren Exporten ("
+                   + ", ".join(f"{k}: {n}" for k, n in pairs.items())
+                   + ") – ein Export doppelt? Dann einen Ordner entfernen (Leck zwischen train/valid/test).")
     fm = R.get("form_mask") or {}
     if fm.get("not_found") and fm.get("pages", {}).get("n") and len(fm["not_found"]) >= 0.5 * fm["pages"]["n"]:
         out.append(f"Die CMR-Feldzeile fehlt auf {len(fm['not_found'])} von {fm['pages']['n']} CMR-Seiten – "
@@ -199,7 +215,7 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
                  f"{'OK' if par['passed'] else 'ABWEICHUNG'}\n")
     det = R["detector"]
     cal = det.get("calibration")
-    src = "auf dem valid-Split kalibriert (bestes F1)" if cal else "fest aus config.yaml"
+    src = f"auf dem valid-Split kalibriert (bestes F{cal.get('beta', 1):g})" if cal else "fest aus config.yaml"
     L += [f"Arbeitsschwellen je Klasse {src}, IoU {cfg['detector']['iou_match']}:", "",
           "| Klasse | Schwelle | GT | Recall | Precision | AP50 |", "|---|---|---|---|---|---|"]
     for c, v in det["per_class"].items():

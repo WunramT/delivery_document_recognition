@@ -50,6 +50,18 @@ def tour_from_name(name: str, spec: dict | None) -> str | None:
     return spec.get("format", "{tour}/{date}/{plant}").format(**vals)
 
 
+def _hash(path: Path) -> int | None:
+    from PIL import Image
+
+    from .dataset_info import dhash
+    try:
+        with Image.open(path) as im:
+            im.draft("L", (256, 256))
+            return dhash(im)
+    except OSError:
+        return None
+
+
 def _coco_file(d: Path) -> Path:
     return next(d / n for n in COCO_NAMES if (d / n).is_file())
 
@@ -60,7 +72,8 @@ def merge_exports(cfg: dict, exports: list[Path], out: Path, root: Path | None =
     for c in classes:
         cats[c] = len(cats) + 1
     type_rows, tour_rows = [], []
-    info = {"exports": [], "duplicates": []}
+    info = {"exports": [], "duplicates": [], "image_duplicates": []}
+    hashes: dict[str, tuple] = {}  # rel -> (export, dhash)
     seen_pages: dict = {}
     iid = aid = 1
     for d in exports:
@@ -76,6 +89,8 @@ def merge_exports(cfg: dict, exports: list[Path], out: Path, root: Path | None =
             p = find_image(img["file_name"], d / "images", d)
             base = root or d.parent
             rel = (d.relative_to(base) / img["file_name"]).as_posix() if p is None else p.relative_to(base).as_posix()
+            if p is not None and cfg.get("inspect", {}).get("compute_image_hashes", True):
+                hashes[rel] = (name, _hash(p))
             id_map[img["id"]] = iid
             fn_map[img["file_name"]] = rel
             images.append({"id": iid, "file_name": rel, "width": img["width"], "height": img["height"],
@@ -127,6 +142,14 @@ def merge_exports(cfg: dict, exports: list[Path], out: Path, root: Path | None =
                                 "doc_types": len(matched), "doc_types_missing": len(stats["unmatched_coco"]),
                                 "tour_numbers": len(tm), "tour_from_name": from_name,
                                 "tour_from_name_pages": n_from_name})
+    # the same scan in two exports (e.g. one batch exported twice under different names)
+    # -> labels may contradict each other and the page leaks across splits
+    dist = cfg.get("inspect", {}).get("export_duplicate_hash_distance", 2)
+    items = [(k, e, h) for k, (e, h) in hashes.items() if h is not None]
+    for i, (a, ea, ha) in enumerate(items):
+        for b, eb, hb in items[i + 1:]:
+            if ea != eb and bin(ha ^ hb).count("1") <= dist:
+                info["image_duplicates"].append([a, b, ea, eb])
     out.mkdir(parents=True, exist_ok=True)
     coco = {"images": images, "annotations": anns,
             "categories": [{"id": i, "name": n, "supercategory": "none"} for n, i in cats.items()]}
@@ -166,6 +189,14 @@ def apply_exports(cfg: dict, log=None) -> dict:
             f"{e['name']} ({e['images']} Seiten" + (f", Tour {e['tour_from_name']}" if e.get("tour_from_name") else "")
             + ")" for e in info["exports"])
             + (f"; WARNUNG doppelte Seiten: {len(info['duplicates'])}" if info["duplicates"] else ""))
+        dups = info["image_duplicates"]
+        if dups:
+            pairs: dict = {}
+            for _a, _b, ea, eb in dups:
+                k = tuple(sorted((ea, eb)))
+                pairs[k] = pairs.get(k, 0) + 1
+            log("[exports] WARNUNG gleiche Bilder in mehreren Exporten (Leck zwischen den Splits, "
+                "Labels können sich widersprechen): " + ", ".join(f"{a} ↔ {b}: {n}" for (a, b), n in pairs.items()))
         for e in info["exports"]:
             if e["doc_types_missing"]:
                 log(f"[exports] WARNUNG {e['name']}: {e['doc_types_missing']} von {e['images']} Seiten ohne "

@@ -80,3 +80,18 @@ def test_exports_directly_under_labels_with_tour_from_folder_name(tmp_path):
         by_export.setdefault(p.file_name.split("/images/")[0], set()).add(p.tour_number)
     assert by_export == {"425_21.09.2026": {"425/21.09.2026/4000"},
                          "exports/503_01.09.2026": {"503/01.09.2026/4000"}}
+
+
+def test_same_images_in_two_exports_are_reported(tmp_path):
+    import shutil
+
+    exp = tmp_path / "exports"
+    make_export(exp / "652_15.09.2026", 3, 1)
+    make_export(exp / "609_17.09.2026", 3, 2)
+    shutil.copytree(exp / "652_15.09.2026", exp / "FT")     # same batch exported twice
+    cfg_path = tmp_path / "c.yaml"
+    cfg_path.write_text(yaml.safe_dump({"extends": str(ROOT / "config.yaml"),
+                                        "paths": {"exports": str(exp), "artifacts": str(tmp_path / "art")}}))
+    dups = apply_exports(load_config(cfg_path))["_exports"]["image_duplicates"]
+    assert {tuple(sorted(d[2:])) for d in dups} == {("652_15.09.2026", "FT")}
+    assert len(dups) == 3

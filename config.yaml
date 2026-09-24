@@ -73,9 +73,12 @@ detector:
   device: auto                # auto | cpu | cuda
   onnx_opset: 17
   # evaluation
-  # auto = per class the best-F1 threshold on the valid split (test stays untouched);
+  # auto = per class the best-F-beta threshold on the valid split (test stays untouched);
   # or a number for all classes. The P/R tables in the report help to choose.
   score_threshold: auto
+  # 1 = F1; 2 = F2 (recall counts double): a missed signature/stamp is a false alarm,
+  # a low-score detection only lands in "unsicher" (person checks) -> prefer recall
+  calibration_beta: 2
   score_threshold_fallback: 0.5   # if a class has no GT in valid
   score_uncertain_factor: 0.6     # [factor x threshold, threshold) -> "unsicher"
   iou_match: 0.5
@@ -206,6 +209,7 @@ inspect:
   bbox_tolerance_px: 1.0
   tour_crop_padding: 0.12
   near_duplicate_hash_distance: 6
+  export_duplicate_hash_distance: 2   # same scan in two export folders (strict)
   compute_image_hashes: true
   name_keywords:              # only hints in file/folder names, never GT
     cmr: [cmr]
