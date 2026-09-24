@@ -41,3 +41,13 @@ def test_rfdetr_postprocess_drops_background_and_converts_boxes():
 
 def test_config_deep_merge():
     assert deep_merge({"a": {"b": 1, "c": 2}, "d": 1}, {"a": {"c": 3}}) == {"a": {"b": 1, "c": 3}, "d": 1}
+
+
+def test_json_handles_numpy_scalars():
+    import json
+
+    import numpy as np
+
+    from docval.jsonutil import dumps
+    d = json.loads(dumps({"a": np.float32(0.5), "b": np.int64(3), "c": np.array([1, 2]), "d": np.bool_(True)}))
+    assert d == {"a": 0.5, "b": 3, "c": [1, 2], "d": True}

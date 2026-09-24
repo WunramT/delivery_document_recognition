@@ -81,7 +81,7 @@ def export(cfg: dict, run_dir: Path, out_dir: Path, classes: list[str], log=prin
     if tmp.exists():
         shutil.rmtree(tmp)
     path = Path(model.export(output_dir=str(tmp), format="onnx",
-                             opset_version=cfg["detector"].get("onnx_opset", 17)))
+                             opset_version=cfg["detector"].get("onnx_opset", 17), verbose=False))
     out_dir.mkdir(parents=True, exist_ok=True)
     onnx_path = out_dir / "detector.onnx"
     shutil.move(str(path), onnx_path)
@@ -144,7 +144,8 @@ def parity(cfg: dict, run_dir: Path, onnx_dir: Path, images: list[Path], log=pri
 
         W, H = im.size
         det = model.predict(im.convert("RGB"), threshold=thr)
-        pt = [{"cls_id": int(c), "score": float(s), "box": [b[0] / W, b[1] / H, b[2] / W, b[3] / H]}
+        pt = [{"cls_id": int(c), "score": float(s),
+               "box": [float(b[0]) / W, float(b[1]) / H, float(b[2]) / W, float(b[3]) / H]}
               for b, c, s in zip(det.xyxy, det.class_id, det.confidence)]
         ox = [d for d in postprocess(ox_boxes, ox_logits, ncls, threshold=thr)]
         for a in pt:
@@ -153,8 +154,8 @@ def parity(cfg: dict, run_dir: Path, onnx_dir: Path, images: list[Path], log=pri
             if best is None or iou(a["box"], best["box"]) < 0.5:
                 unmatched += 1
                 continue
-            e2e_box = max(e2e_box, max(abs(u - v) for u, v in zip(a["box"], best["box"])))
-            e2e_score = max(e2e_score, abs(a["score"] - best["score"]))
+            e2e_box = max(e2e_box, float(max(abs(u - v) for u, v in zip(a["box"], best["box"]))))
+            e2e_score = max(e2e_score, float(abs(a["score"] - best["score"])))
         per_image.append({"image": p.name, "raw_box": db, "raw_score": ds, "same_slot": slot_share,
                           "n_pt": len(pt), "n_onnx": len(ox)})
     pcfg = cfg["detector"]["parity"]

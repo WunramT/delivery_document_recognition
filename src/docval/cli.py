@@ -9,6 +9,7 @@ import sys
 import time
 
 from .config import artifacts, load_config
+from .jsonutil import dumps
 
 
 def log(msg: str) -> None:
@@ -32,7 +33,7 @@ def cmd_split(cfg) -> int:
         "pages": [{"file_name": p.file_name, "split": assign[p.file_name], "group": p.group,
                    "doc_type": p.doc_type, "source_page": p.source_page} for p in pages],
     }
-    (artifacts(cfg, "splits") / "split.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
+    (artifacts(cfg, "splits") / "split.json").write_text(dumps(manifest), encoding="utf-8")
     for s in ("train", "valid", "test"):
         d = summary.get(s, {"pages": 0, "groups": 0, "by_type": {}})
         log(f"[split] {s:5s}: {d['pages']:3d} Seiten, {d['groups']:2d} Gruppen, {d['by_type']}")
@@ -84,7 +85,7 @@ def cmd_export(cfg) -> int:
             d = artifacts(cfg, "splits", "detector", s)
             imgs += sorted(p for p in d.iterdir() if p.suffix.lower() in (".png", ".jpg", ".jpeg"))
     res = parity(cfg, run, out, imgs[:n], log)
-    (out / "parity.json").write_text(json.dumps(res, indent=2))
+    (out / "parity.json").write_text(dumps(res), encoding="utf-8")
     return 0 if res["passed"] else 3
 
 

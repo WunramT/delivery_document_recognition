@@ -24,6 +24,7 @@ from ..ocr.onnx_ocr import OcrEngine, Recognizer, crop_quad, pad_crop, pil_to_bg
 from ..ocr.postprocess import evaluate_text, parse_cmr_count, stack_complete
 from ..zones import MISSING, NOT_REQUIRED, OK, WRONG_POSITION, check_page, derive_zones
 from ..zones.synthetic import make_variants, to_rgb
+from ..jsonutil import dumps
 from .metrics import average_precision, match, ratio
 
 DET_THRESHOLDS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
@@ -523,7 +524,7 @@ def run_eval(cfg, log) -> int:
 
     out = artifacts(cfg, "report")
     out.mkdir(parents=True, exist_ok=True)
-    (out / "results.json").write_text(json.dumps(R, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
+    (out / "results.json").write_text(dumps(R, indent=1), encoding="utf-8")
     write_pages_csv(out / "pages.csv", test, dt_rows, real_rows, tour_rows, prim)
     from .report import render
 
