@@ -115,6 +115,8 @@ def parity(cfg: dict, run_dir: Path, onnx_dir: Path, images: list[Path], log=pri
     onnx = OnnxDetector(onnx_dir, min_score=0.0)
     ncls = len(onnx.classes)
     thr = cfg["detector"]["score_threshold"]
+    if not isinstance(thr, (int, float)):  # "auto" is calibrated in eval; parity uses the fallback
+        thr = cfg["detector"].get("score_threshold_fallback", 0.5)
     raw_box, raw_score, e2e_box, e2e_score, unmatched = 0.0, 0.0, 0.0, 0.0, 0
     per_image = []
     for p in images:

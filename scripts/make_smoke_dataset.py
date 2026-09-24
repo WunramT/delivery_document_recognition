@@ -80,8 +80,9 @@ def main():
         for k in range(12):  # body text lines
             y = 140 + k * 38
             d.line([(40, y), (40 + rng.randint(200, 520), y)], fill=(160, 160, 160), width=2)
-        tour = f"{rng.randint(100, 999)}/{rng.randint(1, 20):02d}"
-        f = font(20)
+        # real format: tour/date/number, e.g. 503/01.09.2026/4000
+        tour = f"{rng.randint(100, 999)}/{rng.randint(1, 28):02d}.09.2026/{rng.randint(1000, 9999)}"
+        f = font(18)
         tw = d.textlength(tour, font=f)
         cx, cy = TOUR_POS[t][0] * W, TOUR_POS[t][1] * H
         tb = [cx - tw / 2 - 4, cy - 13, cx + tw / 2 + 4, cy + 13]

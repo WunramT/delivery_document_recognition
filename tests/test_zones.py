@@ -3,14 +3,16 @@ import random
 from PIL import Image
 
 from docval.data.dataset import Box, Page, clip_box
-from docval.zones import (MISSING, NOT_REQUIRED, OK, UNCERTAIN, WRONG_POSITION, check_page,
-                          derive_zones, overlap_fraction)
+from docval.zones import (MISSING, NOT_REQUIRED, OK, UNCERTAIN, WRONG_POSITION, apply_overrides,
+                          check_page, derive_zones, overlap_fraction)
 from docval.zones.synthetic import make_variants
 
 RULES = {"cmr": {"require": ["unterschrift", "stempel"], "mode": "all"},
+         "lieferschein": {"require": [], "optional": ["unterschrift", "stempel"]},
          "loading_list": {"require": []},
          "x_any": {"require": ["unterschrift", "stempel"], "mode": "any"}}
 ZONES = {"cmr": {"unterschrift": {"box": [0.5, 0.7, 1.0, 1.0]}, "stempel": {"box": [0.5, 0.7, 1.0, 1.0]}},
+         "lieferschein": {"unterschrift": {"box": [0.5, 0.7, 1.0, 1.0]}, "stempel": {"box": [0.5, 0.7, 1.0, 1.0]}},
          "x_any": {"unterschrift": {"box": [0.5, 0.7, 1.0, 1.0]}, "stempel": {"box": [0.5, 0.7, 1.0, 1.0]}}}
 
 
@@ -81,3 +83,32 @@ def test_synthetic_variants_expected_results():
     assert rs.getpixel((145, 170)) == (0, 0, 200)
     assert rs.getpixel((170, 170)) == (255, 255, 255)
     assert im.getpixel((170, 170)) == (0, 0, 200, 255)  # original untouched
+
+
+def test_optional_objects_lieferschein():
+    good = [det("unterschrift", [0.7, 0.8, 0.8, 0.9])]
+    assert check("lieferschein", [])["status"] == OK                 # nothing required
+    assert check("lieferschein", good)["status"] == OK
+    wrong = [det("stempel", [0.1, 0.1, 0.3, 0.2])]
+    assert check("lieferschein", wrong)["status"] == WRONG_POSITION  # present, but misplaced
+
+
+def test_per_class_thresholds():
+    d = [det("unterschrift", [0.7, 0.8, 0.8, 0.9], 0.3), det("stempel", [0.6, 0.8, 0.8, 0.95], 0.3)]
+    r = check_page("cmr", d, ZONES, RULES, 0.5, {"unterschrift": 0.25, "stempel": 0.5},
+                   {"unterschrift": 0.15, "stempel": 0.3})
+    assert [x["status"] for x in r["details"]] == [OK, UNCERTAIN]
+
+
+def test_zone_overrides_only_given_edges():
+    z = apply_overrides({"cmr": {"unterschrift": {"box": [0.64, 0.75, 1.0, 0.99], "n_samples": 20}}},
+                        {"cmr": {"unterschrift": {"x1": 0.0, "x2": 1.0}}})
+    assert z["cmr"]["unterschrift"]["box"] == [0.0, 0.75, 1.0, 0.99]
+
+
+def test_synthetic_optional_only_moved():
+    im = Image.new("RGB", (200, 200), "white")
+    page = Page(1, "p.png", None, 200, 200, doc_type="lieferschein",
+                boxes=[Box("unterschrift", [120, 150, 150, 190])])
+    vs = make_variants(page, im, ZONES, RULES["lieferschein"], random.Random(0))
+    assert [(v["kind"], v["expected"]) for v in vs] == [("verschoben_unterschrift", WRONG_POSITION)]

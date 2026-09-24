@@ -90,7 +90,8 @@ def make_variants(page, image: Image.Image, zones: dict, rule: dict, rng: random
                   fill: str = "median", kinds=None) -> list[dict]:
     """Return [{"kind", "image", "expected", "boxes"}] for one page whose GT
     fulfils the rule. `boxes` are the modified GT boxes (for the gallery)."""
-    required = rule.get("require", [])
+    required = rule.get("require") or []
+    optional = rule.get("optional") or []
     mode = rule.get("mode", "all")
     kinds = kinds or ["remove_one", "remove_all", "move_one"]
     base = to_rgb(image)
@@ -134,6 +135,26 @@ def make_variants(page, image: Image.Image, zones: dict, rule: dict, rng: random
                 if exp:
                     out.append({"kind": f"verschoben_{cls}", "image": im, "expected": exp,
                                 "boxes": remaining({cls}) + moved})
+    # optional objects: only moving them is an error (removing is fine)
+    for cls in optional:
+        if "move_one" not in kinds or cls not in dz or not page.boxes_of(cls):
+            continue
+        im = base.copy()
+        avoid = [b.xyxy for b in page.boxes]
+        moved, ok = [], True
+        for b in page.boxes_of(cls):
+            target = find_wrong_place(page.width, page.height, b.xyxy, dz[cls]["box"], avoid, rng)
+            if target is None:
+                ok = False
+                break
+            crop = base.crop(tuple(int(v) for v in b.xyxy))
+            erase_keep(im, base, b.xyxy, [o.xyxy for o in page.boxes if o.cls != cls], fill=fill)
+            im.paste(crop, (int(target[0]), int(target[1])))
+            avoid.append(target)
+            moved.append(type(b)(cls, list(target), b.ann_id))
+        if ok and moved:
+            out.append({"kind": f"verschoben_{cls}", "image": im, "expected": WRONG_POSITION,
+                        "boxes": remaining({cls}) + moved})
     if "remove_all" in kinds and len(required) > 1:
         im = base.copy()
         for cls in required:

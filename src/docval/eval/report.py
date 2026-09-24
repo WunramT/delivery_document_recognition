@@ -99,9 +99,8 @@ def conclusion(R: dict) -> list[str]:
                  "`labels/tour_review.html` ausfüllen, sonst ist die OCR-Genauigkeit nicht messbar.")
     pos = R["position"]
     if pos["gt_not_ok"]:
-        L.append(f"**Positionsprüfung:** {len(pos['gt_not_ok'])} Test-Seiten erfüllen schon laut GT die Regel "
-                 "nicht (z. B. Lieferschein-Folgeseiten ohne Unterschrift). Klären, ob diese Seiten eine "
-                 "Unterschrift brauchen – sonst Regel pro Dokument statt pro Seite.")
+        L.append(f"**Positionsprüfung:** {len(pos['gt_not_ok'])} Seiten erfüllen schon laut GT die Regel nicht "
+                 "(Liste im Abschnitt 3) – Zonen (`zones.overrides`) oder Regeln (`zones.rules`) prüfen.")
     if not L:
         L.append("Alle Kriterien erfüllt.")
     return L
@@ -151,11 +150,23 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
                  f"Ende-zu-Ende inkl. eigener Vorverarbeitung: Boxen {par['e2e_max_box_diff']:.2e}, "
                  f"Scores {par['e2e_max_score_diff']:.2e}, ohne Gegenstück {par['e2e_unmatched']} → "
                  f"{'OK' if par['passed'] else 'ABWEICHUNG'}\n")
-    thr = cfg["detector"]["score_threshold"]
-    L += [f"Arbeitsschwelle {thr}, IoU {cfg['detector']['iou_match']}:", "",
-          "| Klasse | GT | Recall | Precision | AP50 |", "|---|---|---|---|---|"]
-    for c, v in R["detector"]["per_class"].items():
-        L.append(f"| {c} | {v['n_gt']} | {fr(v['recall'])} | {fr(v['precision'])} | {num(v['ap50'])} |")
+    det = R["detector"]
+    cal = det.get("calibration")
+    src = "auf dem valid-Split kalibriert (bestes F1)" if cal else "fest aus config.yaml"
+    L += [f"Arbeitsschwellen je Klasse {src}, IoU {cfg['detector']['iou_match']}:", "",
+          "| Klasse | Schwelle | GT | Recall | Precision | AP50 |", "|---|---|---|---|---|---|"]
+    for c, v in det["per_class"].items():
+        L.append(f"| {c} | {v.get('threshold', '-')} | {v['n_gt']} | {fr(v['recall'])} | {fr(v['precision'])} | {num(v['ap50'])} |")
+    if cal:
+        vd = cal["detector"]["per_class"]
+        L += ["", f"Vergleich valid ({cal['n_pages']} Seiten) ↔ {m['split']} ({m['n_pages']} Seiten) bei denselben Schwellen – "
+              "ist valid gut und test schlecht, liegt es an der Generalisierung (andere Sendungen), nicht an der Pipeline:", "",
+              "| Klasse | Recall valid | Recall " + m["split"] + " | AP50 valid | AP50 " + m["split"] + " |", "|---|---|---|---|---|"]
+        for c in det["per_class"]:
+            a, b = vd.get(c, {}), det["per_class"][c]
+            L.append(f"| {c} | {fr(a.get('recall'))} | {fr(b['recall'])} | {num(a.get('ap50'))} | {num(b['ap50'])} |")
+        if m["split"] == "valid":
+            L.append("\n**Hinweis:** ausgewertet wird der Split, auf dem auch die Schwellen kalibriert wurden – optimistisch.")
     L += ["", "Precision/Recall über die Konfidenzschwelle:", ""]
     cls = list(R["detector"]["pr_table"])
     L.append("| Schwelle | " + " | ".join(f"{c} P / R" for c in cls) + " |")
@@ -182,6 +193,13 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
     L += ["", "| Typ | n | Accuracy | unsicher |", "|---|---|---|---|"]
     for t, v in d["per_type"].items():
         L.append(f"| {t} | {v['n']} | {fr(v['accuracy'])} | {fr(v['uncertain'])} |")
+    misses = [r for r in d["rows"] if r["keyword"] != r["gt"]]
+    if misses:
+        L += ["", f"Keyword-Fehltreffer ({len(misses)}) – OCR-Text des Kopfbereichs, um `doctype.keywords` zu ergänzen:", "",
+              "| Seite | GT | Keyword-Ergebnis | OCR-Kopf |", "|---|---|---|---|"]
+        for r in misses:
+            txt = (r.get("header_text") or "").replace("|", "/")[:160]
+            L.append(f"| {Path(r['file_name']).name} | {r['gt']} | {r['keyword'] or '-'} | {txt} |")
     L.append("")
 
     # position

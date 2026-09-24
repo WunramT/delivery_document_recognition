@@ -15,9 +15,8 @@ DEFAULT_DIGIT_MAP = {
     "Z": "2", "z": "2",
     "G": "6",
 }
-DEFAULT_SEPARATOR_MAP = {"\\": "/", "⁄": "/", "∕": "/"}
-# only used as separator when no "/" is present and it occurs exactly once
-DEFAULT_AMBIGUOUS_SEPARATORS = ["|"]
+DEFAULT_SEPARATOR_MAP = {"\\": "/", "⁄": "/", "∕": "/", "|": "/"}
+DEFAULT_DOT_MAP = {",": ".", "·": ".", ":": "."}
 
 
 def normalize(text: str) -> str:
@@ -26,41 +25,99 @@ def normalize(text: str) -> str:
     return t.strip(".,;:'\"`-_")
 
 
-def correct(text: str, regex: str, digit_map: dict[str, str] | None = None,
-            separator_map: dict[str, str] | None = None) -> tuple[str, list[str]]:
-    """Format-aware correction for the pattern <digits>/<digits>.
+def _core(regex: str) -> str:
+    """Pattern without ^/$ anchors, for searching inside a longer OCR string."""
+    r = regex
+    if r.startswith("^"):
+        r = r[1:]
+    if r.endswith("$") and not r.endswith("\\$"):
+        r = r[:-1]
+    return r
 
-    Returns (corrected, list of applied changes). Characters are only mapped
-    to digits in positions where the format expects digits, i.e. everywhere
-    except the single separator. If the text already matches, nothing changes.
+
+def _loosen(core: str, digit_map: dict, separator_map: dict, dot_map: dict) -> str:
+    """Replace \\d, '/' and '\\.' in the pattern by classes that also accept OCR look-alikes."""
+    def cls(chars):
+        return "[" + "".join(re.escape(c) for c in chars) + "]"
+
+    digit = cls("0123456789" + "".join(digit_map))
+    slash = cls("/" + "".join(separator_map))
+    dot = cls("." + "".join(dot_map))
+    out, i = [], 0
+    while i < len(core):
+        if core.startswith("\\d", i):
+            out.append(digit)
+            i += 2
+        elif core.startswith("\\.", i):
+            out.append(dot)
+            i += 2
+        elif core[i] == "/":
+            out.append(slash)
+            i += 1
+        elif core[i] == "\\" and i + 1 < len(core):
+            out.append(core[i:i + 2])
+            i += 2
+        else:
+            out.append(core[i])
+            i += 1
+    return "".join(out)
+
+
+def correct(text: str, regex: str, digit_map: dict[str, str] | None = None,
+            separator_map: dict[str, str] | None = None,
+            dot_map: dict[str, str] | None = None) -> tuple[str, list[str]]:
+    """Format-aware correction for any regex built from \\d, '/' and '\\.'
+    (e.g. ^\\d+/\\d{2}\\.\\d{2}\\.\\d{4}/\\d+$).
+
+    1. exact match -> unchanged
+    2. the pattern occurs inside the text (label prefix "Tour", trailing noise) -> cut out
+    3. a loose pattern that also accepts OCR look-alikes (O->0, l->1, \\->/, ,->.) is
+       searched; only inside that span characters are mapped, position by position
+       according to what the format expects there (digit, '/', '.').
+    Returns (text, list of changes). A result that still does not match is rejected later.
     """
     digit_map = DEFAULT_DIGIT_MAP if digit_map is None else digit_map
     separator_map = DEFAULT_SEPARATOR_MAP if separator_map is None else separator_map
+    dot_map = DEFAULT_DOT_MAP if dot_map is None else dot_map
     t = normalize(text)
     if re.fullmatch(regex, t):
         return t, []
-    changes = []
-    chars = list(t)
-    # 1. separator variants -> "/"
-    for i, ch in enumerate(chars):
-        if ch in separator_map:
-            changes.append(f"{ch}->{separator_map[ch]}@{i}")
-            chars[i] = separator_map[ch]
-    # 1b. "200|01": ambiguous separator, only if no real one exists
-    if "/" not in chars:
-        for amb in DEFAULT_AMBIGUOUS_SEPARATORS:
-            if chars.count(amb) == 1:
-                i = chars.index(amb)
-                changes.append(f"{amb}->/@{i}")
-                chars[i] = "/"
+    core = _core(regex)
+    m = re.search(core, t)
+    if m and re.fullmatch(regex, m.group(0)):
+        cut = m.group(0)
+        return cut, [f"ausgeschnitten '{cut}' aus '{t}'"]
+    loose = _loosen(core, digit_map, separator_map, dot_map)
+    best = None
+    for lm in re.finditer(loose, t):
+        span = lm.group(0)
+        # try the mapping variants: an ambiguous char ('|') may be a digit or a separator
+        cands = [""]
+        for ch in span:
+            opts = []
+            if ch.isdigit() or ch in "/.":
+                opts = [ch]
+            else:
+                if ch in digit_map:
+                    opts.append(digit_map[ch])
+                if ch in separator_map:
+                    opts.append(separator_map[ch])
+                if ch in dot_map:
+                    opts.append(dot_map[ch])
+                if not opts:
+                    opts = [ch]
+            cands = [c + o for c in cands for o in opts][:64]
+        for c in cands:
+            if re.fullmatch(regex, c):
+                changes = [f"{a}->{b}@{i}" for i, (a, b) in enumerate(zip(span, c)) if a != b]
+                if span != t:
+                    changes.insert(0, f"ausgeschnitten '{span}' aus '{t}'")
+                if best is None or len(changes) < len(best[1]):
+                    best = (c, changes)
                 break
-    # 2. with exactly one "/", map look-alikes on both sides to digits
-    if chars.count("/") == 1:
-        for i, ch in enumerate(chars):
-            if ch != "/" and not ch.isdigit() and ch in digit_map:
-                changes.append(f"{ch}->{digit_map[ch]}@{i}")
-                chars[i] = digit_map[ch]
-    return "".join(chars), changes
+    if best:
+        return best
+    return t, []
 
 
 def evaluate_text(raw: str, score: float, regex: str, min_score: float,

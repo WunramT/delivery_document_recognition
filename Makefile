@@ -31,8 +31,9 @@ train:
 export:
 	$(DOCVAL) $(CONFIG) export
 
+SPLIT ?= test
 eval:
-	$(DOCVAL) $(CONFIG) eval
+	$(DOCVAL) $(CONFIG) eval --split $(SPLIT)
 
 report:
 	$(DOCVAL) $(CONFIG) report

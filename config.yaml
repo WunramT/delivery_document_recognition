@@ -26,8 +26,9 @@ labels:
     source: csv                    # csv | coco_attribute
     coco_attribute: attributes.text
     csv: labels/tour_numbers.csv   # "?" = unreadable in GT
-    # "number/number", e.g. 200/01. Kept as a string: leading zeros matter.
-    format_regex: '^\d+/\d+$'
+    # tour/date/number, e.g. 503/01.09.2026/4000 (all three parts = the tour number).
+    # Kept as a string: leading zeros matter.
+    format_regex: '^\d+/\d{2}\.\d{2}\.\d{4}/\d+$'
 
 # ---------------------------------------------------------------- step 2: split
 split:
@@ -48,7 +49,7 @@ detector:
   # page is squashed to res x res: at 384 (nano default) a tour_nummer box is
   # ~9 px tall, at 640 ~15 px. Must be a multiple of 32. null = model default.
   resolution: 640
-  epochs: 60
+  epochs: 150
   batch_size: 2
   grad_accum_steps: 4
   lr: 1.0e-4
@@ -57,12 +58,15 @@ detector:
   # resolution 640) while export/eval run at `resolution`. false = same size everywhere.
   multi_scale: false
   early_stopping: true
-  early_stopping_patience: 15
+  early_stopping_patience: 40
   device: auto                # auto | cpu | cuda
   onnx_opset: 17
   # evaluation
-  score_threshold: 0.5        # detections >= this count as "found"
-  score_uncertain: 0.3        # in [uncertain, threshold) -> "unsicher"
+  # auto = per class the best-F1 threshold on the valid split (test stays untouched);
+  # or a number for all classes. The P/R tables in the report help to choose.
+  score_threshold: auto
+  score_threshold_fallback: 0.5   # if a class has no GT in valid
+  score_uncertain_factor: 0.6     # [factor x threshold, threshold) -> "unsicher"
   iou_match: 0.5
   parity:                     # PyTorch vs. ONNX Runtime (CPU)
     n_images: 20
@@ -97,8 +101,16 @@ zones:
   min_overlap: 0.5            # share of a detected box that must lie in the zone
   rules:                      # what is required per doc type
     cmr: {require: [unterschrift, stempel], mode: all}
-    lieferschein: {require: [unterschrift, stempel], mode: all}
+    # Lieferschein: nothing required; if a signature/stamp is present it must be in its zone
+    lieferschein: {require: [], optional: [unterschrift, stempel]}
     loading_list: {require: []}
+  # manual corrections of the derived zones (only the given edges are replaced).
+  # CMR: signature/stamp may be in fields 22 (sender, left), 23 (carrier, middle)
+  # and 24 (consignee, right) -> full page width in the bottom area.
+  overrides:
+    cmr:
+      unterschrift: {x1: 0.0, x2: 1.0}
+      stempel: {x1: 0.0, x2: 1.0}
   synthetic:
     fill: median              # median | white
     kinds: [remove_one, remove_all, move_one]

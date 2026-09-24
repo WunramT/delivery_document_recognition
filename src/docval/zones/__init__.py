@@ -70,6 +70,28 @@ def derive_zones(samples: dict, p_lo: float, p_hi: float, margin: float,
     return zones
 
 
+def apply_overrides(zones: dict, overrides: dict) -> dict:
+    """Manual corrections from config: {doc_type: {cls: {x1?, y1?, x2?, y2?}}}.
+    Only the given edges replace the derived ones (e.g. widen CMR to fields 22-24)."""
+    keys = ["x1", "y1", "x2", "y2"]
+    out = {t: {c: dict(z) for c, z in zz.items()} for t, zz in zones.items()}
+    for doc_type, by_cls in (overrides or {}).items():
+        for cls, edges in by_cls.items():
+            z = out.setdefault(doc_type, {}).setdefault(cls, {"box": [0.0, 0.0, 1.0, 1.0], "n_samples": 0})
+            box = list(z["box"])
+            for i, k in enumerate(keys):
+                if k in edges:
+                    box[i] = float(edges[k])
+            z["box"] = box
+            z["override"] = {k: edges[k] for k in keys if k in edges}
+    return out
+
+
+def _thr(t, cls: str) -> float:
+    """Threshold may be a number or a {cls: number} dict."""
+    return t[cls] if isinstance(t, dict) else t
+
+
 def overlap_fraction(box: list[float], zone: list[float]) -> float:
     """Share of `box` area that lies inside `zone`."""
     ix = max(0.0, min(box[2], zone[2]) - max(box[0], zone[0]))
@@ -79,8 +101,15 @@ def overlap_fraction(box: list[float], zone: list[float]) -> float:
 
 
 def check_requirement(cls: str, zone: list[float] | None, detections: list[dict],
-                      min_overlap: float, score_accept: float, score_uncertain: float) -> dict:
-    """detections: [{"cls", "box" (normalized), "score"}]. Returns status + reason."""
+                      min_overlap: float, score_accept, score_uncertain, optional: bool = False) -> dict:
+    """detections: [{"cls", "box" (normalized), "score"}]. Returns status + reason.
+
+    optional=True: the object is not required, but if it is present it must be in
+    the zone (absent -> ok, only outside -> falsche_position).
+    """
+    score_accept, score_uncertain = _thr(score_accept, cls), _thr(score_uncertain, cls)
+    if zone is None and optional:
+        return {"cls": cls, "status": OK, "reason": f"{_name(cls)} optional, keine Zone definiert"}
     if zone is None:
         return {"cls": cls, "status": UNCERTAIN, "reason": f"keine Zone für {_name(cls)} definiert"}
     strong_in, weak_in, strong_out = [], [], []
@@ -104,6 +133,8 @@ def check_requirement(cls: str, zone: list[float] | None, detections: list[dict]
         c = [(d["box"][0] + d["box"][2]) / 2, (d["box"][1] + d["box"][3]) / 2]
         return {"cls": cls, "status": WRONG_POSITION,
                 "reason": f"{_name(cls)} erkannt, aber außerhalb der Soll-Zone (Zentrum {c[0]:.2f}/{c[1]:.2f})"}
+    if optional:
+        return {"cls": cls, "status": OK, "reason": f"{_none(cls)} erkannt (nicht gefordert)"}
     return {"cls": cls, "status": MISSING, "reason": f"{_none(cls)} erkannt"}
 
 
@@ -115,19 +146,34 @@ def check_page(doc_type: str | None, detections: list[dict], zones: dict, rules:
                min_overlap: float, score_accept: float, score_uncertain: float) -> dict:
     """Position check for one page.
 
-    rules: {doc_type: {"require": [cls, ...], "mode": "all" | "any"}}
+    rules: {doc_type: {"require": [cls, ...], "mode": "all" | "any", "optional": [cls, ...]}}
+    score_accept / score_uncertain: number or {cls: number}.
     """
     if doc_type is None or doc_type == UNCERTAIN:
         return {"status": UNCERTAIN, "reason": "Dokumenttyp unsicher", "details": []}
-    rule = rules.get(doc_type)
-    if not rule or not rule.get("require"):
+    rule = rules.get(doc_type) or {}
+    required = rule.get("require") or []
+    optional = rule.get("optional") or []
+    if not required and not optional:
         return {"status": NOT_REQUIRED, "reason": f"für {doc_type} nichts gefordert", "details": []}
     dz = zones.get(doc_type, {})
     details = []
-    for cls in rule["require"]:
+    for cls in required:
         z = dz.get(cls)
         details.append(check_requirement(cls, z["box"] if z else None, detections,
                                          min_overlap, score_accept, score_uncertain))
+    opt_details = []
+    for cls in optional:
+        z = dz.get(cls)
+        opt_details.append(check_requirement(cls, z["box"] if z else None, detections,
+                                             min_overlap, score_accept, score_uncertain, optional=True))
+    if not required:
+        status = OK
+        for d in opt_details:
+            if _SEVERITY[d["status"]] > _SEVERITY[status]:
+                status = d["status"]
+        return {"status": status, "reason": "; ".join(d["reason"] for d in opt_details),
+                "details": opt_details}
     mode = rule.get("mode", "all")
     if mode == "any":
         statuses = [d["status"] for d in details]
@@ -144,5 +190,10 @@ def check_page(doc_type: str | None, detections: list[dict], zones: dict, rules:
         for d in details:
             if _SEVERITY[d["status"]] > _SEVERITY[status]:
                 status = d["status"]
+    # an optional object in the wrong place still counts as wrong position
+    for d in opt_details:
+        if d["status"] == WRONG_POSITION and _SEVERITY[WRONG_POSITION] > _SEVERITY[status]:
+            status = WRONG_POSITION
+    details = details + opt_details
     reason = "; ".join(d["reason"] for d in details)
     return {"status": status, "reason": reason, "details": details}

@@ -33,11 +33,27 @@ def test_tour_correction():
     assert correct(" 2O0/Ol ", RX)[0] == "200/01"
     assert correct("20S\\B1", RX)[0] == "205/81"
     assert correct("200|01", RX)[0] == "200/01"
-    assert correct("AB/CD", RX)[0] == "A8/C0"  # still invalid -> rejected by regex
+    assert correct("AB/CD", RX)[0] == "AB/CD"  # no valid reading -> unchanged, rejected by regex
     r = evaluate_text("2OO/01", 0.95, RX, 0.9)
     assert r["accepted"] and r["text"] == "200/01" and r["corrections"]
     assert not evaluate_text("200/01", 0.5, RX, 0.9)["accepted"]
     assert not evaluate_text("20001", 0.99, RX, 0.9)["accepted"]
+
+
+TOUR = r"^\d+/\d{2}\.\d{2}\.\d{4}/\d+$"
+
+
+def test_tour_correction_real_format():
+    ok = "503/01.09.2026/4000"
+    assert correct(ok, TOUR) == (ok, [])
+    assert correct("Tura503/01.09.2026/4000", TOUR)[0] == ok      # label prefix in the box
+    assert correct("503/01.09.2026/4000b", TOUR)[0] == ok         # trailing noise
+    assert correct("5O3/01,09.2026\\4000", TOUR)[0] == ok        # look-alikes, position-aware
+    assert correct("503|01.09.2026|4000", TOUR)[0] == ok
+    for bad in ["50301.09.20261400000", "Tura50301092026400", "TO"]:  # not recoverable
+        assert not evaluate_text(bad, 0.99, TOUR, 0.9)["accepted"]
+    r = evaluate_text("Tour 503/01.09.2026/4000", 0.95, TOUR, 0.9)
+    assert r["accepted"] and r["text"] == ok
 
 
 def test_cmr_count():

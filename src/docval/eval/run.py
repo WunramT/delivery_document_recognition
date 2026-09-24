@@ -22,7 +22,7 @@ from ..doctype.rules import UNCERTAIN, combine, keyword_decision, keyword_scores
 from ..models import ocr_model_dir, offline, setup_cache
 from ..ocr.onnx_ocr import OcrEngine, Recognizer, crop_quad, pad_crop, pil_to_bgr
 from ..ocr.postprocess import evaluate_text, parse_cmr_count, stack_complete
-from ..zones import MISSING, NOT_REQUIRED, OK, WRONG_POSITION, check_page, derive_zones
+from ..zones import MISSING, NOT_REQUIRED, OK, WRONG_POSITION, apply_overrides, check_page, derive_zones
 from ..zones.synthetic import make_variants, to_rgb
 from ..jsonutil import dumps
 from .metrics import average_precision, match, ratio
@@ -61,6 +61,7 @@ def zones_for(cfg, train_pages, log) -> tuple[dict, dict]:
         for b in p.boxes:
             samples.setdefault(p.doc_type, {}).setdefault(b.cls, []).append(b.norm(p.width, p.height))
     derived = derive_zones(samples, z["percentiles"][0], z["percentiles"][1], z["margin"], z["min_samples"])
+    derived = apply_overrides(derived, z.get("overrides") or {})
     path = artifacts(cfg, "zones.yaml")
     header = ("# Soll-Zonen, abgeleitet aus dem Train-Split (normiert x1,y1,x2,y2; 0 = links/oben).\n"
               "# Manuell korrigieren: Werte ändern und 'locked: true' setzen, dann wird die Datei\n"
@@ -181,6 +182,76 @@ def write_pages_csv(path: Path, test, dt_rows, real_rows, tour_rows, prim: str) 
                         x.get("accepted", ""), x.get("reason", "keine tour_nummer erkannt" if t else "")])
 
 
+# ------------------------------------------------------------------ detector metrics
+
+CALIB_GRID = [round(0.05 * i, 2) for i in range(1, 20)]
+
+
+def scored_matches(pages, preds, cls, iou_thr):
+    n_gt, scored = 0, []
+    for p in pages:
+        g = [b.norm(p.width, p.height) for b in p.boxes_of(cls)]
+        pr = [d for d in preds[p.file_name] if d["cls"] == cls]
+        n_gt += len(g)
+        tp, _ = match(g, pr, iou_thr)
+        scored += [(d["score"], t) for d, t in zip(pr, tp)]
+    return n_gt, scored
+
+
+def pr_at(scored, n_gt, t):
+    tp_n = sum(1 for s, ok in scored if s >= t and ok)
+    fp_n = sum(1 for s, ok in scored if s >= t and not ok)
+    return {"threshold": t, "tp": tp_n, "fp": fp_n, "fn": n_gt - tp_n,
+            "precision": tp_n / (tp_n + fp_n) if tp_n + fp_n else None,
+            "recall": tp_n / n_gt if n_gt else None}
+
+
+def detector_stats(pages, preds, classes, thr: dict, iou_thr) -> dict:
+    res = {"per_class": {}, "pr_table": {}}
+    for c in classes:
+        n_gt, scored = scored_matches(pages, preds, c, iou_thr)
+        at = pr_at(scored, n_gt, thr[c])
+        res["per_class"][c] = {"n_gt": n_gt, "ap50": average_precision(scored, n_gt), "threshold": thr[c],
+                               "recall": ratio(at["tp"], n_gt), "precision": ratio(at["tp"], at["tp"] + at["fp"])}
+        res["pr_table"][c] = [pr_at(scored, n_gt, t) for t in DET_THRESHOLDS]
+    return res
+
+
+def working_thresholds(cfg, detector, pages, split, classes, iou_thr, log):
+    """detector.score_threshold: number (all classes) or "auto" = per class the
+    threshold with the best F1 on the valid split (ties -> higher threshold), so the
+    test split stays untouched. score_uncertain = factor x threshold."""
+    d = cfg["detector"]
+    fixed = d["score_threshold"]
+    factor = d.get("score_uncertain_factor", 0.6)
+    calib = None
+    if fixed == "auto":
+        valid = [p for p in pages if split.get(p.file_name) == "valid" and p.path is not None]
+        vpreds = {p.file_name: detector(Image.open(p.path)) for p in valid}
+        thr, calib = {}, {"split": "valid", "n_pages": len(valid), "per_class": {}}
+        fallback = d.get("score_threshold_fallback", 0.5)
+        for c in classes:
+            n_gt, scored = scored_matches(valid, vpreds, c, iou_thr)
+            best, best_f1 = fallback, -1.0
+            for t in CALIB_GRID:
+                r = pr_at(scored, n_gt, t)
+                if not n_gt or r["precision"] is None:
+                    continue
+                f1 = 2 * r["precision"] * r["recall"] / (r["precision"] + r["recall"]) if r["recall"] else 0.0
+                if f1 >= best_f1:
+                    best, best_f1 = t, f1
+            thr[c] = best
+            calib["per_class"][c] = {"n_gt": n_gt, "threshold": best, "f1": best_f1 if best_f1 >= 0 else None,
+                                     "ap50": average_precision(scored, n_gt),
+                                     "at_threshold": pr_at(scored, n_gt, best)}
+        calib["detector"] = detector_stats(valid, vpreds, classes, thr, iou_thr)
+        log("[eval] Schwellen (auf valid kalibriert): " + ", ".join(f"{c}={t}" for c, t in thr.items()))
+    else:
+        thr = {c: float(fixed) for c in classes}
+    unc = {c: round(t * factor, 3) for c, t in thr.items()}
+    return thr, unc, calib
+
+
 # ------------------------------------------------------------------ main
 
 def run_eval(cfg, log) -> int:
@@ -206,8 +277,8 @@ def run_eval(cfg, log) -> int:
         return 2
     detector = OnnxDetector(det_dir, min_score=0.01)
     classes = detector.classes
-    thr = cfg["detector"]["score_threshold"]
     iou_thr = cfg["detector"]["iou_match"]
+    thr, unc, calib = working_thresholds(cfg, detector, pages, split, classes, iou_thr, log)
     timer = Timer()
     gallery: dict[str, list] = {"detektor": [], "dokumenttyp": [], "position": [], "tournummer": []}
     R: dict = {"meta": {"split": eval_split, "n_pages": len(test), "classes": classes,
@@ -227,35 +298,13 @@ def run_eval(cfg, log) -> int:
         t0 = time.perf_counter()
         preds[p.file_name] = detector(im)
         timer.add("detektor", time.perf_counter() - t0)
-    det_res = {"per_class": {}, "pr_table": {}}
-    for c in classes:
-        n_gt, scored = 0, []
-        for p in test:
-            g = [b.norm(p.width, p.height) for b in p.boxes_of(c)]
-            pr = [d for d in preds[p.file_name] if d["cls"] == c]
-            n_gt += len(g)
-            tp, _ = match(g, pr, iou_thr)
-            scored += [(d["score"], t) for d, t in zip(pr, tp)]
-        rows = []
-        for t in DET_THRESHOLDS:
-            tp_n = sum(1 for s, ok in scored if s >= t and ok)
-            fp_n = sum(1 for s, ok in scored if s >= t and not ok)
-            rows.append({"threshold": t, "tp": tp_n, "fp": fp_n, "fn": n_gt - tp_n,
-                         "precision": tp_n / (tp_n + fp_n) if tp_n + fp_n else None,
-                         "recall": tp_n / n_gt if n_gt else None})
-        at = next(r for r in rows if abs(r["threshold"] - thr) < 1e-9) if thr in DET_THRESHOLDS else None
-        if at is None:
-            tp_n = sum(1 for s, ok in scored if s >= thr and ok)
-            fp_n = sum(1 for s, ok in scored if s >= thr and not ok)
-            at = {"tp": tp_n, "fp": fp_n, "fn": n_gt - tp_n}
-        det_res["per_class"][c] = {"n_gt": n_gt, "ap50": average_precision(scored, n_gt),
-                                   "recall": ratio(at["tp"], n_gt),
-                                   "precision": ratio(at["tp"], at["tp"] + at["fp"])}
-        det_res["pr_table"][c] = rows
+    det_res = detector_stats(test, preds, classes, thr, iou_thr)
+    det_res["thresholds"] = thr
+    det_res["calibration"] = calib
     # gallery: pages with most errors at the working threshold
     for p in test:
         errs, reasons = 0, []
-        pr_all = [d for d in preds[p.file_name] if d["score"] >= thr]
+        pr_all = [d for d in preds[p.file_name] if d["score"] >= thr[d["cls"]]]
         for c in classes:
             g = [b.norm(p.width, p.height) for b in p.boxes_of(c)]
             pr = [d for d in pr_all if d["cls"] == c]
@@ -332,8 +381,6 @@ def run_eval(cfg, log) -> int:
     zones, zinfo = zones_for(cfg, train_pages, log)
     zcfg = cfg["zones"]
     rules = zcfg["rules"]
-    unc = cfg["detector"]["score_uncertain"]
-
     def check(doc_type, dets):
         return check_page(doc_type, dets, zones, rules, zcfg["min_overlap"], thr, unc)
 
@@ -418,7 +465,7 @@ def run_eval(cfg, log) -> int:
                 t0 = time.perf_counter()
                 row["gt_box"][f"{name}/{mode}"] = ocr_tour(eng, crop, mode, ocfg, regex)
                 timer.add(f"tour_ocr_{name}_{mode}", time.perf_counter() - t0)
-        cand = [d for d in preds[p.file_name] if d["cls"] == "tour_nummer" and d["score"] >= thr]
+        cand = [d for d in preds[p.file_name] if d["cls"] == "tour_nummer" and d["score"] >= thr["tour_nummer"]]
         if cand:
             d = max(cand, key=lambda x: x["score"])
             b = [d["box"][0] * p.width, d["box"][1] * p.height, d["box"][2] * p.width, d["box"][3] * p.height]

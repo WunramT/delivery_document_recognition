@@ -116,6 +116,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="docval")
     ap.add_argument("command", choices=sorted(COMMANDS))
     ap.add_argument("--config", default=None, help="default: $DOCVAL_CONFIG or config.yaml")
+    ap.add_argument("--split", default=None, help="eval: split to evaluate (test | valid | train)")
     args = ap.parse_args(argv)
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -123,6 +124,8 @@ def main(argv=None) -> int:
         except AttributeError:
             pass
     cfg = load_config(args.config)
+    if args.split:
+        cfg.setdefault("eval", {})["split"] = args.split
     if args.command != "fetch-models" and not os.environ.get("DOCVAL_ONLINE"):
         from .models import offline, setup_cache
         setup_cache(cfg)

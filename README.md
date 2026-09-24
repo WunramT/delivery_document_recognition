@@ -81,7 +81,7 @@ Ohne `make` (Windows, PowerShell): `$env:PYTHONPATH="src"`, dann `python -m docv
 | `make split` | train/valid/test 70/15/15, fester Seed, **gruppiert nach Sendung**, stratifiziert nach Dokumenttyp → `artifacts/splits/detector/{train,valid,test}/_annotations.coco.json` (Bilder verlinkt), `artifacts/splits/split.json` |
 | `make train` | RF-DETR (`detector.size`, Standard Nano, 640 px) + Dokumenttyp-Klassifikator (timm MobileNetV3); Logs: TensorBoard + `metrics.csv` in `artifacts/detector/run/` |
 | `make export` | Detektor → `artifacts/detector/detector.onnx` + **Paritätstest** PyTorch vs. ONNX Runtime (CPU) auf 20 Bildern → `parity.json` (Exit 3 bei Abweichung) |
-| `make eval` | alle Stufen auf dem Test-Split mit ONNX → `artifacts/report/report.md` + `report.html`; **Exit-Code 1, wenn ein Kriterium verfehlt wird** |
+| `make eval` | alle Stufen auf dem Test-Split mit ONNX → `artifacts/report/report.md` + `report.html` + `pages.csv`; **Exit-Code 1, wenn ein Kriterium verfehlt wird**. `make eval SPLIT=valid` wertet zur Diagnose den valid-Split aus |
 | `make report` | Report aus `artifacts/report/results.json` neu rendern (ohne neu zu rechnen) |
 | `make test` | pytest-Unit-Tests |
 | `make smoke` | ganze Pipeline auf 12 synthetischen Seiten, 1 Epoche, CPU (~1 min, Grenze 5 min) – prüft, ob die Umgebung intakt ist |
@@ -104,8 +104,18 @@ Wichtige Stellen:
   ist ein eigenes Segment. Weil es nur eine Loading List gibt, werden ihre Seiten einzeln
   verteilt (`ungroup_doc_types`) – das Leck-Risiko steht im Report.
   Alternativen: `source_pdf`, `tour_number` (sobald die Tournummern erfasst sind), `none`.
-- `zones.rules` – was pro Dokumenttyp gefordert ist (`require`, `mode: all` = und, `any` = oder).
-- `labels.tour_number.format_regex` – Format `Zahl/Zahl`, z. B. `200/01`.
+- `detector.score_threshold: auto` – Schwelle je Klasse mit bestem F1 auf dem **valid**-Split;
+  der Test-Split bleibt unberührt. Alternativ eine feste Zahl für alle Klassen.
+- `zones.rules` – was pro Dokumenttyp gefordert ist (`require`, `mode: all` = und, `any` = oder)
+  und was nur geprüft wird, *falls* vorhanden (`optional`: dann muss es in der Zone liegen).
+  CMR: Unterschrift + Stempel gefordert; Lieferschein: nichts gefordert, vorhandene
+  Unterschrift/Stempel müssen aber in der Zone liegen; Loading List: nichts.
+- `zones.overrides` – manuelle Korrektur einzelner Zonenkanten, z. B. CMR über die ganze
+  Breite (Felder 22, 23, 24).
+- `labels.tour_number.format_regex` – Tour/Datum/Nummer, z. B. `503/01.09.2026/4000`
+  (alle drei Teile zusammen sind die Tournummer). Die OCR-Korrektur sucht das Muster auch
+  innerhalb des gelesenen Texts (z. B. Beschriftung „Tour“ davor) und ersetzt Verwechsler
+  (O→0, l→1, `\`→`/`, `,`→`.`) nur an Stellen, an denen das Format eine Ziffer/Trenner erwartet.
 - `acceptance` – Schwellen für `make eval`.
 
 ## Label-CSVs ausfüllen
@@ -117,6 +127,7 @@ Wichtige Stellen:
   1. `make inspect` (erzeugt Crops unter `artifacts/inspect/tour_crops/`)
   2. `labels/tour_review.html` im Browser öffnen, Nummern eintippen (Enter = nächstes Feld;
      Eingaben bleiben im Browser gespeichert), „herunterladen“, Datei als `labels/tour_numbers.csv` speichern.
+     Format: `503/01.09.2026/4000` (die ganze Nummer, ohne Beschriftung).
   3. Unleserlich: `?` eintragen – eine automatisch akzeptierte OCR-Lesung dort zählt als Fehler.
 - Quelle umschalten: `labels.*.source` (`csv` oder `coco_attribute`, z. B. `attributes.text`).
 - Bestehende CSVs werden nie überschrieben, nur um neue Dateinamen ergänzt.
