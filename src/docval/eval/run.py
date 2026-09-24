@@ -193,6 +193,35 @@ def write_pages_csv(path: Path, test, dt_rows, real_rows, tour_rows, prim: str) 
                         x.get("accepted", ""), x.get("reason", "keine tour_nummer erkannt" if t else "")])
 
 
+# ------------------------------------------------------------------ form mask
+
+class PagePrep:
+    """Original page (doc type, OCR) and detector input (pre-printed fields masked).
+    GT boxes centered in a masked area are removed, as in the training split."""
+
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.mask_cfg = cfg.get("form_mask") or {}
+        self.info: dict[str, dict] = {}
+        self.dropped = 0
+
+    def __call__(self, p) -> tuple[Image.Image, Image.Image]:
+        from ..zones.form_mask import applies, center_in_any, mask_fields
+
+        orig = Image.open(p.path)
+        orig.load()
+        if not applies(self.cfg, p.doc_type):
+            return orig, orig
+        masked, info = mask_fields(orig, self.mask_cfg)
+        self.info[p.file_name] = info
+        if info["found"] and p.file_name not in getattr(self, "_filtered", set()):
+            keep = [b for b in p.boxes if not center_in_any(b.norm(p.width, p.height), info["masked"])]
+            self.dropped += len(p.boxes) - len(keep)
+            p.boxes = keep
+            self._filtered = getattr(self, "_filtered", set()) | {p.file_name}
+        return orig, masked
+
+
 # ------------------------------------------------------------------ detector metrics
 
 CALIB_GRID = [round(0.05 * i, 2) for i in range(1, 20)]
@@ -228,7 +257,7 @@ def detector_stats(pages, preds, classes, thr: dict, iou_thr) -> dict:
     return res
 
 
-def working_thresholds(cfg, detector, pages, split, classes, iou_thr, log):
+def working_thresholds(cfg, detector, pages, split, classes, iou_thr, log, prep=None):
     """detector.score_threshold: number (all classes) or "auto" = per class the
     threshold with the best F1 on the valid split (ties -> higher threshold), so the
     test split stays untouched. score_uncertain = factor x threshold."""
@@ -238,7 +267,7 @@ def working_thresholds(cfg, detector, pages, split, classes, iou_thr, log):
     calib = None
     if fixed == "auto":
         valid = [p for p in pages if split.get(p.file_name) == "valid" and p.path is not None]
-        vpreds = {p.file_name: detector(Image.open(p.path)) for p in valid}
+        vpreds = {p.file_name: detector(prep(p)[1] if prep else Image.open(p.path)) for p in valid}
         thr, calib = {}, {"split": "valid", "n_pages": len(valid), "per_class": {}}
         fallback = d.get("score_threshold_fallback", 0.5)
         for c in classes:
@@ -289,7 +318,8 @@ def run_eval(cfg, log) -> int:
     detector = OnnxDetector(det_dir, min_score=0.01)
     classes = detector.classes
     iou_thr = cfg["detector"]["iou_match"]
-    thr, unc, calib = working_thresholds(cfg, detector, pages, split, classes, iou_thr, log)
+    prep = PagePrep(cfg)
+    thr, unc, calib = working_thresholds(cfg, detector, pages, split, classes, iou_thr, log, prep)
     timer = Timer()
     gallery: dict[str, list] = {"detektor": [], "dokumenttyp": [], "position": [], "tournummer": []}
     R: dict = {"meta": {"split": eval_split, "n_pages": len(test), "classes": classes,
@@ -301,10 +331,13 @@ def run_eval(cfg, log) -> int:
 
     # ---------------------------------------------------------- 1. detector
     preds: dict[str, list] = {}
-    images: dict[str, Image.Image] = {}
+    images: dict[str, Image.Image] = {}      # detector input (masked where configured)
+    originals: dict[str, Image.Image] = {}   # untouched page for doc type + OCR
     for p in test:
-        im = Image.open(p.path)
-        im.load()
+        t0 = time.perf_counter()
+        originals[p.file_name], im = prep(p)
+        if prep.info.get(p.file_name) is not None:
+            timer.add("vordruck_maske", time.perf_counter() - t0)
         images[p.file_name] = im
         t0 = time.perf_counter()
         preds[p.file_name] = detector(im)
@@ -345,7 +378,7 @@ def run_eval(cfg, log) -> int:
         clf = OnnxDocTypeClassifier(artifacts(cfg, "doctype"))
     dt_rows = []
     for p in test:
-        im = images[p.file_name]
+        im = originals[p.file_name]
         head = im.crop((0, 0, im.width, max(1, int(im.height * dcfg["header_fraction"]))))
         t0 = time.perf_counter()
         text, _ = ocr_det_rec_text(primary, pil_to_bgr(head), primary.header_rec)
@@ -355,7 +388,7 @@ def run_eval(cfg, log) -> int:
         clf_type = clf_conf = None
         if clf is not None:
             t0 = time.perf_counter()
-            clf_type, clf_conf, _ = clf.predict(im)
+            clf_type, clf_conf, _ = clf.predict(originals[p.file_name])
             timer.add("dokumenttyp_klassifikator", time.perf_counter() - t0)
         dec = combine(kw_type, kw_reason, clf_type, clf_conf, ccfg["min_confidence"], ccfg["conflict_confidence"])
         dt_rows.append({"file_name": p.file_name, "gt": p.doc_type, "pred": dec["doc_type"], "source": dec["source"],
@@ -476,7 +509,7 @@ def run_eval(cfg, log) -> int:
         gb = p.boxes_of("tour_nummer")
         if not gb:
             continue
-        im = images[p.file_name]
+        im = originals[p.file_name]
         crop = pad_crop(im, gb[0].xyxy, ocfg["crop_padding"])
         gt_crops.append(crop)
         row = {"file_name": p.file_name, "doc_type": p.doc_type, "gt": p.tour_number, "gt_box": {}, "pred_box": {}}
@@ -546,7 +579,7 @@ def run_eval(cfg, log) -> int:
         cc = []
         for p in test:
             for b in p.boxes_of("cmr_count"):
-                t, s = primary.recognize(pil_to_bgr(pad_crop(images[p.file_name], b.xyxy, ocfg["crop_padding"])))
+                t, s = primary.recognize(pil_to_bgr(pad_crop(originals[p.file_name], b.xyxy, ocfg["crop_padding"])))
                 cc.append({"file_name": p.file_name, "group": p.group, "text": t, "parsed": parse_cmr_count(t)})
         groups = {}
         for c in cc:
@@ -558,6 +591,25 @@ def run_eval(cfg, log) -> int:
         ocr_res["cmr_count"] = None
     R["ocr"] = ocr_res
     log(f"[eval] Tournummer: {len(tour_rows)} Boxen, {len(with_gt)} mit GT")
+
+    # ---------------------------------------------------------- form mask summary
+    minfo = {fn: i for fn, i in prep.info.items() if fn in {p.file_name for p in test}}
+    gallery["maske"] = []
+    for p in test:
+        i = minfo.get(p.file_name)
+        if i is None:
+            continue
+        gallery["maske"].append({
+            "file_name": p.file_name, "path": str(p.path), "severity": 0 if i["found"] else 3,
+            "title": f"{Path(p.file_name).name}: {'Feldzeile gefunden' if i['found'] else 'NICHT gefunden'}",
+            "reason": i["reason"] + (" – blau = gefundene Felder, maskiert: 22, 23" if i["found"] else
+                                     " – Seite wird unmaskiert geprüft (Vordruck kann als Unterschrift zählen)"),
+            "gt": gt_dets(p), "pred": [],
+            "zones": {f"f{k}": {"box": c} for k, c in enumerate(i["cells"])}})
+    R["form_mask"] = {"enabled": bool((cfg.get("form_mask") or {}).get("enabled")),
+                      "pages": ratio(sum(1 for i in minfo.values() if i["found"]), len(minfo)),
+                      "not_found": [fn for fn, i in minfo.items() if not i["found"]],
+                      "dropped_gt_boxes": prep.dropped}
 
     # ---------------------------------------------------------- acceptance
     A = cfg["acceptance"]

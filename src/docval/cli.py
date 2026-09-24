@@ -27,7 +27,7 @@ def cmd_split(cfg) -> int:
     summary = split_summary(pages, assign)
     classes = info["classes_in_coco"]
     out = artifacts(cfg, "splits", "detector")
-    winfo = write_rfdetr_dataset(pages, assign, classes, out)
+    winfo = write_rfdetr_dataset(pages, assign, classes, out, cfg.get("form_mask"))
     manifest = {
         "seed": cfg["seed"], "grouping": ginfo, "summary": summary, "dataset": info, "written": winfo,
         "pages": [{"file_name": p.file_name, "split": assign[p.file_name], "group": p.group,
@@ -40,6 +40,11 @@ def cmd_split(cfg) -> int:
     log(f"[split] Gruppierung {ginfo['mode']}: {ginfo['n_groups']} Gruppen, "
         f"einzeln verteilt: {ginfo['ungrouped_pages']} ({', '.join(ginfo['ungrouped_doc_types']) or '-'}); "
         f"Leck-Gruppen: {summary['_leaking_groups'] or 'keine'}")
+    fm = winfo["form_mask"]
+    if fm["pages"]:
+        log(f"[split] Vordruck-Maske: Feldzeile auf {fm['found']}/{fm['pages']} Seiten gefunden, "
+            f"GT-Boxen im maskierten Bereich verworfen: {fm['dropped_boxes']}"
+            + (f"; nicht gefunden: {', '.join(fm['not_found'][:5])}" if fm["not_found"] else ""))
     log(f"[split] Boxen gekappt: {info['clipped_boxes']}, verworfen: {info['dropped_boxes']}, "
         f"Klassen ohne Annotationen: {info['classes_missing'] or '-'} -> {out}")
     return 0

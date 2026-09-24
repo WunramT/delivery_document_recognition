@@ -116,6 +116,15 @@ Wichtige Stellen:
   - Allgemein möglich: `require` + `mode` (`all`/`any`) mit abgeleiteten Zonen je Klasse und
     `optional` (nur geprüft, falls vorhanden).
 - `zones.overrides` – manuelle Korrektur einzelner Kanten abgeleiteter Zonen.
+- `form_mask` – **Vordruck-Maske für CMR:** Stempel + Unterschrift in Feld 22/23 sind
+  eingescannte Originale, die mitgedruckt werden, und sehen echt aus. Die Feldzeile 22/23/24
+  wird über die gedruckten Rahmenlinien gefunden (lange waagerechte/senkrechte Linien →
+  eingeschlossene Zellen → unterste Zeile mit 3 Zellen), Feld 22 + 23 werden samt Rahmen
+  weiß gefüllt – beim Split (Training sieht maskierte CMR-Seiten), in der Evaluation und
+  später im Browser (OpenCV.js). Übrig bleibt nur die echte Unterschrift/der echte Stempel.
+  Der Report zeigt, auf wie vielen CMR-Seiten die Zeile gefunden wurde, und die Galerie
+  „Maske“ Kontrollbilder. Passt die Erkennung nicht: `search_y`, `cell_min_w/max_w`,
+  `line_min_frac` anpassen.
 - `labels.tour_number.format_regex` – Tour/Datum/Nummer, z. B. `503/01.09.2026/4000`
   (alle drei Teile zusammen sind die Tournummer). Die OCR-Korrektur sucht das Muster auch
   innerhalb des gelesenen Texts (z. B. Beschriftung „Tour“ davor) und ersetzt Verwechsler

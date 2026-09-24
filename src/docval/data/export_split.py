@@ -28,8 +28,19 @@ def link(src: Path, dst: Path) -> str:
         return "copy"
 
 
-def write_rfdetr_dataset(pages, assign: dict[str, str], classes: list[str], out: Path) -> dict:
-    """classes: detector classes in label order (category ids 1..n)."""
+def write_rfdetr_dataset(pages, assign: dict[str, str], classes: list[str], out: Path,
+                         mask_cfg: dict | None = None) -> dict:
+    """classes: detector classes in label order (category ids 1..n).
+
+    mask_cfg (config `form_mask`): pages of these doc types are written as masked
+    copies (pre-printed fields blanked); GT boxes centered in a masked area are dropped.
+    """
+    from PIL import Image
+
+    from ..zones.form_mask import center_in_any, mask_fields
+
+    mask_on = bool(mask_cfg and mask_cfg.get("enabled"))
+    mask_info = {"pages": 0, "found": 0, "not_found": [], "dropped_boxes": 0}
     cat_id = {c: i + 1 for i, c in enumerate(classes)}
     methods: dict[str, int] = {}
     info = {}
@@ -44,12 +55,28 @@ def write_rfdetr_dataset(pages, assign: dict[str, str], classes: list[str], out:
             if assign.get(p.file_name) != split or p.path is None:
                 continue
             name = f"{p.image_id}_{Path(p.file_name).name}"
-            m = link(p.path, d / name)
+            masked = []
+            if mask_on and p.doc_type in (mask_cfg.get("doc_types") or []):
+                mask_info["pages"] += 1
+                im, minfo = mask_fields(Image.open(p.path), mask_cfg)
+                if minfo["found"]:
+                    mask_info["found"] += 1
+                    masked = minfo["masked"]
+                else:
+                    mask_info["not_found"].append(p.file_name)
+                name = str(Path(name).with_suffix(".png"))
+                im.save(d / name)
+                m = "masked_copy"
+            else:
+                m = link(p.path, d / name)
             methods[m] = methods.get(m, 0) + 1
             images.append({"id": p.image_id, "file_name": name, "width": p.width, "height": p.height,
                            "orig_file_name": p.file_name, "doc_type": p.doc_type})
             for b in p.boxes:
                 if b.cls not in cat_id:
+                    continue
+                if masked and center_in_any(b.norm(p.width, p.height), masked):
+                    mask_info["dropped_boxes"] += 1
                     continue
                 x1, y1, x2, y2 = b.xyxy
                 anns.append({"id": aid, "image_id": p.image_id, "category_id": cat_id[b.cls],
@@ -62,4 +89,5 @@ def write_rfdetr_dataset(pages, assign: dict[str, str], classes: list[str], out:
         info[split] = {"images": len(images), "annotations": len(anns)}
     (out / "classes.json").write_text(json.dumps(classes), encoding="utf-8")
     info["link_methods"] = methods
+    info["form_mask"] = mask_info
     return info

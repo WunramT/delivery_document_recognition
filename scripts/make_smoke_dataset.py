@@ -89,15 +89,21 @@ def main():
         d.rectangle(tb, fill="white")
         d.text((tb[0] + 4, tb[1] + 1), tour, fill="black", font=f)
         boxes = [("tour_nummer", tb)]
-        if t == "cmr":  # CMR: signatures in fields 22/23/24, one stamp
-            st = [0.70 * W, 0.74 * H, 0.70 * W + 0.26 * W, 0.74 * H + 0.10 * H]
-            stamp(d, st, rng)
-            boxes.append(("stempel", st))
-            # three signatures (fields 22/23/24), all annotated as "unterschrift"
-            for x0 in (0.04, 0.37, 0.70):
-                sb = [x0 * W, 0.86 * H, (x0 + 0.25) * W, 0.93 * H]
+        if t == "cmr":  # CMR: field row 22/23/24; 22+23 carry a printed stamp+signature
+            fy1, fy2 = 0.72 * H, 0.97 * H
+            xs = [0.03 * W, 0.35 * W, 0.66 * W, 0.97 * W]
+            d.rectangle([xs[0], fy1, xs[3], fy2], outline="black", width=2)
+            for x in xs[1:3]:
+                d.line([(x, fy1), (x, fy2)], fill="black", width=2)
+            for k in range(3):
+                d.text((xs[k] + 6, fy1 + 4), f"{22 + k}", fill="black", font=font(12))
+                is_real = k == 2
+                st = [xs[k] + 12, fy1 + 22, xs[k] + 12 + 0.22 * W, fy1 + 22 + 0.09 * H]
+                sb = [xs[k] + 20, fy1 + 0.13 * H, xs[k] + 20 + 0.22 * W, fy1 + 0.13 * H + 0.07 * H]
+                stamp(d, st, rng)
                 scribble(d, sb, rng)
-                boxes.append(("unterschrift", sb))
+                if is_real:  # only field 24 is annotated; 22/23 are the pre-print
+                    boxes += [("stempel", st), ("unterschrift", sb)]
         elif t == "lieferschein":
             sx, sy = rng.uniform(0.62, 0.72) * W, rng.uniform(0.80, 0.86) * H
             sb = [sx, sy, sx + 0.25 * W, sy + 0.09 * H]

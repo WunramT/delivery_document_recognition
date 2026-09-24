@@ -122,6 +122,23 @@ zones:
     fill: median              # median | white
     kinds: [remove_one, remove_all, move_one]
 
+# Pre-printed stamp+signature in CMR fields 22/23 (scanned originals printed onto the
+# form) look like real ones. The field row 22/23/24 is found from the printed frame
+# lines and fields 22 + 23 are filled white including their border - before training
+# and before detection. Only the real signature/stamp (field 24) remains.
+form_mask:
+  enabled: true
+  doc_types: [cmr]
+  mask_fields: [0, 1]       # cells of the field row, left to right: 0 = 22, 1 = 23, 2 = 24
+  search_y: [0.60, 1.00]    # vertical search window (fraction of page height)
+  min_cells: 3              # the row must have at least this many cells
+  cell_min_w: 0.18          # plausible cell width (fraction of page width)
+  cell_max_w: 0.50
+  cell_min_h: 0.04          # plausible cell height (fraction of page height)
+  line_min_frac: 0.08       # minimum length of a frame line (fraction of the page)
+  border_px: 6              # also mask the frame lines around the cell
+  fill: white               # white | black
+
 # ---------------------------------------------------------------- step 6: OCR
 ocr:
   crop_padding: 0.12          # 10-15 % around the tour_nummer box

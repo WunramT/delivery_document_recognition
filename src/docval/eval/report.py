@@ -146,6 +146,17 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
              f"{', '.join(ds['classes_missing']) or '-'}")
     L.append("")
 
+    fm = R.get("form_mask")
+    if fm and fm["enabled"]:
+        L += ["## Vordruck-Maske (CMR-Felder 22/23)", ""]
+        L.append(f"- Feldzeile gefunden und Felder 22 + 23 maskiert: {fr(fm['pages'])}")
+        L.append(f"- GT-Boxen im maskierten Bereich (aus Metriken entfernt): {fm['dropped_gt_boxes']} – "
+                 "sollte 0 sein, sonst lag eine echte Unterschrift in Feld 22/23")
+        if fm["not_found"]:
+            L.append("- **Nicht gefunden** (unmaskiert geprüft): " + ", ".join(f"`{Path(x).name}`" for x in fm["not_found"]))
+        L.append("- Kontrollbilder: Galerie „Maske“")
+        L.append("")
+
     # detector
     par = R.get("parity")
     L += ["## 1. Detektor (ONNX)", ""]
