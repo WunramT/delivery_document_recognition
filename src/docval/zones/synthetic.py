@@ -9,7 +9,7 @@ import random
 
 from PIL import Image
 
-from . import MISSING, WRONG_POSITION
+from . import MISSING, WRONG_POSITION, box_center_in
 
 
 def to_rgb(im: Image.Image) -> Image.Image:
@@ -90,6 +90,8 @@ def make_variants(page, image: Image.Image, zones: dict, rule: dict, rng: random
                   fill: str = "median", kinds=None) -> list[dict]:
     """Return [{"kind", "image", "expected", "boxes"}] for one page whose GT
     fulfils the rule. `boxes` are the modified GT boxes (for the gallery)."""
+    if rule.get("fields"):
+        return make_field_variants(page, image, rule["fields"], rng, fill, kinds)
     required = rule.get("require") or []
     optional = rule.get("optional") or []
     mode = rule.get("mode", "all")
@@ -162,4 +164,58 @@ def make_variants(page, image: Image.Image, zones: dict, rule: dict, rng: random
                 erase(im, b.xyxy, fill=fill)
         out.append({"kind": "entfernt_alle", "image": im, "expected": MISSING,
                     "boxes": remaining(set(required))})
+    return out
+
+
+def make_field_variants(page, image: Image.Image, fields: dict, rng: random.Random,
+                        fill: str = "median", kinds=None) -> list[dict]:
+    """Field rules (CMR 22/23/24): remove the signature of one field, remove all,
+    or move one field's signature out of all fields -> expected "fehlt" each."""
+    kinds = kinds or ["remove_one", "remove_all", "move_one"]
+    base = to_rgb(image)
+    W, H = page.width, page.height
+    out = []
+
+    def in_field(b, f):
+        return box_center_in(b.norm(W, H), f["box"])
+
+    all_req = []
+    for name, f in fields.items():
+        req = f.get("require") or []
+        hit = [b for b in page.boxes if b.cls in req and in_field(b, f)]
+        all_req += hit
+        if not hit:
+            continue
+        keep = [o.xyxy for o in page.boxes if o not in hit]
+        if "remove_one" in kinds:
+            im = base.copy()
+            for b in hit:
+                erase_keep(im, base, b.xyxy, keep, fill=fill)
+            out.append({"kind": f"entfernt_feld_{name.split()[0]}", "image": im, "expected": MISSING,
+                        "boxes": [b for b in page.boxes if b not in hit]})
+        if "move_one" in kinds:
+            im = base.copy()
+            avoid = [b.xyxy for b in page.boxes]
+            moved, ok = [], True
+            union = [min(f2["box"][0] for f2 in fields.values()), min(f2["box"][1] for f2 in fields.values()),
+                     max(f2["box"][2] for f2 in fields.values()), max(f2["box"][3] for f2 in fields.values())]
+            for b in hit:
+                target = find_wrong_place(W, H, b.xyxy, union, avoid, rng)
+                if target is None:
+                    ok = False
+                    break
+                crop = base.crop(tuple(int(v) for v in b.xyxy))
+                erase_keep(im, base, b.xyxy, keep, fill=fill)
+                im.paste(crop, (int(target[0]), int(target[1])))
+                avoid.append(target)
+                moved.append(type(b)(b.cls, list(target), b.ann_id))
+            if ok and moved:
+                out.append({"kind": f"verschoben_feld_{name.split()[0]}", "image": im, "expected": MISSING,
+                            "boxes": [b for b in page.boxes if b not in hit] + moved})
+    if "remove_all" in kinds and all_req:
+        im = base.copy()
+        for b in all_req:
+            erase(im, b.xyxy, fill=fill)
+        out.append({"kind": "entfernt_alle", "image": im, "expected": MISSING,
+                    "boxes": [b for b in page.boxes if b not in all_req]})
     return out

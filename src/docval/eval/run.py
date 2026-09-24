@@ -22,17 +22,14 @@ from ..doctype.rules import UNCERTAIN, combine, keyword_decision, keyword_scores
 from ..models import ocr_model_dir, offline, setup_cache
 from ..ocr.onnx_ocr import OcrEngine, Recognizer, crop_quad, pad_crop, pil_to_bgr
 from ..ocr.postprocess import evaluate_text, parse_cmr_count, stack_complete
-from ..zones import MISSING, NOT_REQUIRED, OK, WRONG_POSITION, apply_overrides, check_page, derive_zones
+from ..zones import (MISSING, NOT_REQUIRED, OK, WRONG_POSITION, apply_overrides, box_center_in, check_page,
+                     derive_zones)
 from ..zones.synthetic import make_variants, to_rgb
 from ..jsonutil import dumps
 from .metrics import average_precision, match, ratio
 
 DET_THRESHOLDS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 OCR_THRESHOLDS = [0.0, 0.5, 0.7, 0.8, 0.85, 0.9, 0.95, 0.98, 0.99, 0.995]
-# approximate CMR signature fields (bottom of the form), normalized page coords
-CMR_FIELDS = {"22 Absender": [0.0, 0.72, 0.34, 1.0], "23 Frachtführer": [0.33, 0.72, 0.67, 1.0],
-              "24 Empfänger": [0.66, 0.72, 1.0, 1.0]}
-
 
 class Timer:
     def __init__(self):
@@ -79,26 +76,40 @@ def zones_for(cfg, train_pages, log) -> tuple[dict, dict]:
     return derived, {"source": source, "derived": derived, "path": str(path)}
 
 
-def cmr_field_check(zones: dict) -> list[str]:
-    notes = []
-    cz = zones.get("cmr", {})
-    for cls in ("unterschrift", "stempel"):
-        if cls not in cz:
-            notes.append(f"CMR: keine Zone für {cls} (zu wenige Trainingsbeispiele)")
+def field_stats(pages, rules: dict) -> dict:
+    """Ground truth per form field (all splits): how often is each field signed,
+    how many pages fulfil the field rule, how many signatures lie outside all fields."""
+    out = {}
+    for doc_type, rule in rules.items():
+        fields = (rule or {}).get("fields")
+        if not fields:
             continue
-        zb = cz[cls]["box"]
-        covered = []
-        for name, f in CMR_FIELDS.items():
-            ix = max(0.0, min(zb[2], f[2]) - max(zb[0], f[0]))
-            share = ix / (f[2] - f[0])
-            if share >= 0.5:
-                covered.append(name)
-        if zb[1] < 0.6:
-            notes.append(f"CMR {cls}: Zone reicht bis y={zb[1]:.2f} nach oben - größer als der Unterschriftenbereich")
-        missing = [n for n in CMR_FIELDS if n not in covered]
-        notes.append(f"CMR {cls}: Zone x {zb[0]:.2f}-{zb[2]:.2f}, y {zb[1]:.2f}-{zb[3]:.2f} deckt "
-                     f"{', '.join(covered) or 'kein Feld'} ab" + (f"; nicht abgedeckt: {', '.join(missing)}" if missing else ""))
-    return notes
+        typed = [p for p in pages if p.doc_type == doc_type]
+        st = {"pages": len(typed), "fields": {}, "pages_all_fields": 0, "outside_all_fields": {}}
+        for name, f in fields.items():
+            st["fields"][name] = {c: 0 for c in f.get("require") or []}
+        for p in typed:
+            complete = True
+            for name, f in fields.items():
+                for c in f.get("require") or []:
+                    hit = any(box_center_in(b.norm(p.width, p.height), f["box"]) for b in p.boxes_of(c))
+                    st["fields"][name][c] += int(hit)
+                    complete = complete and hit
+            st["pages_all_fields"] += int(complete)
+            req = {c for f in fields.values() for c in f.get("require") or []}
+            for b in p.boxes:
+                if b.cls in req and not any(box_center_in(b.norm(p.width, p.height), f["box"]) for f in fields.values()):
+                    st["outside_all_fields"][b.cls] = st["outside_all_fields"].get(b.cls, 0) + 1
+        out[doc_type] = st
+    return out
+
+
+def zone_boxes(doc_type, zones: dict, rules: dict) -> dict:
+    """What to draw in the gallery: field boxes for field rules, else the class zones."""
+    rule = rules.get(doc_type) or {}
+    if rule.get("fields"):
+        return {n: {"box": f["box"]} for n, f in rule["fields"].items()}
+    return zones.get(doc_type, {})
 
 
 # ------------------------------------------------------------------ OCR engines
@@ -398,7 +409,13 @@ def run_eval(cfg, log) -> int:
             gallery["position"].append({"file_name": p.file_name, "path": str(p.path), "severity": 3,
                                         "title": f"Fehlalarm {Path(p.file_name).name} ({p.doc_type}): {res['status']}",
                                         "reason": res["reason"], "gt": gt_dets(p), "pred": preds[p.file_name],
-                                        "zones": zones.get(p.doc_type, {})})
+                                        "zones": zone_boxes(p.doc_type, zones, rules)})
+        if gt_status in (MISSING, WRONG_POSITION) and res["status"] == OK:
+            gallery["position"].append({"file_name": p.file_name, "path": str(p.path), "severity": 3,
+                                        "title": f"Echter Fehler übersehen {Path(p.file_name).name} ({p.doc_type}): "
+                                                 f"GT {gt_status}, Pipeline ok",
+                                        "reason": res["reason"], "gt": gt_dets(p), "pred": preds[p.file_name],
+                                        "zones": zone_boxes(p.doc_type, zones, rules)})
     ok_pages = [r for r in real_rows if r["gt_status"] == OK]
     false_alarms = [r for r in ok_pages if r["status"] in (MISSING, WRONG_POSITION)]
     uncertain_real = [r for r in ok_pages if r["status"] not in (OK, MISSING, WRONG_POSITION)]
@@ -428,14 +445,17 @@ def run_eval(cfg, log) -> int:
                     "title": f"Nicht erkannt: {Path(p.file_name).name} {v['kind']} -> {res['status']}",
                     "reason": f"Soll {v['expected']}: {res['reason']}",
                     "gt": [{"cls": b.cls, "box": b.norm(p.width, p.height), "score": 1.0} for b in v["boxes"]],
-                    "pred": d, "zones": zones.get(p.doc_type, {})})
+                    "pred": d, "zones": zone_boxes(p.doc_type, zones, rules)})
     by_kind = {}
     for s in syn_rows:
         k = by_kind.setdefault(s["kind"], [0, 0])
         k[0] += int(s["caught"])
         k[1] += 1
+    real_neg = [r for r in real_rows if r["gt_status"] in (MISSING, WRONG_POSITION)]
     R["position"] = {
-        "zones": zones, "zones_info": zinfo, "cmr_fields": cmr_field_check(zones),
+        "zones": zones, "zones_info": zinfo, "field_stats": field_stats(pages, rules),
+        "fields": {t: r["fields"] for t, r in rules.items() if (r or {}).get("fields")},
+        "recall_real_negatives": ratio(sum(r["status"] in (MISSING, WRONG_POSITION) for r in real_neg), len(real_neg)),
         "false_alarm": ratio(len(false_alarms), len(ok_pages)),
         "uncertain_real": ratio(len(uncertain_real), len(ok_pages)),
         "recall_negatives": ratio(sum(s["caught"] for s in syn_rows), len(syn_rows)),

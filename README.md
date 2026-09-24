@@ -106,12 +106,16 @@ Wichtige Stellen:
   Alternativen: `source_pdf`, `tour_number` (sobald die Tournummern erfasst sind), `none`.
 - `detector.score_threshold: auto` – Schwelle je Klasse mit bestem F1 auf dem **valid**-Split;
   der Test-Split bleibt unberührt. Alternativ eine feste Zahl für alle Klassen.
-- `zones.rules` – was pro Dokumenttyp gefordert ist (`require`, `mode: all` = und, `any` = oder)
-  und was nur geprüft wird, *falls* vorhanden (`optional`: dann muss es in der Zone liegen).
-  CMR: Unterschrift + Stempel gefordert; Lieferschein: nichts gefordert, vorhandene
-  Unterschrift/Stempel müssen aber in der Zone liegen; Loading List: nichts.
-- `zones.overrides` – manuelle Korrektur einzelner Zonenkanten, z. B. CMR über die ganze
-  Breite (Felder 22, 23, 24).
+- `zones.rules` – was pro Dokumenttyp gefordert ist:
+  - **CMR:** gilt nur als unterschrieben, wenn **jedes** der Felder 22 (Absender), 23
+    (Frachtführer) und 24 (Empfänger) eine Unterschrift enthält (`fields`, Zuordnung über den
+    Box-Mittelpunkt). Die Feld-Boxen sind eine Näherung des Standard-CMR und stehen direkt in
+    der Config; der Report zeigt je Feld, wie oft es laut GT unterschrieben ist. Soll pro Feld
+    auch ein Stempel da sein: `stempel` in `require` des Felds ergänzen.
+  - **Lieferschein, Loading List:** nichts gefordert, Position nicht geprüft.
+  - Allgemein möglich: `require` + `mode` (`all`/`any`) mit abgeleiteten Zonen je Klasse und
+    `optional` (nur geprüft, falls vorhanden).
+- `zones.overrides` – manuelle Korrektur einzelner Kanten abgeleiteter Zonen.
 - `labels.tour_number.format_regex` – Tour/Datum/Nummer, z. B. `503/01.09.2026/4000`
   (alle drei Teile zusammen sind die Tournummer). Die OCR-Korrektur sucht das Muster auch
   innerhalb des gelesenen Texts (z. B. Beschriftung „Tour“ davor) und ersetzt Verwechsler

@@ -138,6 +138,40 @@ def check_requirement(cls: str, zone: list[float] | None, detections: list[dict]
     return {"cls": cls, "status": MISSING, "reason": f"{_none(cls)} erkannt"}
 
 
+def box_center_in(box: list[float], zone: list[float]) -> bool:
+    cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+    return zone[0] <= cx <= zone[2] and zone[1] <= cy <= zone[3]
+
+
+def check_fields(fields: dict, detections: list[dict], score_accept, score_uncertain) -> list[dict]:
+    """Form fields (e.g. CMR 22/23/24), each with required classes.
+
+    fields: {name: {"box": [x1, y1, x2, y2], "require": [cls, ...]}}
+    A detection belongs to the field that contains its box center (so one
+    signature cannot count for two neighbouring fields). Every field must have
+    each required class; returns one detail per (field, class).
+    """
+    details = []
+    for name, f in fields.items():
+        for cls in f.get("require") or []:
+            a, u = _thr(score_accept, cls), _thr(score_uncertain, cls)
+            inside = [d for d in detections if d["cls"] == cls and d["score"] >= u
+                      and box_center_in(d["box"], f["box"])]
+            strong = [d for d in inside if d["score"] >= a]
+            if strong:
+                best = max(d["score"] for d in strong)
+                details.append({"cls": cls, "field": name, "status": OK,
+                                "reason": f"Feld {name}: {_name(cls)} (Score {best:.2f})"})
+            elif inside:
+                best = max(d["score"] for d in inside)
+                details.append({"cls": cls, "field": name, "status": UNCERTAIN,
+                                "reason": f"Feld {name}: {_name(cls)} nur mit niedrigem Score {best:.2f}"})
+            else:
+                details.append({"cls": cls, "field": name, "status": MISSING,
+                                "reason": f"Feld {name}: {_none(cls)}"})
+    return details
+
+
 # severity order when combining several requirements with mode "all"
 _SEVERITY = {OK: 0, UNCERTAIN: 1, WRONG_POSITION: 2, MISSING: 3}
 
@@ -146,12 +180,23 @@ def check_page(doc_type: str | None, detections: list[dict], zones: dict, rules:
                min_overlap: float, score_accept: float, score_uncertain: float) -> dict:
     """Position check for one page.
 
-    rules: {doc_type: {"require": [cls, ...], "mode": "all" | "any", "optional": [cls, ...]}}
+    rules: {doc_type: {"require": [cls, ...], "mode": "all" | "any", "optional": [cls, ...],
+                       "fields": {name: {"box": [...], "require": [cls, ...]}}}}
     score_accept / score_uncertain: number or {cls: number}.
+    With "fields" the page is only ok if every field has all its required classes.
     """
     if doc_type is None or doc_type == UNCERTAIN:
         return {"status": UNCERTAIN, "reason": "Dokumenttyp unsicher", "details": []}
     rule = rules.get(doc_type) or {}
+    if rule.get("fields"):
+        details = check_fields(rule["fields"], detections, score_accept, score_uncertain)
+        status = OK
+        for d in details:
+            if _SEVERITY[d["status"]] > _SEVERITY[status]:
+                status = d["status"]
+        missing = [d for d in details if d["status"] != OK]
+        reason = "; ".join(d["reason"] for d in (missing or details))
+        return {"status": status, "reason": reason, "details": details}
     required = rule.get("require") or []
     optional = rule.get("optional") or []
     if not required and not optional:

@@ -100,17 +100,21 @@ zones:
   min_samples: 3
   min_overlap: 0.5            # share of a detected box that must lie in the zone
   rules:                      # what is required per doc type
-    cmr: {require: [unterschrift, stempel], mode: all}
-    # Lieferschein: nothing required; if a signature/stamp is present it must be in its zone
-    lieferschein: {require: [], optional: [unterschrift, stempel]}
-    loading_list: {require: []}
-  # manual corrections of the derived zones (only the given edges are replaced).
-  # CMR: signature/stamp may be in fields 22 (sender, left), 23 (carrier, middle)
-  # and 24 (consignee, right) -> full page width in the bottom area.
-  overrides:
+    # CMR: signed only if EVERY field 22, 23, 24 has a signature. A detection belongs
+    # to the field containing its box center. Boxes = approximate standard CMR layout
+    # (normalized x1, y1, x2, y2) - check against the per-field statistics in the report
+    # and correct here. Add `stempel` to `require` if a stamp is needed per field, too.
     cmr:
-      unterschrift: {x1: 0.0, x2: 1.0}
-      stempel: {x1: 0.0, x2: 1.0}
+      fields:
+        "22 Absender":     {box: [0.00, 0.72, 0.34, 1.00], require: [unterschrift]}
+        "23 Frachtführer": {box: [0.34, 0.72, 0.67, 1.00], require: [unterschrift]}
+        "24 Empfänger":    {box: [0.67, 0.72, 1.00, 1.00], require: [unterschrift]}
+    # other types: no signature required, position not checked
+    lieferschein: {require: []}
+    loading_list: {require: []}
+  # manual corrections of derived zones (only the given edges), e.g.
+  # overrides: {lieferschein: {stempel: {y1: 0.6}}}
+  overrides: {}
   synthetic:
     fill: median              # median | white
     kinds: [remove_one, remove_all, move_one]

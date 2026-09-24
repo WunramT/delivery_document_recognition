@@ -101,6 +101,12 @@ def conclusion(R: dict) -> list[str]:
     if pos["gt_not_ok"]:
         L.append(f"**Positionsprüfung:** {len(pos['gt_not_ok'])} Seiten erfüllen schon laut GT die Regel nicht "
                  "(Liste im Abschnitt 3) – Zonen (`zones.overrides`) oder Regeln (`zones.rules`) prüfen.")
+    for t, st in (pos.get("field_stats") or {}).items():
+        if st["pages"] and st["pages_all_fields"] == 0:
+            L.append(f"**Feld-Regel {t}:** keine einzige {t}-Seite hat laut Ground Truth alle Felder unterschrieben – "
+                     "entweder sind die Seiten wirklich unvollständig (dann sind es echte Negative), oder die "
+                     "Feld-Boxen passen nicht zum Formular. Ohne vollständige Seiten gibt es keine Fehlalarm-Messung "
+                     "und keine synthetischen Negative für diesen Typ.")
     if not L:
         L.append("Alle Kriterien erfüllt.")
     return L
@@ -207,6 +213,7 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
     L += ["## 3. Positionsprüfung", ""]
     L.append(f"- Zonen: {p['zones_info']['source']}, Datei `{p['zones_info']['path']}`")
     L.append(f"- Fehlalarmrate auf echten korrekten Seiten: {fr(p['false_alarm'])}; davon zusätzlich unsicher: {fr(p['uncertain_real'])}")
+    L.append(f"- Recall auf echten Negativen (Seiten, die laut GT die Regel verletzen): {fr(p.get('recall_real_negatives'))}")
     L.append(f"- Recall auf synthetischen Negativen: {fr(p['recall_negatives'])}; richtige Art (fehlt vs. falsche Position): {fr(p['correct_kind'])}")
     for k, v in p["by_kind"].items():
         L.append(f"  - {k}: {fr(v)}")
@@ -215,8 +222,18 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
     for t, zz in p["zones"].items():
         for c, z in zz.items():
             L.append(f"| {t} | {c} | {', '.join(f'{v:.2f}' for v in z['box'])} | {z.get('n_samples', '-')} |")
-    L += ["", "Abgleich CMR-Standardfelder (22 Absender links, 23 Frachtführer Mitte, 24 Empfänger rechts; Näherung):", ""]
-    L += [f"- {x}" for x in p["cmr_fields"]]
+    for t, fields in (p.get("fields") or {}).items():
+        st = (p.get("field_stats") or {}).get(t)
+        L += ["", f"Feld-Regel {t}: Seite gilt nur als unterschrieben, wenn **jedes** Feld die geforderte Klasse enthält "
+              "(Zuordnung über den Box-Mittelpunkt). Ground Truth aller Splits:", "",
+              "| Feld | Box (x1, y1, x2, y2) | gefordert | Seiten mit Treffer |", "|---|---|---|---|"]
+        for name, f in fields.items():
+            hits = ", ".join(f"{c}: {n}/{st['pages']}" for c, n in (st["fields"].get(name) or {}).items()) if st else "-"
+            L.append(f"| {name} | {', '.join(f'{v:.2f}' for v in f['box'])} | {', '.join(f.get('require') or [])} | {hits} |")
+        if st:
+            L.append(f"\n- Seiten mit allen Feldern erfüllt: **{st['pages_all_fields']} von {st['pages']}**")
+            if st["outside_all_fields"]:
+                L.append(f"- Boxen außerhalb aller Felder: {st['outside_all_fields']} – Feld-Boxen in `zones.rules.{t}.fields` prüfen")
     if p["gt_not_ok"]:
         L += ["", f"Seiten, die schon laut GT die Regel nicht erfüllen ({len(p['gt_not_ok'])}) – nicht in der Fehlalarmrate enthalten:", ""]
         for r in p["gt_not_ok"][:20]:

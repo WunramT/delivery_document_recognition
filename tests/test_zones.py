@@ -112,3 +112,38 @@ def test_synthetic_optional_only_moved():
                 boxes=[Box("unterschrift", [120, 150, 150, 190])])
     vs = make_variants(page, im, ZONES, RULES["lieferschein"], random.Random(0))
     assert [(v["kind"], v["expected"]) for v in vs] == [("verschoben_unterschrift", WRONG_POSITION)]
+
+
+FIELDS = {"22": {"box": [0.0, 0.72, 0.34, 1.0], "require": ["unterschrift"]},
+          "23": {"box": [0.34, 0.72, 0.67, 1.0], "require": ["unterschrift"]},
+          "24": {"box": [0.67, 0.72, 1.0, 1.0], "require": ["unterschrift"]}}
+FRULES = {"cmr": {"fields": FIELDS}}
+
+
+def fcheck(dets):
+    return check_page("cmr", dets, {}, FRULES, 0.5, 0.5, 0.3)
+
+
+def test_cmr_fields_all_three_required():
+    sig = [det("unterschrift", [x, 0.85, x + 0.2, 0.92]) for x in (0.05, 0.40, 0.75)]
+    assert fcheck(sig)["status"] == OK
+    r = fcheck(sig[1:])
+    assert r["status"] == MISSING and "Feld 22" in r["reason"] and "Feld 23" not in r["reason"]
+    # one wide signature centered in 23 does not count for 22/24
+    assert fcheck([det("unterschrift", [0.2, 0.85, 0.8, 0.92])])["status"] == MISSING
+    weak = sig[:2] + [det("unterschrift", [0.75, 0.85, 0.95, 0.92], 0.4)]
+    assert fcheck(weak)["status"] == UNCERTAIN
+    assert fcheck([])["status"] == MISSING
+
+
+def test_cmr_field_variants():
+    im = Image.new("RGB", (100, 100), "white")
+    boxes = [Box("unterschrift", [x, 85, x + 20, 92]) for x in (5, 40, 75)]
+    page = Page(1, "p.png", None, 100, 100, doc_type="cmr", boxes=boxes)
+    vs = make_variants(page, im, {}, FRULES["cmr"], random.Random(0))
+    kinds = sorted(v["kind"] for v in vs)
+    assert "entfernt_feld_22" in kinds and "entfernt_alle" in kinds and "verschoben_feld_24" in kinds
+    assert all(v["expected"] == MISSING for v in vs)
+    for v in vs:  # every variant really violates the rule on its own GT boxes
+        g = [{"cls": b.cls, "box": b.norm(100, 100), "score": 1.0} for b in v["boxes"]]
+        assert fcheck(g)["status"] == MISSING, v["kind"]
