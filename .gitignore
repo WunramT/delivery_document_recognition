@@ -11,3 +11,5 @@ labels/tour_review.html
 # several exports: never commit scans / COCO files
 /labels/exports/*/images/
 /labels/exports/*/_annotations.coco.json
+/labels/*/images/
+/labels/*/_annotations.coco.json

@@ -58,3 +58,25 @@ def test_global_tour_csv_does_not_match_other_exports_by_stem(tmp_path):
                                         "labels": {"tour_number": {"csv": str(glob)}}}))
     pages, _ = load_pages(apply_exports(load_config(cfg_path)))
     assert all(p.tour_number is None for p in pages)  # ambiguous -> not assigned at all
+
+
+def test_exports_directly_under_labels_with_tour_from_folder_name(tmp_path):
+    labels = tmp_path / "labels"
+    make_export(labels / "425_21.09.2026", 3, 1)
+    make_export(labels / "exports" / "503_01.09.2026", 2, 2)   # nested layout still works
+    for d in (labels / "425_21.09.2026", labels / "exports" / "503_01.09.2026"):
+        (d / "tour_numbers.csv").unlink()                        # tour only from the folder name
+    (labels / "page_types.csv").write_text("x")                  # loose files in labels/ are ignored
+    cfg_path = tmp_path / "c.yaml"
+    cfg_path.write_text(yaml.safe_dump({"extends": str(ROOT / "config.yaml"),
+                                        "paths": {"exports": str(labels), "artifacts": str(tmp_path / "art")},
+                                        "labels": {"tour_number": {"csv": str(tmp_path / "none.csv")}}}))
+    cfg = apply_exports(load_config(cfg_path))
+    assert [e["name"] for e in cfg["_exports"]["exports"]] == ["425_21.09.2026", "503_01.09.2026"]
+    pages, _ = load_pages(cfg)
+    assert all(p.path is not None for p in pages)
+    by_export = {}
+    for p in pages:
+        by_export.setdefault(p.file_name.split("/images/")[0], set()).add(p.tour_number)
+    assert by_export == {"425_21.09.2026": {"425/21.09.2026/4000"},
+                         "exports/503_01.09.2026": {"503/01.09.2026/4000"}}

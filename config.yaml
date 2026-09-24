@@ -5,10 +5,11 @@
 seed: 42
 
 paths:
-  # Several label exports side by side (optional): <exports>/<name>/{_annotations.coco.json,
-  # images/, page_types.csv, tour_numbers.csv}. If present they are merged automatically and
+  # Label exports as subfolders (optional), e.g. labels/425_21.09.2026/{_annotations.coco.json,
+  # images/, page_types.csv, tour_numbers.csv?} - directly under this folder or one level
+  # deeper (labels/exports/<name>/). If present they are merged automatically and
   # coco/images/page_types below are ignored.
-  exports: ${DOCVAL_DATA:-labels}/exports
+  exports: ${DOCVAL_DATA:-labels}
   coco: ${DOCVAL_DATA:-labels}/_annotations.coco.json
   images: ${DOCVAL_DATA:-labels}/images
   artifacts: ${DOCVAL_ARTIFACTS:-artifacts}   # all derived data (gitignored)
@@ -30,7 +31,13 @@ labels:
     source: csv                    # csv | coco_attribute
     coco_attribute: attributes.text
     csv: labels/tour_numbers.csv   # "?" = unreadable in GT
-    # tour/date/number, e.g. 503/01.09.2026/4000 (all three parts = the tour number).
+    # GT from the export folder name, e.g. 425_21.09.2026 -> 425/21.09.2026/4000, for every
+    # page with a tour_nummer box (a tour_numbers.csv in the folder takes precedence)
+    from_export_name:
+      pattern: '^(?P<tour>\d+)_(?P<date>\d{2}\.\d{2}\.\d{4})'
+      format: '{tour}/{date}/{plant}'
+      plant: '4000'
+    # tour/date/plant, e.g. 503/01.09.2026/4000 (all three parts = the tour number).
     # Kept as a string: leading zeros matter.
     format_regex: '^\d+/\d{2}\.\d{2}\.\d{4}/\d+$'
 

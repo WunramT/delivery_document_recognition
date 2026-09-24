@@ -19,21 +19,42 @@ from .labels import match_to_coco, read_label_table
 COCO_NAMES = ("_annotations.coco.json", "annotations.json", "coco.json")
 
 
+def _is_export(d: Path) -> bool:
+    return any((d / n).is_file() for n in COCO_NAMES)
+
+
 def find_exports(root: Path) -> list[Path]:
+    """Export folders directly under `root` (e.g. labels/425_21.09.2026/) and one level
+    deeper in folders without a COCO file of their own (e.g. labels/exports/<name>/)."""
     if not root.is_dir():
         return []
     out = []
     for d in sorted(p for p in root.iterdir() if p.is_dir()):
-        if any((d / n).is_file() for n in COCO_NAMES):
+        if _is_export(d):
             out.append(d)
+        else:
+            out += [c for c in sorted(p for p in d.iterdir() if p.is_dir()) if _is_export(c)]
     return out
+
+
+def tour_from_name(name: str, spec: dict | None) -> str | None:
+    """'425_21.09.2026' + {pattern, format, plant} -> '425/21.09.2026/4000'."""
+    import re
+
+    if not spec or not spec.get("pattern"):
+        return None
+    m = re.match(spec["pattern"], name)
+    if not m:
+        return None
+    vals = {"plant": str(spec.get("plant", "")), **{k: v for k, v in m.groupdict().items() if v}}
+    return spec.get("format", "{tour}/{date}/{plant}").format(**vals)
 
 
 def _coco_file(d: Path) -> Path:
     return next(d / n for n in COCO_NAMES if (d / n).is_file())
 
 
-def merge_exports(cfg: dict, exports: list[Path], out: Path) -> dict:
+def merge_exports(cfg: dict, exports: list[Path], out: Path, root: Path | None = None) -> dict:
     classes = cfg["classes"]
     images, anns, cats = [], [], {}
     for c in classes:
@@ -53,7 +74,8 @@ def merge_exports(cfg: dict, exports: list[Path], out: Path) -> dict:
         n_img = 0
         for img in data["images"]:
             p = find_image(img["file_name"], d / "images", d)
-            rel = f"{name}/{img['file_name']}" if p is None else p.relative_to(d.parent).as_posix()
+            base = root or d.parent
+            rel = (d.relative_to(base) / img["file_name"]).as_posix() if p is None else p.relative_to(base).as_posix()
             id_map[img["id"]] = iid
             fn_map[img["file_name"]] = rel
             images.append({"id": iid, "file_name": rel, "width": img["width"], "height": img["height"],
@@ -88,13 +110,23 @@ def merge_exports(cfg: dict, exports: list[Path], out: Path) -> dict:
             elif pdf:
                 seen_pages[key] = rel
             type_rows.append([rel, matched.get(coco_fn, ""), f"{name}:{pdf}" if pdf else name, page])
-        # tour numbers of this export (optional)
+        # tour numbers: tour_numbers.csv of this export wins; otherwise the folder name
+        # (e.g. 425_21.09.2026 -> 425/21.09.2026/4000) for every page with a tour_nummer box
         tv, _ = read_label_table(d / "tour_numbers.csv", "tour_number", "file_name")
         tm, _ = match_to_coco(tv, list(fn_map))
+        from_name = tour_from_name(name, cfg["labels"]["tour_number"].get("from_export_name"))
+        n_from_name = 0
+        if from_name:
+            tour_img = {a["image_id"] for a in data["annotations"] if cat_name.get(a["category_id"]) == "tour_nummer"}
+            for img in data["images"]:
+                if img["id"] in tour_img and img["file_name"] not in tm:
+                    tm[img["file_name"]] = from_name
+                    n_from_name += 1
         tour_rows += [[fn_map[k], v] for k, v in tm.items()]
         info["exports"].append({"name": name, "images": n_img, "annotations": n_ann,
                                 "doc_types": len(matched), "doc_types_missing": len(stats["unmatched_coco"]),
-                                "tour_numbers": len(tm)})
+                                "tour_numbers": len(tm), "tour_from_name": from_name,
+                                "tour_from_name_pages": n_from_name})
     out.mkdir(parents=True, exist_ok=True)
     coco = {"images": images, "annotations": anns,
             "categories": [{"id": i, "name": n, "supercategory": "none"} for n, i in cats.items()]}
@@ -119,9 +151,9 @@ def apply_exports(cfg: dict, log=None) -> dict:
     if not exports:
         return cfg
     out = artifacts(cfg, "merged")
-    info = merge_exports(cfg, exports, out)
+    info = merge_exports(cfg, exports, out, root)
     cfg["paths"]["coco"] = str(out / "_annotations.coco.json")
-    cfg["paths"]["images"] = str(root)          # file_name = "<export>/images/x.png"
+    cfg["paths"]["images"] = str(root)          # file_name = "<export path>/images/x.png"
     cfg["labels"]["doc_type"]["csv"] = str(out / "page_types.csv")
     cfg["labels"]["doc_type"]["csv_file_column"] = "file_name"
     cfg["labels"]["doc_type"]["csv_value_column"] = "doc_type"
@@ -131,7 +163,8 @@ def apply_exports(cfg: dict, log=None) -> dict:
     cfg["_exports"] = info
     if log:
         log(f"[exports] {len(exports)} Export(s) aus {root}: " + ", ".join(
-            f"{e['name']} ({e['images']} Seiten)" for e in info["exports"])
+            f"{e['name']} ({e['images']} Seiten" + (f", Tour {e['tour_from_name']}" if e.get("tour_from_name") else "")
+            + ")" for e in info["exports"])
             + (f"; WARNUNG doppelte Seiten: {len(info['duplicates'])}" if info["duplicates"] else ""))
         for e in info["exports"]:
             if e["doc_types_missing"]:

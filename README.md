@@ -139,26 +139,27 @@ Wichtige Stellen:
 
 ## Mehrere Exporte
 
-Neue Scan-Stapel als eigene Unterordner unter `labels/exports/` ablegen – je Ordner ein
-kompletter Export aus dem Labeling-Tool:
+Jeder Scan-Stapel (= eine Tour) als eigener Ordner direkt unter `labels/`, benannt
+`<Tour>_<Datum>`:
 
 ```
-labels/exports/
-  2026-09-07/  _annotations.coco.json  images/  page_types.csv  tour_numbers.csv (optional)
-  2026-09-15/  ...
+labels/
+  425_21.09.2026/  _annotations.coco.json  images/  page_types.csv  tour_numbers.csv (optional)
+  503_01.09.2026/  ...
 ```
 
-Sobald dort mindestens ein Export liegt, werden alle bei jedem Befehl automatisch
-zusammengeführt (`artifacts/merged/`, nur JSON/CSV – Bilder werden nicht kopiert);
-`paths.coco`/`paths.images` werden dann ignoriert.
+(`labels/exports/<Name>/` funktioniert ebenso.) Sobald mindestens ein solcher Ordner existiert,
+werden alle bei jedem Befehl automatisch zusammengeführt (`artifacts/merged/`, nur JSON/CSV –
+Bilder werden nicht kopiert); `paths.coco`/`paths.images` werden dann ignoriert.
 
-- Dateinamen werden zu `<Export>/images/<Datei>` – gleiche Namen in zwei Exporten sind kein Problem.
-- Jeder Export ist eine eigene Gruppe im Split (`source_pdf` wird mit dem Exportnamen
-  versehen), Seiten verschiedener Exporte vermischen sich also nie in einer Gruppe.
+- **Tournummer aus dem Ordnernamen:** `425_21.09.2026` → `425/21.09.2026/4000` (Werk aus
+  `labels.tour_number.from_export_name.plant`) für jede Seite mit `tour_nummer`-Box. Eine
+  `tour_numbers.csv` im Ordner hat Vorrang (Ausnahmen).
+- `page_types.csv` muss aus **demselben** Export stammen wie `_annotations.coco.json` und
+  `images/` – sonst warnt der Report („Labels passen nicht zu den Bildern“).
+- Dateinamen werden zu `<Ordner>/images/<Datei>`; gleiche Namen in zwei Exporten sind kein Problem.
+- Jeder Export ist eine eigene Gruppe im Split; Seiten verschiedener Touren vermischen sich nie.
 - Dieselbe PDF-Seite in zwei Exporten wird als Warnung gemeldet („doppelte Seiten“).
-- Tournummern: am besten je Export in dessen `tour_numbers.csv`. Die globale
-  `labels/tour_numbers.csv` (Review-Seite) hat Vorrang, ist bei gleichen Dateinamen in
-  mehreren Exporten aber nicht eindeutig zuordenbar – dann die Werte in den Export-Ordner übernehmen.
 - Nach dem Hinzufügen eines Exports: `make inspect split train export eval`.
 
 ## Label-CSVs ausfüllen
