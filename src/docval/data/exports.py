@@ -133,4 +133,8 @@ def apply_exports(cfg: dict, log=None) -> dict:
         log(f"[exports] {len(exports)} Export(s) aus {root}: " + ", ".join(
             f"{e['name']} ({e['images']} Seiten)" for e in info["exports"])
             + (f"; WARNUNG doppelte Seiten: {len(info['duplicates'])}" if info["duplicates"] else ""))
+        for e in info["exports"]:
+            if e["doc_types_missing"]:
+                log(f"[exports] WARNUNG {e['name']}: {e['doc_types_missing']} von {e['images']} Seiten ohne "
+                    "Dokumenttyp - page_types.csv fehlt oder gehört zu einem anderen Export")
     return cfg

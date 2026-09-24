@@ -42,3 +42,19 @@ def test_no_exports_folder_keeps_config(tmp_path):
     cfg["paths"]["exports"] = str(tmp_path / "missing")
     before = dict(cfg["paths"])
     assert apply_exports(cfg)["paths"] == before
+
+
+def test_global_tour_csv_does_not_match_other_exports_by_stem(tmp_path):
+    exp = tmp_path / "exports"
+    make_export(exp / "a", 2, 1)
+    make_export(exp / "b", 2, 2)
+    for e in ("a", "b"):  # no per-export tour numbers
+        (exp / e / "tour_numbers.csv").unlink()
+    glob = tmp_path / "tour_numbers.csv"   # old global CSV with names of ONE export, no prefix
+    glob.write_text("file_name,tour_number\nimages/smoke_0001.png,111/01.01.2026/1\n")
+    cfg_path = tmp_path / "c.yaml"
+    cfg_path.write_text(yaml.safe_dump({"extends": str(ROOT / "config.yaml"),
+                                        "paths": {"exports": str(exp), "artifacts": str(tmp_path / "art")},
+                                        "labels": {"tour_number": {"csv": str(glob)}}}))
+    pages, _ = load_pages(apply_exports(load_config(cfg_path)))
+    assert all(p.tour_number is None for p in pages)  # ambiguous -> not assigned at all

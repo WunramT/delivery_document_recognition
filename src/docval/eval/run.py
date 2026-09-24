@@ -15,6 +15,7 @@ from pathlib import Path
 import yaml
 from PIL import Image
 
+from ..data.labels import short_name
 from ..config import artifacts
 from ..data.dataset import load_pages
 from ..detect.onnx_detector import OnnxDetector, iou
@@ -388,7 +389,7 @@ def run_eval(cfg, log) -> int:
             errs += fn + fp
         if errs:
             gallery["detektor"].append({"file_name": p.file_name, "path": str(p.path), "severity": errs,
-                                        "title": f"{Path(p.file_name).name} ({p.doc_type})",
+                                        "title": f"{short_name(p.file_name)} ({p.doc_type})",
                                         "reason": "; ".join(reasons), "gt": gt_dets(p), "pred": pr_all})
     R["detector"] = det_res
     log("[eval] Detektor: " + ", ".join(
@@ -426,7 +427,7 @@ def run_eval(cfg, log) -> int:
             gallery["dokumenttyp"].append({
                 "file_name": p.file_name, "path": str(p.path),
                 "severity": 2 if dec["doc_type"] != UNCERTAIN else 1,
-                "title": f"{Path(p.file_name).name}: GT {p.doc_type} -> {dec['doc_type']}",
+                "title": f"{short_name(p.file_name)}: GT {p.doc_type} -> {dec['doc_type']}",
                 "reason": f"{dec['reason']} | OCR-Kopf: '{text[:120]}'", "gt": [], "pred": [],
                 "header_fraction": dcfg["header_fraction"]})
     types = sorted({r["gt"] for r in dt_rows if r["gt"]} | set(cfg["doc_types"]))
@@ -469,12 +470,12 @@ def run_eval(cfg, log) -> int:
                           "status": res["status"], "reason": res["reason"], "e2e_status": e2e["status"]})
         if gt_status == OK and res["status"] in (MISSING, WRONG_POSITION):
             gallery["position"].append({"file_name": p.file_name, "path": str(p.path), "severity": 3,
-                                        "title": f"Fehlalarm {Path(p.file_name).name} ({p.doc_type}): {res['status']}",
+                                        "title": f"Fehlalarm {short_name(p.file_name)} ({p.doc_type}): {res['status']}",
                                         "reason": res["reason"], "gt": gt_dets(p), "pred": preds[p.file_name],
                                         "zones": zone_boxes(p.doc_type, zones, rules)})
         if gt_status in (MISSING, WRONG_POSITION) and res["status"] == OK:
             gallery["position"].append({"file_name": p.file_name, "path": str(p.path), "severity": 3,
-                                        "title": f"Echter Fehler übersehen {Path(p.file_name).name} ({p.doc_type}): "
+                                        "title": f"Echter Fehler übersehen {short_name(p.file_name)} ({p.doc_type}): "
                                                  f"GT {gt_status}, Pipeline ok",
                                         "reason": res["reason"], "gt": gt_dets(p), "pred": preds[p.file_name],
                                         "zones": zone_boxes(p.doc_type, zones, rules)})
@@ -504,7 +505,7 @@ def run_eval(cfg, log) -> int:
             if not caught:
                 gallery["position"].append({
                     "file_name": p.file_name, "path": str(out), "severity": 2 if res["status"] == OK else 1,
-                    "title": f"Nicht erkannt: {Path(p.file_name).name} {v['kind']} -> {res['status']}",
+                    "title": f"Nicht erkannt: {short_name(p.file_name)} {v['kind']} -> {res['status']}",
                     "reason": f"Soll {v['expected']}: {res['reason']}",
                     "gt": [{"cls": b.cls, "box": b.norm(p.width, p.height), "score": 1.0} for b in v["boxes"]],
                     "pred": d, "zones": zone_boxes(p.doc_type, zones, rules)})
@@ -638,7 +639,7 @@ def run_eval(cfg, log) -> int:
         p = by_fn[r["file_name"]]
         gallery["tournummer"].append({
             "file_name": r["file_name"], "path": str(p.path), "severity": sev,
-            "title": f"{Path(r['file_name']).name}: GT '{r['gt'] or '-'}' OCR '{x['text']}' "
+            "title": f"{short_name(r['file_name'])}: GT '{r['gt'] or '-'}' OCR '{x['text']}' "
                      f"({'akzeptiert' if x['accepted'] else 'abgelehnt'})",
             "reason": x["reason"], "crop_box": p.boxes_of("tour_nummer")[0].xyxy, "gt": [], "pred": []})
     # cmr_count (optional)
@@ -669,7 +670,7 @@ def run_eval(cfg, log) -> int:
             continue
         gallery["maske"].append({
             "file_name": p.file_name, "path": str(p.path), "severity": 0 if i["found"] else 3,
-            "title": f"{Path(p.file_name).name}: {'Feldzeile gefunden' if i['found'] else 'NICHT gefunden'}",
+            "title": f"{short_name(p.file_name)}: {'Feldzeile gefunden' if i['found'] else 'NICHT gefunden'}",
             "reason": i["reason"] + (" – blau = gefundene Felder, maskiert: 22, 23" if i["found"] else
                                      " – Seite wird unmaskiert geprüft (Vordruck kann als Unterschrift zählen)"),
             "gt": gt_dets(p), "pred": [],

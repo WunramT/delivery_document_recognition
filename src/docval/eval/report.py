@@ -8,6 +8,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+from ..data.labels import short_name
 from ..config import artifacts
 from ..zones.synthetic import to_rgb
 
@@ -67,8 +68,37 @@ def draw_item(item: dict, out: Path, max_side: int = 900) -> str | None:
 
 # ------------------------------------------------------------------ conclusion
 
+def plausibility(R: dict) -> list[str]:
+    """Signs that labels (CSV) and images do not belong together."""
+    out = []
+    rows = R["doctype"]["rows"]
+    kw = [r for r in rows if r.get("keyword") and r.get("gt")]
+    bad = [r for r in kw if r["keyword"] != r["gt"]]
+    if len(bad) >= 2 and len(bad) >= 0.2 * len(kw):
+        out.append(f"{len(bad)} von {len(kw)} Seiten: das Keyword im Seitenkopf widerspricht dem Dokumenttyp aus "
+                   f"page_types.csv (z. B. {', '.join(short_name(r['file_name']) for r in bad[:3])}). "
+                   "Passt page_types.csv zu diesen Bildern?")
+    prim = R["ocr"].get("primary")
+    wrong = [r for r in R["ocr"]["rows"] if r.get("gt") and prim in r["gt_box"]
+             and r["gt_box"][prim]["accepted"] and r["gt_box"][prim]["score"] >= 0.98
+             and r["gt_box"][prim]["text"] != r["gt"]]
+    if len(wrong) >= 2:
+        texts = sorted({r["gt_box"][prim]["text"] for r in wrong})
+        out.append(f"{len(wrong)} Tournummern mit sehr hoher OCR-Konfidenz weichen von der GT ab "
+                   f"(gelesen {', '.join(texts[:3])}) – stimmt tour_numbers.csv für diese Seiten?")
+    fm = R.get("form_mask") or {}
+    if fm.get("not_found") and fm.get("pages", {}).get("n") and len(fm["not_found"]) >= 0.5 * fm["pages"]["n"]:
+        out.append(f"Die CMR-Feldzeile fehlt auf {len(fm['not_found'])} von {fm['pages']['n']} CMR-Seiten – "
+                   "sind das wirklich CMR-Seiten?")
+    return out
+
+
 def conclusion(R: dict) -> list[str]:
     L = []
+    pl = plausibility(R)
+    if pl:
+        L.append("**⚠ Verdacht: Labels passen nicht zu den Bildern** – Ergebnisse erst nach Klärung "
+                 "belastbar: " + " ".join(pl))
     crit = R["acceptance"]
     passed = [c for c in crit if c["passed"]]
     failed = [c for c in crit if not c["passed"]]
@@ -153,7 +183,7 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
         L.append(f"- GT-Boxen im maskierten Bereich (aus Metriken entfernt): {fm['dropped_gt_boxes']} – "
                  "sollte 0 sein, sonst lag eine echte Unterschrift in Feld 22/23")
         if fm["not_found"]:
-            L.append("- **Nicht gefunden** (unmaskiert geprüft): " + ", ".join(f"`{Path(x).name}`" for x in fm["not_found"]))
+            L.append("- **Nicht gefunden** (unmaskiert geprüft): " + ", ".join(f"`{short_name(x)}`" for x in fm["not_found"]))
         L.append("- Kontrollbilder: Galerie „Maske“")
         L.append("")
 
@@ -223,7 +253,7 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
               "| Seite | GT | Keyword-Ergebnis | OCR-Kopf |", "|---|---|---|---|"]
         for r in misses:
             txt = (r.get("header_text") or "").replace("|", "/")[:160]
-            L.append(f"| {Path(r['file_name']).name} | {r['gt']} | {r['keyword'] or '-'} | {txt} |")
+            L.append(f"| {short_name(r['file_name'])} | {r['gt']} | {r['keyword'] or '-'} | {txt} |")
     L.append("")
 
     # position
@@ -265,12 +295,12 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
               "zum Prüfen der Nebenzonen-Box (z. B. Feld 13):", "",
               "| Seite | Split | Klasse | Zentrum x / y | Box | Nebenzone |", "|---|---|---|---|---|---|"]
         for o in p["outside_zone"][:40]:
-            L.append(f"| {Path(o['file_name']).name} | {o['split']} | {o['cls']} | {o['center'][0]:.2f} / {o['center'][1]:.2f} | "
+            L.append(f"| {short_name(o['file_name'])} | {o['split']} | {o['cls']} | {o['center'][0]:.2f} / {o['center'][1]:.2f} | "
                      f"{', '.join(f'{v:.2f}' for v in o['box'])} | {o['review_zone'] or '– (nicht abgedeckt)'} |")
     if p["gt_not_ok"]:
         L += ["", f"Seiten, die schon laut GT die Regel nicht erfüllen ({len(p['gt_not_ok'])}) – nicht in der Fehlalarmrate enthalten:", ""]
         for r in p["gt_not_ok"][:20]:
-            L.append(f"- `{Path(r['file_name']).name}` ({r['doc_type']}): GT {r['gt_status']}, Pipeline {r['status']}")
+            L.append(f"- `{short_name(r['file_name'])}` ({r['doc_type']}): GT {r['gt_status']}, Pipeline {r['status']}")
     L.append("")
 
     # OCR

@@ -75,12 +75,14 @@ def read_label_table(path: str | Path, value_col: str | None = None,
     return out, info
 
 
-def match_to_coco(values: dict[str, str], coco_file_names: list[str]) -> tuple[dict, dict]:
+def match_to_coco(values: dict[str, str], coco_file_names: list[str],
+                  by_stem: bool = True) -> tuple[dict, dict]:
     """Map label rows onto COCO file names: exact name first, then by base stem
-    (handles folders, other extensions and Roboflow-renamed files)."""
-    by_stem: dict[str, list[str]] = {}
+    (handles folders, other extensions and Roboflow-renamed files).
+    by_stem=False: exact names only (several exports reuse the same file names)."""
+    stems: dict[str, list[str]] = {}
     for fn in values:
-        by_stem.setdefault(base_stem(fn), []).append(fn)
+        stems.setdefault(base_stem(fn), []).append(fn)
     out: dict[str, str] = {}
     stats = {"exact": 0, "by_stem": 0, "stem_conflict": 0, "unmatched_coco": [], "unmatched_csv": []}
     used: set[str] = set()
@@ -90,7 +92,7 @@ def match_to_coco(values: dict[str, str], coco_file_names: list[str]) -> tuple[d
             used.add(fn)
             stats["exact"] += 1
             continue
-        cands = by_stem.get(base_stem(fn), [])
+        cands = stems.get(base_stem(fn), []) if by_stem else []
         vals = {values[c] for c in cands}
         if len(vals) == 1:
             out[fn] = vals.pop()
@@ -147,3 +149,11 @@ def write_template(path: str | Path, header: list[str], file_names: list[str],
         for fn in missing:
             w.writerow([fn, prefill.get(fn, "")])
     return "extended"
+
+
+def short_name(file_name: str) -> str:
+    """'2026-09-15/images/x.png' -> '2026-09-15/x.png' (export visible), else 'x.png'."""
+    parts = file_name.replace("\\", "/").split("/")
+    if len(parts) >= 3 and parts[-2] == "images":
+        return f"{parts[-3]}/{parts[-1]}"
+    return parts[-1]
