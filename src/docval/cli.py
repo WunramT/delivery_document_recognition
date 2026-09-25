@@ -106,6 +106,12 @@ def cmd_report(cfg) -> int:
     return render_from_results(cfg, log)
 
 
+def cmd_review_labels(cfg) -> int:
+    from .eval.label_review import run_label_review
+
+    return run_label_review(cfg, log)
+
+
 def cmd_fetch(cfg) -> int:
     from .models import fetch_all
 
@@ -114,14 +120,14 @@ def cmd_fetch(cfg) -> int:
 
 
 COMMANDS = {"split": cmd_split, "train": cmd_train, "train-doctype": cmd_train_doctype,
-            "export": cmd_export, "eval": cmd_eval, "report": cmd_report, "fetch-models": cmd_fetch}
+            "export": cmd_export, "eval": cmd_eval, "report": cmd_report, "review-labels": cmd_review_labels, "fetch-models": cmd_fetch}
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="docval")
     ap.add_argument("command", choices=sorted(COMMANDS))
     ap.add_argument("--config", default=None, help="default: $DOCVAL_CONFIG or config.yaml")
-    ap.add_argument("--split", default=None, help="eval: split to evaluate (test | valid | train)")
+    ap.add_argument("--split", default=None, help="eval: split to evaluate (test | valid | train); review-labels: also all")
     args = ap.parse_args(argv)
     for stream in (sys.stdout, sys.stderr):
         try:

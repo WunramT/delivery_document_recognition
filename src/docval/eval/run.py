@@ -22,7 +22,7 @@ from ..detect.onnx_detector import OnnxDetector, iou
 from ..doctype.rules import UNCERTAIN, combine, keyword_decision, keyword_scores
 from ..models import ocr_model_dir, offline, setup_cache
 from ..ocr.onnx_ocr import OcrEngine, Recognizer, crop_quad, pad_crop, pil_to_bgr
-from ..ocr.postprocess import evaluate_text, parse_cmr_count, stack_complete
+from ..ocr.postprocess import evaluate_text, parse_cmr_count
 from ..zones import (MISSING, NOT_REQUIRED, OK, WRONG_POSITION, apply_overrides, box_center_in, check_page,
                      derive_zones, overlap_fraction)
 from ..zones.synthetic import make_variants, to_rgb
@@ -650,14 +650,17 @@ def run_eval(cfg, log) -> int:
         cc = []
         for p in test:
             for b in p.boxes_of("cmr_count"):
-                t, s = primary.recognize(pil_to_bgr(pad_crop(originals[p.file_name], b.xyxy, ocfg["crop_padding"])))
-                cc.append({"file_name": p.file_name, "group": p.group, "text": t, "parsed": parse_cmr_count(t)})
-        groups = {}
-        for c in cc:
-            if c["parsed"]:
-                groups.setdefault(c["group"], []).append(tuple(c["parsed"]))
+                crop = pil_to_bgr(pad_crop(originals[p.file_name], b.xyxy, ocfg["crop_padding"]))
+                t, _ = primary.recognize(crop)
+                parsed = parse_cmr_count(t)
+                if not parsed:  # label + number on two lines -> line detection first
+                    t, _ = ocr_det_rec_text(primary, crop)
+                    parsed = parse_cmr_count(t)
+                cc.append({"file_name": p.file_name, "text": t, "parsed": parsed})
+        # the stack check (every "CMR i/n" of a tour present) needs all pages of a tour,
+        # the test split holds only a part -> `make review-labels` does it per export
         ocr_res["cmr_count"] = {"n": len(cc), "parsed": ratio(sum(1 for c in cc if c["parsed"]), len(cc)),
-                                "stacks": {g: stack_complete(v) for g, v in groups.items()}, "rows": cc}
+                                "rows": cc}
     else:
         ocr_res["cmr_count"] = None
     R["ocr"] = ocr_res

@@ -338,8 +338,8 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
     cc = o.get("cmr_count")
     L.append("")
     L.append("`cmr_count`: " + ("nicht annotiert – Stapel-Vollständigkeit nicht prüfbar." if not cc or not cc["n"]
-                                else f"{cc['n']} Boxen, lesbar {fr(cc['parsed'])}; Stapel: " +
-                                "; ".join(f"{g}: {v['reason']}" for g, v in cc["stacks"].items())))
+                                else f"{cc['n']} Boxen, lesbar (Format i/n) {fr(cc['parsed'])}. Stapelprüfung je Tour "
+                                "über alle Splits und unlesbare Boxen: `make review-labels`."))
     L.append("")
 
     # timing

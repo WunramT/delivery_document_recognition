@@ -83,6 +83,7 @@ Ohne `make` (Windows, PowerShell): `$env:PYTHONPATH="src"`, dann `python -m docv
 | `make export` | Detektor → `artifacts/detector/detector.onnx` + **Paritätstest** PyTorch vs. ONNX Runtime (CPU) auf 20 Bildern → `parity.json` (Exit 3 bei Abweichung) |
 | `make eval` | alle Stufen auf dem Test-Split mit ONNX → `artifacts/report/report.md` + `report.html` + `pages.csv`; **Exit-Code 1, wenn ein Kriterium verfehlt wird**. `make eval SPLIT=valid` wertet zur Diagnose den valid-Split aus |
 | `make report` | Report aus `artifacts/report/results.json` neu rendern (ohne neu zu rechnen) |
+| `make review-labels` | Label-Prüfung: Detektor vs. Labels auf allen Splits, `cmr_count`-Stapel je Tour → `artifacts/label_review/` (`REVIEW_SPLIT=test` für nur einen Split) |
 | `make test` | pytest-Unit-Tests |
 | `make smoke` | ganze Pipeline auf 12 synthetischen Seiten, 1 Epoche, CPU (~1 min, Grenze 5 min) – prüft, ob die Umgebung intakt ist |
 | `make fetch-models` | alle Gewichte in den Cache (einmalig, online) |
@@ -182,6 +183,25 @@ Bilder werden nicht kopiert); `paths.coco`/`paths.images` werden dann ignoriert.
 Rand und halbe Median-Boxgröße) und schreibt `artifacts/zones.yaml`. Zum manuellen Korrigieren
 Werte ändern und `locked: true` setzen – dann wird die Datei nicht mehr überschrieben;
 frisch abgeleitete Werte stehen weiter in `artifacts/zones.derived.yaml`.
+
+## Labels prüfen (`make review-labels`)
+
+Nach `make eval` (nutzt dessen kalibrierte Schwellen) läuft der Detektor über **alle** Seiten,
+auch die Trainingsseiten, und jede Abweichung zu den Labels landet in einer Kategorie:
+
+| Kategorie | Bedeutung | Typische Ursache |
+|---|---|---|
+| Box anders gezogen | GT und Vorhersage überlappen, IoU < 0,5 – zählt in den Metriken als „nicht gefunden“ **und** „falsch-positiv“ | uneinheitlicher Label-Stil (z. B. „CMR 3/9“ vs. nur „3/9“) |
+| Label fehlt? | sichere Vorhersage ohne GT-Box | vergessenes Label – besonders verdächtig auf `train` |
+| Andere Klasse? | Vorhersage liegt auf GT-Box einer anderen Klasse | Klasse verwechselt |
+| Nicht erkannt | GT-Box ohne überlappende Vorhersage | eher Modell, oder Box auf etwas anderem |
+| Doppeltes Label | zwei GT-Boxen derselben Klasse übereinander | doppelt geklickt |
+
+Dazu für `cmr_count`: OCR jeder GT-Box (unlesbare Boxen mit Bild), die Stapelprüfung je
+Export/Tour (jede Nummer 1…n genau einmal?), CMR-Seiten **ohne** `cmr_count`-Label und die
+Boxgröße je Export (große Unterschiede = unterschiedlich gezogene Boxen). In
+`label_review.csv` gibt es eine leere Spalte `entscheidung` zum Abhaken; korrigiert wird im
+Label-Tool, danach neu exportieren und `make split train export eval`.
 
 ## Report lesen (`artifacts/report/report.html`)
 
