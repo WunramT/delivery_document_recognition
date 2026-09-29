@@ -237,6 +237,17 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
               "| Typ | " + " | ".join(cls_) + " |", "|---|" + "---|" * len(cls_)]
         for t, rr in bdt.items():
             L.append(f"| {t} | " + " | ".join(fr(rr[c]) if rr[c]["n"] else "-" for c in cls_) + " |")
+    bex = det.get("by_export") or {}
+    if len(bex) > 1:
+        cls_ = list(det["per_class"])
+        L += ["", "Recall und Box-Passgenauigkeit (mittlere IoU der Treffer) je Export/Tour, relevante "
+              "Dokumenttypen – eine neu gelabelte Tour im Vergleich zu den anderen:", "",
+              "| Export | Seiten | " + " | ".join(f"{c} Recall / IoU" for c in cls_) + " |",
+              "|---|---|" + "---|" * len(cls_)]
+        for e, v in bex.items():
+            L.append(f"| {e} | {v['pages']} | " + " | ".join(
+                (f"{fr(v['per_class'][c]['recall'])} / {num(v['per_class'][c]['mean_iou'], 2)}"
+                 if v["per_class"][c]["recall"]["n"] else "-") for c in cls_) + " |")
     L += ["", "Precision/Recall über die Konfidenzschwelle:", ""]
     cls = list(R["detector"]["pr_table"])
     L.append("| Schwelle | " + " | ".join(f"{c} P / R" for c in cls) + " |")

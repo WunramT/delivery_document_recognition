@@ -238,6 +238,22 @@ gleich, die Bilder im Export müssen nicht angefasst werden. Danach
 `relabel_changes.csv` listet jede Änderung. Wer lieber im bisherigen Label-Tool arbeitet:
 `<Tour>_<Datum>.zip` dort importieren (am sichersten als neues Projekt).
 
+## Experimente vergleichen (z. B. eine Tour neu gelabelt)
+
+Alle Ordner in `labels/` lassen, nur die überarbeitete Datei austauschen, und den neuen Lauf in
+einen **eigenen Artefakt-Ordner** schreiben – der alte Lauf bleibt als Vergleich stehen:
+
+```
+DOCVAL_ARTIFACTS=artifacts/exp_425 make split train export eval
+make compare A=artifacts B=artifacts/exp_425      # → artifacts/exp_425/report/compare.md
+```
+
+Der Split ist derselbe (gleicher Seed, gleiche Seiten, gleiche Dokumenttypen). `compare`
+zeigt Akzeptanzkriterien, Recall/AP50 je Klasse und je Export/Tour Recall und mittlere IoU
+der Treffer. Die neu gelabelte Tour sollte bei der IoU zulegen, die anderen sollten nicht
+schlechter werden. Achtung: Die Test-Labels der Tour haben sich mitgeändert, und je Tour liegen
+nur wenige Test-Seiten – kleine Unterschiede sind Rauschen.
+
 ## Report lesen (`artifacts/report/report.html`)
 
 1. **Gesamtergebnis und Fazit** – was funktioniert, was verfehlt ist, wo der größte Hebel liegt.

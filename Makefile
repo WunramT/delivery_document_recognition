@@ -5,7 +5,7 @@ SMOKE_CONFIG := configs/smoke.yaml
 export PYTHONPATH := $(CURDIR)/src
 DOCVAL := $(PY) -m docval --config
 
-.PHONY: help inspect split train export eval report review-labels relabel test smoke fetch-models all clean-smoke gpu-check
+.PHONY: help inspect split train export eval report review-labels relabel compare test smoke fetch-models all clean-smoke gpu-check
 
 help:
 	@echo "inspect  Schritt 0: Datensatz analysieren, Label-Vorlagen + Review-Seite"
@@ -16,6 +16,7 @@ help:
 	@echo "report   Report aus letzter results.json neu rendern"
 	@echo "review-labels  Label-Prüfung: Detektor vs. Labels auf allen Splits, cmr_count-Stapel je Tour"
 	@echo "relabel  Vorlabels: Labels + Modellergebnisse je Export als COCO (+ Bilder, zip) zum Überarbeiten"
+	@echo "compare  zwei Läufe vergleichen: make compare A=artifacts B=artifacts/exp_x"
 	@echo "test     Unit-Tests"
 	@echo "smoke    ganze Pipeline auf synthetischer Mini-Teilmenge (CPU, < 5 min)"
 	@echo "fetch-models  alle Gewichte in den Cache laden (danach offline)"
@@ -46,6 +47,11 @@ review-labels:
 
 relabel:
 	$(DOCVAL) $(CONFIG) relabel
+
+A ?= artifacts
+B ?= $(DOCVAL_ARTIFACTS)
+compare:
+	$(PY) scripts/compare_runs.py $(A) $(B)
 
 fetch-models:
 	$(DOCVAL) $(CONFIG) fetch-models

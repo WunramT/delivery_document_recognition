@@ -260,6 +260,21 @@ def pr_at(scored, n_gt, t):
             "recall": tp_n / n_gt if n_gt else None}
 
 
+def export_of(file_name: str) -> str:
+    return file_name.split("/")[0] if "/" in file_name else "-"
+
+
+def mean_iou(pages, preds, cls, t, iou_thr) -> float | None:
+    """Mean IoU of the matched (TP) boxes: 1.0 = model box and label box coincide."""
+    vals = []
+    for p in pages:
+        g = [b.norm(p.width, p.height) for b in p.boxes_of(cls)]
+        pr = [d for d in preds[p.file_name] if d["cls"] == cls and d["score"] >= t]
+        tp, idx = match(g, pr, iou_thr)
+        vals += [iou(d["box"], g[k]) for d, ok, k in zip(pr, tp, idx) if ok]
+    return round(sum(vals) / len(vals), 3) if vals else None
+
+
 def detector_stats(pages, preds, classes, thr: dict, iou_thr) -> dict:
     res = {"per_class": {}, "pr_table": {}}
     for c in classes:
@@ -376,6 +391,14 @@ def run_eval(cfg, log) -> int:
         tp_pages = [p for p in test if p.doc_type == t]
         det_res["by_doc_type"][t] = {c: detector_stats(tp_pages, preds, [c], thr, iou_thr)["per_class"][c]["recall"]
                                      for c in classes}
+    # per export (tour folder), on the relevant doc types: recall and how tight the boxes sit
+    # (mean IoU of the hits) - shows whether a re-labeled tour behaves differently
+    det_res["by_export"] = {}
+    for e in sorted({export_of(p.file_name) for p in acc_pages}):
+        ep = [p for p in acc_pages if export_of(p.file_name) == e]
+        det_res["by_export"][e] = {"pages": len(ep), "per_class": {
+            c: {"recall": detector_stats(ep, preds, [c], thr, iou_thr)["per_class"][c]["recall"],
+                "mean_iou": mean_iou(ep, preds, c, thr[c], iou_thr)} for c in classes}}
     # gallery: pages with most errors at the working threshold
     for p in test:
         errs, reasons = 0, []
