@@ -30,9 +30,13 @@ from ..data.dataset import load_pages
 from ..data.labels import short_name
 from ..detect.onnx_detector import OnnxDetector, iou
 from ..models import setup_cache
+from .label_editor import editor_data, write_editor
 from .label_review import classify_page, thresholds
 from .metrics import match
 
+ACTION_TEXT = {"ersetzt": "Box ersetzt durch Modellbox:", "hinzugefügt": "vom Modell ergänzt:",
+               "hinzugefügt_alternative": "Modellbox zusätzlich:", "hinzugefügt_andere_klasse": "ergänzt (andere Klasse):",
+               "entfernt_doppelt": "doppeltes Label entfernt:", "angepasst": "an Modellbox angepasst:"}
 DEFAULT_POLICY = {"matched": "gt", "different_box": "model", "add_missing": True, "add_other_class": False,
                   "drop_duplicates": True, "add_min_score": 0.3, "copy_images": True, "zip": True,
                   "mark": "none"}
@@ -137,9 +141,11 @@ def run_relabel(cfg, log) -> int:
         if p.file_name not in origin:
             continue
         exp, exp_dir, orig_fn, orig_id = origin[p.file_name]
-        E = per_export.setdefault(exp, {"dir": exp_dir, "pages": {}})
+        E = per_export.setdefault(exp, {"dir": exp_dir, "pages": {}, "meta": {}})
         W, H = p.width, p.height
         labels_all = [(b.cls, b.norm(W, H)) for b in p.boxes]
+        E["meta"][orig_id] = {"split": split.get(p.file_name, "-"), "doc_type": p.doc_type, "changes": [],
+                              "orig": [[c, b[0] * W, b[1] * H, b[2] * W, b[3] * H] for c, b in labels_all]}
         if p.path is None:
             E["pages"][orig_id] = [{"cls": c, "box": b, "source": "label", "score": None} for c, b in labels_all]
             continue
@@ -150,6 +156,9 @@ def run_relabel(cfg, log) -> int:
         boxes, changes = propose(gts, preds, thr, iou_m, pol)
         boxes += [{"cls": c, "box": b, "source": "label", "score": None} for c, b in masked_out]
         E["pages"][orig_id] = boxes
+        E["meta"][orig_id]["changes"] = [
+            f"{ACTION_TEXT.get(ch['action'], ch['action'])} {ch['cls']}"
+            + (f" (Score {ch['score']:.2f})" if ch["score"] is not None else "") for ch in changes]
         for ch in changes:
             ch.update(export=exp, file_name=orig_fn, page=p.file_name, split=split.get(p.file_name, "-"),
                       doc_type=p.doc_type)
@@ -162,15 +171,23 @@ def run_relabel(cfg, log) -> int:
                                       for x in boxes if x["source"] == "modell"]})
 
     out = artifacts(cfg, "relabel")
+    editors = []
     for exp, E in per_export.items():
-        write_export(E["dir"], E["pages"], out / exp, pol, log, cfg["classes"])
+        coco, coco_name = write_export(E["dir"], E["pages"], out / exp, pol, log, cfg["classes"])
+        data = editor_data(exp, coco, coco_name, E["meta"], cfg["classes"], cfg["doc_types"],
+                           E["dir"] / "page_types.csv")
+        editors.append(write_editor(out / exp, data))
+        if pol["zip"]:
+            shutil.make_archive(str(out / exp), "zip", root_dir=out / exp)
     write_changes(out, all_changes)
-    write_overview(out, overview, thr, thr_src, pol)
+    write_overview(out, overview, thr, thr_src, pol, editors)
     counts: dict = {}
     for ch in all_changes:
         counts[(ch["cls"], ch["action"])] = counts.get((ch["cls"], ch["action"]), 0) + 1
     log("[relabel] Änderungen: " + (", ".join(f"{c}/{a}: {n}" for (c, a), n in sorted(counts.items())) or "keine")
         + f" auf {len(overview)} Seiten")
+    for e in editors:
+        log(f"[relabel] Editor: {e}")
     log(f"[relabel] {out}/<export>/ (+ .zip) | {out / 'relabel_overview.html'} | {out / 'relabel_changes.csv'} "
         f"({time.time() - t0:.0f} s)")
     return 0
@@ -187,7 +204,7 @@ def _removed_by_mask(labels_before: list, labels_after: list) -> list:
     return removed
 
 
-def write_export(src_dir: Path, pages: dict, out: Path, pol: dict, log, classes: list[str]) -> None:
+def write_export(src_dir: Path, pages: dict, out: Path, pol: dict, log, classes: list[str]) -> tuple[dict, str]:
     """Same layout as the input export, annotations replaced for the detector classes
     (annotations of other categories are kept as they are)."""
     data = load_coco(_coco_file(src_dir))
@@ -239,9 +256,8 @@ def write_export(src_dir: Path, pages: dict, out: Path, pol: dict, log, classes:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)   # real copies: zip/upload from Windows, input stays untouched
             n_img += 1
-    if pol["zip"]:
-        shutil.make_archive(str(out), "zip", root_dir=out)
     log(f"[relabel] {out.name}: {len(data['images'])} Seiten, {len(anns)} Boxen, {n_img} Bilder kopiert")
+    return coco, _coco_file(src_dir).name
 
 
 def _b(b):
@@ -258,7 +274,7 @@ def write_changes(out: Path, changes: list[dict]) -> None:
                         c["score"] if c["score"] is not None else "", _b(c["old"]), _b(c["new"])])
 
 
-def write_overview(out: Path, items: list[dict], thr, thr_src, pol) -> None:
+def write_overview(out: Path, items: list[dict], thr, thr_src, pol, editors=()) -> None:
     from .report import draw_item
 
     img_dir = out / "overview"
@@ -269,6 +285,10 @@ def write_overview(out: Path, items: list[dict], thr, thr_src, pol) -> None:
          "Rot = vom Modell übernommen/ergänzt (mit Score). Schwellen " + esc(thr_src) + ": "
          + ", ".join(f"{esc(c)} {t:g}" for c, t in thr.items()) + ". Regeln: "
          + esc(", ".join(f"{k}={v}" for k, v in pol.items() if k not in ("copy_images", "zip"))) + ".</p>"]
+    if editors:
+        L.append("<p><b>Bearbeiten im Editor</b> (je Export, Boxen verschieben/ändern/löschen/neu, dann "
+                 "„COCO speichern“): " + " · ".join(
+                     f"<a href='{esc(e.parent.name)}/editor.html'>{esc(e.parent.name)}</a>" for e in editors) + "</p>")
     for i, it in enumerate(sorted(items, key=lambda x: x["file_name"])):
         name = draw_item(it, img_dir / f"seite_{i:03d}.jpg", max_side=1000)
         ch = "; ".join(f"{c['action']} {c['cls']}" + (f" ({c['score']:.2f})" if c["score"] is not None else "")

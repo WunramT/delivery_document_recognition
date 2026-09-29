@@ -217,10 +217,26 @@ gleiche Bild-IDs und Dateinamen) plus `<Tour>_<Datum>.zip`. Darin:
 - Vorhersage auf einer Box anderer Klasse → nicht übernommen (meist Modellfehler)
 - Labels in den maskierten CMR-Feldern 22/23 und nicht gefundene Labels → unverändert
 
-`relabel_overview.html` zeigt jede geänderte Seite (grün = bisher, rot = vom Modell),
-`relabel_changes.csv` listet jede Änderung. Ablauf: zip ins Label-Tool importieren (am
-sichersten als neues Projekt), jede Seite prüfen und Boxen eng ziehen, wieder exportieren
-nach `labels/<Tour>_<Datum>/`, dann `make inspect split train export eval`.
+**Bearbeiten:** `artifacts/relabel/<Tour>_<Datum>/editor.html` per Doppelklick im Browser
+öffnen (Chrome/Edge empfohlen, läuft offline, kein Server nötig). Links die Seitenliste
+(Filter „mit Modell-Vorschlägen“ / „ungeprüft“), in der Mitte die Seite mit allen Boxen:
+
+- Box anklicken und verschieben, Ecken/Kanten ziehen = Größe, auf freier Fläche aufziehen = neue Box
+- `1`–`4` Klasse wählen bzw. die markierte Box umstellen, `Entf` löschen, `Strg+Z` rückgängig
+- Pfeiltasten verschieben (Shift = 10 px, Alt = Größe), `A`/`D` Seite zurück/vor, `Enter` = geprüft + weiter
+- `O` blendet die alten Labels grau ein, `+`/`-`/`0` Zoom; Dokumenttyp oben pro Seite änderbar
+- gestrichelt = Vorschlag des Modells, noch nicht angefasst
+
+Der Zwischenstand bleibt im Browser erhalten (Seite schließen ist kein Problem). Zum Schluss
+**„COCO speichern“** → `_annotations.coco.json` nach `labels/<Tour>_<Datum>/` (alte Datei vorher
+sichern; Chrome/Edge fragt nach dem Speicherort, andere Browser legen sie in „Downloads“ ab),
+bei geänderten Typen zusätzlich **„page_types.csv speichern“**. Bild-IDs und Dateinamen bleiben
+gleich, die Bilder im Export müssen nicht angefasst werden. Danach
+`make inspect split train export eval`.
+
+`relabel_overview.html` zeigt alle geänderten Seiten mit Links zu den Editoren,
+`relabel_changes.csv` listet jede Änderung. Wer lieber im bisherigen Label-Tool arbeitet:
+`<Tour>_<Datum>.zip` dort importieren (am sichersten als neues Projekt).
 
 ## Report lesen (`artifacts/report/report.html`)
 

@@ -60,3 +60,25 @@ def test_propose_replaces_rough_box_adds_missing_drops_duplicate():
     # conservative: keep every label, only add
     _, ch = propose(g, p, THR, 0.5, {"different_box": "gt", "drop_duplicates": False})
     assert [c["action"] for c in ch] == ["hinzugefügt"]
+
+
+def test_editor_data_keeps_ids_other_categories_and_csv_mapping(tmp_path):
+    from docval.eval.label_editor import editor_data, write_editor
+
+    coco = {"info": {"x": 1},
+            "images": [{"id": 7, "file_name": "images/a_png.rf.0123456789abcdef0123.png", "width": 100, "height": 50}],
+            "categories": [{"id": 0, "name": "documents"}, {"id": 1, "name": "stempel"}],
+            "annotations": [{"id": 1, "image_id": 7, "category_id": 1, "bbox": [10, 5, 20, 10],
+                             "attributes": {"quelle": "modell", "score": 0.8}},
+                            {"id": 2, "image_id": 7, "category_id": 0, "bbox": [0, 0, 1, 1]}]}
+    csv = tmp_path / "page_types.csv"
+    csv.write_text("file_name;doc_type;source_pdf\na.png;cmr;x.pdf\n", encoding="utf-8")
+    d = editor_data("425_21.09.2026", coco, "_annotations.coco.json", {7: {"doc_type": "cmr"}},
+                    ["stempel"], ["cmr"], csv)
+    p = d["pages"][0]
+    assert p["id"] == 7 and p["csv_key"] == "a.png" and p["doc_type"] == "cmr"
+    assert p["boxes"] == [{"cls": "stempel", "x1": 10, "y1": 5, "x2": 30, "y2": 15, "source": "modell", "score": 0.8}]
+    assert [a["id"] for a in d["other_annotations"]] == [2]       # unknown category kept untouched
+    assert d["csv"]["delimiter"] == ";" and d["csv"]["columns"] == ["file_name", "doc_type", "source_pdf"]
+    html = write_editor(tmp_path, d).read_text(encoding="utf-8")
+    assert "__DATA__" not in html and '"export": "425_21.09.2026"' in html
