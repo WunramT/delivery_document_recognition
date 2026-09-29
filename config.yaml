@@ -202,6 +202,19 @@ acceptance:
   fail_on_missing_gt: true    # e.g. no tour numbers entered yet -> criterion failed
   enforce: true               # exit code != 0 if a criterion is missed
 
+# make relabel: existing labels + detector results as pre-annotations per export
+# (artifacts/relabel/<export>/ + .zip, same layout as the input) to correct in the label tool
+relabel:
+  matched: gt              # label and model agree (IoU >= iou_match): gt = keep label | model = take the (tighter) model box
+  different_box: model     # overlap but IoU < iou_match: model = replace | gt = keep | both = keep label + add model box
+  add_missing: true        # confident prediction without label -> add
+  add_other_class: false   # prediction on a box of another class (usually a model error) -> add?
+  drop_duplicates: true    # two labels of one class on top of each other -> remove one
+  add_min_score: 0.3       # added boxes need at least this score (and the working threshold); null = threshold only
+  mark: none               # none | category (model boxes as class "vorschlag_<klasse>")
+  copy_images: true
+  zip: true
+
 report:
   gallery_size: 30
 

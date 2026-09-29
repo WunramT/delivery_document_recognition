@@ -37,3 +37,26 @@ def test_other_class_and_not_found_and_duplicate():
     assert cats(f) == [("stempel", "andere_klasse"), ("stempel", "doppeltes_label"),
                        ("unterschrift", "nicht_erkannt")]
     assert next(x for x in f if x["category"] == "andere_klasse")["gt_cls"] == "unterschrift"
+
+
+def test_propose_replaces_rough_box_adds_missing_drops_duplicate():
+    from docval.eval.relabel import propose
+
+    g = {"cmr_count": [[0.36, 0.60, 0.40, 0.63]],                       # rough label
+         "stempel": [[0.1, 0.8, 0.3, 0.9], [0.1, 0.8, 0.3, 0.905]],        # labeled twice
+         "unterschrift": [[0.7, 0.8, 0.9, 0.9]]}
+    p = [{"cls": "cmr_count", "box": [0.30, 0.60, 0.40, 0.63], "score": 0.8},
+         {"cls": "stempel", "box": [0.1, 0.8, 0.3, 0.9], "score": 0.9},
+         {"cls": "stempel", "box": [0.5, 0.1, 0.6, 0.2], "score": 0.85},      # label missing
+         {"cls": "stempel", "box": [0.7, 0.8, 0.9, 0.9], "score": 0.7}]       # on the signature
+    boxes, changes = propose(g, p, THR, 0.5, {})
+    assert sorted(c["action"] for c in changes) == ["entfernt_doppelt", "ersetzt", "hinzugefügt"]
+    by = {}
+    for b in boxes:
+        by.setdefault(b["cls"], []).append(b["box"])
+    assert by["cmr_count"] == [[0.30, 0.60, 0.40, 0.63]]
+    assert sorted(by["stempel"]) == [[0.1, 0.8, 0.3, 0.9], [0.5, 0.1, 0.6, 0.2]]
+    assert by["unterschrift"] == [[0.7, 0.8, 0.9, 0.9]]
+    # conservative: keep every label, only add
+    _, ch = propose(g, p, THR, 0.5, {"different_box": "gt", "drop_duplicates": False})
+    assert [c["action"] for c in ch] == ["hinzugefügt"]

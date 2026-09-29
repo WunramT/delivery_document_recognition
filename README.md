@@ -83,6 +83,7 @@ Ohne `make` (Windows, PowerShell): `$env:PYTHONPATH="src"`, dann `python -m docv
 | `make export` | Detektor → `artifacts/detector/detector.onnx` + **Paritätstest** PyTorch vs. ONNX Runtime (CPU) auf 20 Bildern → `parity.json` (Exit 3 bei Abweichung) |
 | `make eval` | alle Stufen auf dem Test-Split mit ONNX → `artifacts/report/report.md` + `report.html` + `pages.csv`; **Exit-Code 1, wenn ein Kriterium verfehlt wird**. `make eval SPLIT=valid` wertet zur Diagnose den valid-Split aus |
 | `make report` | Report aus `artifacts/report/results.json` neu rendern (ohne neu zu rechnen) |
+| `make relabel` | Vorlabels: bisherige Labels + Modellergebnisse je Export als COCO mit Bildern (+ zip) → `artifacts/relabel/` |
 | `make review-labels` | Label-Prüfung: Detektor vs. Labels auf allen Splits, `cmr_count`-Stapel je Tour → `artifacts/label_review/` (`REVIEW_SPLIT=test` für nur einen Split) |
 | `make test` | pytest-Unit-Tests |
 | `make smoke` | ganze Pipeline auf 12 synthetischen Seiten, 1 Epoche, CPU (~1 min, Grenze 5 min) – prüft, ob die Umgebung intakt ist |
@@ -202,6 +203,24 @@ Export/Tour (jede Nummer 1…n genau einmal?), CMR-Seiten **ohne** `cmr_count`-L
 Boxgröße je Export (große Unterschiede = unterschiedlich gezogene Boxen). In
 `label_review.csv` gibt es eine leere Spalte `entscheidung` zum Abhaken; korrigiert wird im
 Label-Tool, danach neu exportieren und `make split train export eval`.
+
+## Labels mit Modell-Vorschlägen überarbeiten (`make relabel`)
+
+Nach `make eval` schreibt `make relabel` je Export einen Ordner im selben Aufbau wie die Eingabe
+(`artifacts/relabel/<Tour>_<Datum>/` mit `_annotations.coco.json`, `images/`, `page_types.csv`,
+gleiche Bild-IDs und Dateinamen) plus `<Tour>_<Datum>.zip`. Darin:
+
+- Label und Modell stimmen überein → Label bleibt (`relabel.matched: model` übernimmt die meist engere Modellbox)
+- Box anders gezogen → Modellbox ersetzt das Label (`different_box`)
+- sichere Vorhersage ohne Label (Score ≥ `add_min_score`, Standard 0,3) → ergänzt
+- doppeltes Label → eins entfernt
+- Vorhersage auf einer Box anderer Klasse → nicht übernommen (meist Modellfehler)
+- Labels in den maskierten CMR-Feldern 22/23 und nicht gefundene Labels → unverändert
+
+`relabel_overview.html` zeigt jede geänderte Seite (grün = bisher, rot = vom Modell),
+`relabel_changes.csv` listet jede Änderung. Ablauf: zip ins Label-Tool importieren (am
+sichersten als neues Projekt), jede Seite prüfen und Boxen eng ziehen, wieder exportieren
+nach `labels/<Tour>_<Datum>/`, dann `make inspect split train export eval`.
 
 ## Report lesen (`artifacts/report/report.html`)
 

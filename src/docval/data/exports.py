@@ -94,7 +94,8 @@ def merge_exports(cfg: dict, exports: list[Path], out: Path, root: Path | None =
             id_map[img["id"]] = iid
             fn_map[img["file_name"]] = rel
             images.append({"id": iid, "file_name": rel, "width": img["width"], "height": img["height"],
-                           "export": name})
+                           "export": name, "export_dir": str(d), "orig_file_name": img["file_name"],
+                           "orig_id": img["id"]})
             iid += 1
             n_img += 1
         n_ann = 0

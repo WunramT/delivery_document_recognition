@@ -112,6 +112,12 @@ def cmd_review_labels(cfg) -> int:
     return run_label_review(cfg, log)
 
 
+def cmd_relabel(cfg) -> int:
+    from .eval.relabel import run_relabel
+
+    return run_relabel(cfg, log)
+
+
 def cmd_fetch(cfg) -> int:
     from .models import fetch_all
 
@@ -120,7 +126,7 @@ def cmd_fetch(cfg) -> int:
 
 
 COMMANDS = {"split": cmd_split, "train": cmd_train, "train-doctype": cmd_train_doctype,
-            "export": cmd_export, "eval": cmd_eval, "report": cmd_report, "review-labels": cmd_review_labels, "fetch-models": cmd_fetch}
+            "export": cmd_export, "eval": cmd_eval, "report": cmd_report, "review-labels": cmd_review_labels, "relabel": cmd_relabel, "fetch-models": cmd_fetch}
 
 
 def main(argv=None) -> int:
