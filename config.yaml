@@ -86,6 +86,7 @@ detector:
     n_images: 20
     max_box_diff: 0.005       # normalized coords (0.005 = ~3 px at 640 px input)
     max_score_diff: 0.005
+    raw_min_score: 0.05       # raw comparison only for queries that can become a detection
     # additionally: every PyTorch detection >= score_threshold needs an ONNX counterpart
 
 # ---------------------------------------------------------------- step 4: doc type

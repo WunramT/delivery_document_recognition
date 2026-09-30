@@ -209,7 +209,7 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
     if par:
         L.append(f"Paritätstest PyTorch ↔ ONNX Runtime (CPU, {par['n_images']} Bilder): max. Abweichung "
                  f"Boxen {par['raw_max_box_diff']:.2e}, Scores {par['raw_max_score_diff']:.2e} (gleicher Eingangstensor, "
-                 f"Top-50-Queries reihenfolgeunabhängig zugeordnet); "
+                 f"Top-50-Queries mit Score ≥ {par.get('raw_min_score', 0)}, reihenfolgeunabhängig zugeordnet); "
                  f"Ende-zu-Ende inkl. eigener Vorverarbeitung: Boxen {par['e2e_max_box_diff']:.2e}, "
                  f"Scores {par['e2e_max_score_diff']:.2e}, ohne Gegenstück {par['e2e_unmatched']} → "
                  f"{'OK' if par['passed'] else 'ABWEICHUNG'}\n")

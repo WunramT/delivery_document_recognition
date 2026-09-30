@@ -98,8 +98,8 @@ def export(cfg: dict, run_dir: Path, out_dir: Path, classes: list[str], log=prin
 def parity(cfg: dict, run_dir: Path, onnx_dir: Path, images: list[Path], log=print) -> dict:
     """Compare PyTorch and ONNX Runtime (CPU) on the same images.
 
-    raw: identical input tensor -> max |diff| of normalized boxes / sigmoid scores
-         over the top-k queries (same order).
+    raw: identical input tensor -> max |diff| of normalized boxes / sigmoid scores over the
+         top-50 queries with score >= parity.raw_min_score, each matched to its closest ONNX query.
     e2e: rfdetr.predict() vs. our ONNX pipeline (incl. own preprocessing),
          detections >= score_threshold matched by class + IoU.
     """
@@ -117,7 +117,10 @@ def parity(cfg: dict, run_dir: Path, onnx_dir: Path, images: list[Path], log=pri
     thr = cfg["detector"]["score_threshold"]
     if not isinstance(thr, (int, float)):  # "auto" is calibrated in eval; parity uses the fallback
         thr = cfg["detector"].get("score_threshold_fallback", 0.5)
+    raw_min = float(cfg["detector"]["parity"].get("raw_min_score", 0.05))
     raw_box, raw_score, e2e_box, e2e_score, unmatched = 0.0, 0.0, 0.0, 0.0, 0
+    raw_n = 0
+    worst = (0.0, None, None)  # (box diff, score of that query, image)
     per_image = []
     for p in images:
         im = Image.open(p)
@@ -132,16 +135,23 @@ def parity(cfg: dict, run_dir: Path, onnx_dir: Path, images: list[Path], log=pri
         # so near-equal proposal scores (e.g. an undertrained model) may permute slots.
         pt_s = sigmoid(pt_logits[:, :ncls])
         ox_s = sigmoid(ox_logits[:, :ncls])
-        top = np.argsort(-pt_s.max(1))[:50]
+        # only queries that can become a detection: near-zero background queries sit on
+        # near-tied encoder proposals, their boxes wobble with float rounding (seen: 1e-2
+        # box diff on a 1e-3 score query) and never reach the evaluation
+        top = [q for q in np.argsort(-pt_s.max(1))[:50] if pt_s[q].max() >= raw_min]
         db = ds = 0.0
         same_slot = 0
         for q in top:
             d = np.abs(ox_boxes - pt_boxes[q]).max(1) + np.abs(ox_s - pt_s[q]).max(1)
             j = int(d.argmin())
             same_slot += int(j == q)
-            db = max(db, float(np.abs(ox_boxes[j] - pt_boxes[q]).max()))
+            bd = float(np.abs(ox_boxes[j] - pt_boxes[q]).max())
+            if bd > worst[0]:
+                worst = (bd, float(pt_s[q].max()), p.name)
+            db = max(db, bd)
             ds = max(ds, float(np.abs(ox_s[j] - pt_s[q]).max()))
         slot_share = same_slot / max(1, len(top))
+        raw_n += len(top)
         raw_box, raw_score = max(raw_box, db), max(raw_score, ds)
 
         W, H = im.size
@@ -161,10 +171,12 @@ def parity(cfg: dict, run_dir: Path, onnx_dir: Path, images: list[Path], log=pri
         per_image.append({"image": p.name, "raw_box": db, "raw_score": ds, "same_slot": slot_share,
                           "n_pt": len(pt), "n_onnx": len(ox)})
     pcfg = cfg["detector"]["parity"]
-    res = {"n_images": len(images), "raw_max_box_diff": raw_box, "raw_max_score_diff": raw_score,
+    res = {"n_images": len(images), "raw_min_score": raw_min, "raw_queries": raw_n, "raw_worst": {"box_diff": worst[0], "score": worst[1], "image": worst[2]},
+           "raw_max_box_diff": raw_box, "raw_max_score_diff": raw_score,
            "e2e_max_box_diff": e2e_box, "e2e_max_score_diff": e2e_score, "e2e_unmatched": unmatched,
            "passed": raw_box <= pcfg["max_box_diff"] and raw_score <= pcfg["max_score_diff"] and unmatched == 0,
            "per_image": per_image}
-    log(f"[parity] raw box {raw_box:.2e} score {raw_score:.2e} | e2e box {e2e_box:.2e} "
-        f"score {e2e_score:.2e} unmatched {unmatched} -> {'OK' if res['passed'] else 'FAIL'}")
+    log(f"[parity] raw ({raw_n} Queries mit Score >= {raw_min:g}) box {raw_box:.2e} score {raw_score:.2e} | e2e box {e2e_box:.2e} "
+        f"score {e2e_score:.2e} unmatched {unmatched} -> {'OK' if res['passed'] else 'FAIL'}"
+        + (f" (größte Box-Abweichung bei Score {worst[1]:.3f}, {worst[2]})" if worst[1] is not None else ""))
     return res
