@@ -59,16 +59,31 @@ def editor_data(export: str, coco: dict, coco_name: str, meta: dict, classes: li
             "doc_types": doc_types, "coco": base, "other_annotations": other, "pages": pages, "csv": csv}
 
 
-def write_editor(out_dir: Path, data: dict) -> Path:
+def write_editor(out_dir: Path, data: dict, lang: str = "de") -> Path:
+    import html as _html
+
+    from .i18n import CLASS_NAMES, DOC_TYPE_NAMES, EDITOR, SUFFIX
+
+    t = EDITOR[lang]
     blob = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
-    path = out_dir / "editor.html"
-    path.write_text(TEMPLATE.replace("__TITLE__", f"Label-Editor {data['export']}").replace("__DATA__", blob),
-                    encoding="utf-8")
+    js_t = {k: v for k, v in t.items() if k not in ("help", "note")}
+    js_t.update(cls=CLASS_NAMES[lang], dt=DOC_TYPE_NAMES[lang])
+    fill = {**{k: _html.escape(str(v)) for k, v in t.items() if isinstance(v, str)},
+            "help": "".join(f"<tr><td>{a}</td><td>{b}</td></tr>" for a, b in t["help"]),
+            "note": t["note"].replace("{export}", _html.escape(data["export"]))}
+    page = TEMPLATE
+    for k, v in fill.items():
+        page = page.replace("{{" + k + "}}", v)
+    page = (page.replace("__TITLE__", _html.escape(f"{t['title']} {data['export']}"))
+            .replace("__I18N__", json.dumps(js_t, ensure_ascii=False).replace("</", "<\\/"))
+            .replace("__DATA__", blob))
+    path = out_dir / f"editor{SUFFIX[lang]}.html"
+    path.write_text(page, encoding="utf-8")
     return path
 
 
 TEMPLATE = r"""<!doctype html>
-<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="{{html_lang}}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>__TITLE__</title>
 <style>
 :root{--bg:#fff;--fg:#1d1d1f;--muted:#6e6e73;--line:#d9d9de;--panel:#f5f5f7;--sel:#e7f0ff;--ok:#2b8a3e;--warn:#e8590c}
@@ -107,48 +122,39 @@ table.help td{padding:1px 4px;vertical-align:top}
   <h1 id="title"></h1>
   <span id="progress" class="muted"></span>
   <span style="flex:1"></span>
-  <label>Dokumenttyp <select id="doctype"></select></label>
-  <button id="done" title="Enter">Geprüft ✓ + weiter</button>
-  <button id="save" class="primary">COCO speichern</button>
-  <button id="savecsv">page_types.csv speichern</button>
+  <label>{{doctype}} <select id="doctype"></select></label>
+  <button id="done" title="Enter">{{done}}</button>
+  <button id="save" class="primary">{{save}}</button>
+  <button id="savecsv">{{savecsv}}</button>
 </header>
 <div id="notice"></div>
 <main>
   <aside>
     <div class="filters">
-      <select id="filter"><option value="all">alle Seiten</option><option value="changed">mit Modell-Vorschlägen</option>
-      <option value="open">ungeprüft</option></select>
+      <select id="filter"><option value="all">{{f_all}}</option><option value="changed">{{f_changed}}</option>
+      <option value="open">{{f_open}}</option></select>
     </div>
     <div id="list"></div>
   </aside>
   <div id="stage"><div id="wrap"><img id="img" alt=""><svg id="svg"></svg></div></div>
   <section id="side">
     <div id="pageinfo" class="muted"></div>
-    <h2>Klasse (neue Box / Auswahl ändern)</h2><div id="classes"></div>
-    <h2>Auswahl</h2><div id="selinfo" class="muted">keine – Box anklicken</div>
-    <h2>Vorschläge des Modells</h2><ul id="changes" style="padding-left:18px;margin:0"></ul>
-    <h2>Bedienung</h2>
-    <table class="help">
-      <tr><td>Box ziehen</td><td>auf freier Fläche aufziehen = neue Box</td></tr>
-      <tr><td>Box</td><td>anklicken, verschieben; Ecken/Kanten ziehen = Größe</td></tr>
-      <tr><td><kbd>1</kbd>–<kbd>9</kbd></td><td>Klasse wählen / Auswahl umstellen</td></tr>
-      <tr><td><kbd>Entf</kbd></td><td>Auswahl löschen</td></tr>
-      <tr><td><kbd>Pfeile</kbd></td><td>Auswahl verschieben (<kbd>Shift</kbd> = 10 px, <kbd>Alt</kbd> = Größe)</td></tr>
-      <tr><td><kbd>Strg</kbd>+<kbd>Z</kbd></td><td>Rückgängig</td></tr>
-      <tr><td><kbd>A</kbd> / <kbd>D</kbd></td><td>vorige / nächste Seite</td></tr>
-      <tr><td><kbd>Enter</kbd></td><td>geprüft + nächste Seite</td></tr>
-      <tr><td><kbd>O</kbd></td><td>(Buchstabe) alte Labels ein/aus, grau gestrichelt</td></tr>
-      <tr><td><kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd></td><td>Zoom, <kbd>0</kbd> = Breite</td></tr>
-    </table>
-    <p class="muted">Gestrichelt = Vorschlag des Modells (noch nicht angefasst). Der Zwischenstand
-    bleibt im Browser gespeichert. Zum Schluss „COCO speichern“ und die Datei nach
-    <code>labels/<span class="exp"></span>/</code> legen (alte vorher sichern).</p>
+    <h2>{{h_class}}</h2><div id="classes"></div>
+    <h2>{{h_sel}}</h2><div id="selinfo" class="muted">{{sel_none}}</div>
+    <h2>{{h_changes}}</h2><ul id="changes" style="padding-left:18px;margin:0"></ul>
+    <h2>{{h_help}}</h2>
+    <table class="help">{{help}}</table>
+    <p class="muted">{{note}}</p>
   </section>
 </main>
+<script id="i18n" type="application/json">__I18N__</script>
 <script id="data" type="application/json">__DATA__</script>
 <script>
 "use strict";
 const D = JSON.parse(document.getElementById("data").textContent);
+const T = JSON.parse(document.getElementById("i18n").textContent);
+const fmt = (s, o) => s.replace(/\{(\w+)\}/g, (m, k) => (o[k] !== undefined ? o[k] : m));
+const cname = c => (T.cls && T.cls[c]) || c;
 const KEY = "docval-editor:" + D.export + ":" + D.pages.length + ":" + D.coco_name;
 const $ = id => document.getElementById(id);
 const NS = "http://www.w3.org/2000/svg";
@@ -171,10 +177,10 @@ function restore() {
       const n = Object.values(state.pages).filter(x => x.reviewed).length;
       const el = $("notice");
       el.style.display = "block";
-      el.innerHTML = "Zwischenstand aus dem Browser geladen (" + n + " Seiten geprüft). ";
+      el.textContent = fmt(T.loaded, {n: n});
       const b = document.createElement("button");
-      b.textContent = "verwerfen und neu beginnen";
-      b.onclick = () => { if (confirm("Alle Änderungen in diesem Editor verwerfen?")) {
+      b.textContent = T.discard;
+      b.onclick = () => { if (confirm(T.confirm_discard)) {
         try { localStorage.removeItem(KEY); } catch (e) {} state = {pages: {}}; el.style.display = "none"; show(cur); } };
       el.appendChild(b);
     }
@@ -208,13 +214,13 @@ function renderList() {
     const d = document.createElement("div");
     if (i === cur) d.className = "cur";
     d.innerHTML = '<span class="dot' + (s.reviewed ? " done" : "") + '"></span><span></span>'
-      + (p.changes.length ? '<span class="n">' + p.changes.length + " Vorschl.</span>" : "");
-    d.children[1].textContent = p.file_name.split("/").pop() + " · " + (s.doc_type || "–");
+      + (p.changes.length ? '<span class="n">' + p.changes.length + " " + T.short_prop + "</span>" : "");
+    d.children[1].textContent = p.file_name.split("/").pop() + " · " + ((T.dt && T.dt[s.doc_type]) || s.doc_type || "–");
     d.onclick = () => show(i);
     L.appendChild(d);
   }
   const done = D.pages.filter(p => ps(p).reviewed).length;
-  $("progress").textContent = done + " / " + D.pages.length + " geprüft";
+  $("progress").textContent = fmt(T.progress, {done: done, total: D.pages.length});
 }
 
 // ------------------------------------------------------------------ page
@@ -224,15 +230,20 @@ function show(i) {
   const p = page();
   const img = $("img");
   img.onload = () => { fit(); draw(); };
-  img.onerror = () => { $("pageinfo").textContent = "Bild nicht gefunden: " + p.src; };
+  img.onerror = () => { $("pageinfo").textContent = T.img_missing + p.src; };
   img.src = p.src;
   $("svg").setAttribute("viewBox", "0 0 " + p.w + " " + p.h);
   $("doctype").value = ps(p).doc_type;
   $("pageinfo").textContent = p.file_name + " · Split " + p.split + " · " + p.w + "×" + p.h;
   const C = $("changes");
   C.innerHTML = "";
-  for (const c of p.changes) { const li = document.createElement("li"); li.textContent = c; C.appendChild(li); }
-  if (!p.changes.length) C.innerHTML = '<li class="muted">keine</li>';
+  for (const c of p.changes) {
+    const li = document.createElement("li");
+    li.textContent = typeof c === "string" ? c : ((T.actions[c.action] || c.action) + " " + cname(c.cls)
+      + (c.score != null ? " (" + T.score + " " + Number(c.score).toFixed(2) + ")" : ""));
+    C.appendChild(li);
+  }
+  if (!p.changes.length) { const li = document.createElement("li"); li.className = "muted"; li.textContent = T.none; C.appendChild(li); }
   renderList();
   const cd = $("list").querySelector(".cur");
   if (cd) cd.scrollIntoView({block: "nearest"});
@@ -275,7 +286,7 @@ function draw() {
     r.dataset.i = i;
     const t = el("text", {x: b.x1 + 2 * u, y: b.y1 - 4 * u, fill: col, "font-size": 13 * u,
       "font-family": "system-ui,sans-serif", "font-weight": 600, "pointer-events": "none"}, g);
-    t.textContent = b.cls + (b.source === "modell" && b.score != null ? " " + Number(b.score).toFixed(2) : "");
+    t.textContent = cname(b.cls) + (b.source === "modell" && b.score != null ? " " + Number(b.score).toFixed(2) : "");
     if (i === sel) {
       for (const [hx, hy, k] of handles(b)) {
         const h = el("rect", {x: hx - 5 * u, y: hy - 5 * u, width: 10 * u, height: 10 * u, fill: "#fff",
@@ -300,13 +311,13 @@ function renderSide() {
     const d = document.createElement("div");
     d.className = "cls" + (c === curCls ? " cur" : "");
     d.innerHTML = '<kbd>' + (i + 1) + '</kbd><span class="sw" style="background:' + D.colors[c] + '"></span><span></span>';
-    d.children[2].textContent = c;
+    d.children[2].textContent = cname(c);
     d.onclick = () => setClass(c);
     C.appendChild(d);
   });
   const s = ps(), b = s.boxes[sel];
-  $("selinfo").textContent = b ? b.cls + " · " + (b.source === "modell" ? "Modell-Vorschlag" : b.source)
-    + " · " + Math.round(b.x2 - b.x1) + "×" + Math.round(b.y2 - b.y1) + " px" : "keine – Box anklicken";
+  $("selinfo").textContent = b ? cname(b.cls) + " · " + (T.src[b.source] || b.source)
+    + " · " + Math.round(b.x2 - b.x1) + "×" + Math.round(b.y2 - b.y1) + " px" : T.sel_none;
 }
 function setClass(c) {
   curCls = c;
@@ -487,7 +498,7 @@ async function saveText(name, text, mime) {
 }
 $("save").onclick = async () => {
   const open = D.pages.filter(p => !ps(p).reviewed).length;
-  if (open && !confirm(open + " Seiten sind noch nicht als geprüft markiert. Trotzdem speichern?")) return;
+  if (open && !confirm(fmt(T.confirm_open, {n: open}))) return;
   await saveText(D.coco_name, buildCoco(), "application/json");
 };
 $("savecsv").onclick = () => saveText(D.csv ? D.csv.name : "page_types.csv", buildCsv(), "text/csv");
@@ -498,10 +509,9 @@ $("doctype").addEventListener("change", ev => ev.target.blur());
 $("filter").addEventListener("change", ev => ev.target.blur());
 
 // ------------------------------------------------------------------ start
-$("title").textContent = "Label-Editor " + D.export;
-document.querySelectorAll(".exp").forEach(e => e.textContent = D.export);
+$("title").textContent = T.title + " " + D.export;
 const dt = $("doctype");
-for (const t of [""].concat(D.doc_types)) { const o = document.createElement("option"); o.value = t; o.textContent = t || "–"; dt.appendChild(o); }
+for (const t of [""].concat(D.doc_types)) { const o = document.createElement("option"); o.value = t; o.textContent = t ? ((T.dt && T.dt[t]) || t) : "–"; dt.appendChild(o); }
 restore();
 for (const p of D.pages) {                   // a doc type unknown to the config stays selectable
   const t = ps(p).doc_type;

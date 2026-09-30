@@ -30,13 +30,11 @@ from ..data.dataset import load_pages
 from ..data.labels import short_name
 from ..detect.onnx_detector import OnnxDetector, iou
 from ..models import setup_cache
+from .i18n import languages
 from .label_editor import editor_data, write_editor
 from .label_review import classify_page, thresholds
 from .metrics import match
 
-ACTION_TEXT = {"ersetzt": "Box ersetzt durch Modellbox:", "hinzugefügt": "vom Modell ergänzt:",
-               "hinzugefügt_alternative": "Modellbox zusätzlich:", "hinzugefügt_andere_klasse": "ergänzt (andere Klasse):",
-               "entfernt_doppelt": "doppeltes Label entfernt:", "angepasst": "an Modellbox angepasst:"}
 DEFAULT_POLICY = {"matched": "gt", "different_box": "model", "add_missing": True, "add_other_class": False,
                   "drop_duplicates": True, "add_min_score": 0.3, "copy_images": True, "zip": True,
                   "mark": "none"}
@@ -156,9 +154,8 @@ def run_relabel(cfg, log) -> int:
         boxes, changes = propose(gts, preds, thr, iou_m, pol)
         boxes += [{"cls": c, "box": b, "source": "label", "score": None} for c, b in masked_out]
         E["pages"][orig_id] = boxes
-        E["meta"][orig_id]["changes"] = [
-            f"{ACTION_TEXT.get(ch['action'], ch['action'])} {ch['cls']}"
-            + (f" (Score {ch['score']:.2f})" if ch["score"] is not None else "") for ch in changes]
+        E["meta"][orig_id]["changes"] = [{"action": ch["action"], "cls": ch["cls"], "score": ch["score"]}
+                                         for ch in changes]
         for ch in changes:
             ch.update(export=exp, file_name=orig_fn, page=p.file_name, split=split.get(p.file_name, "-"),
                       doc_type=p.doc_type)
@@ -176,7 +173,8 @@ def run_relabel(cfg, log) -> int:
         coco, coco_name = write_export(E["dir"], E["pages"], out / exp, pol, log, cfg["classes"])
         data = editor_data(exp, coco, coco_name, E["meta"], cfg["classes"], cfg["doc_types"],
                            E["dir"] / "page_types.csv")
-        editors.append(write_editor(out / exp, data))
+        for lang in languages(cfg):
+            editors.append(write_editor(out / exp, data, lang))
         if pol["zip"]:
             shutil.make_archive(str(out / exp), "zip", root_dir=out / exp)
     write_changes(out, all_changes)
@@ -287,8 +285,9 @@ def write_overview(out: Path, items: list[dict], thr, thr_src, pol, editors=()) 
          + esc(", ".join(f"{k}={v}" for k, v in pol.items() if k not in ("copy_images", "zip"))) + ".</p>"]
     if editors:
         L.append("<p><b>Bearbeiten im Editor</b> (je Export, Boxen verschieben/ändern/löschen/neu, dann "
-                 "„COCO speichern“): " + " · ".join(
-                     f"<a href='{esc(e.parent.name)}/editor.html'>{esc(e.parent.name)}</a>" for e in editors) + "</p>")
+                 "„COCO speichern“; polnische Fassung = <i>_pl</i>): " + " · ".join(
+                     f"<a href='{esc(e.parent.name)}/{esc(e.name)}'>{esc(e.parent.name)}"
+                     f"{' (pl)' if e.stem.endswith('_pl') else ''}</a>" for e in editors) + "</p>")
     for i, it in enumerate(sorted(items, key=lambda x: x["file_name"])):
         name = draw_item(it, img_dir / f"seite_{i:03d}.jpg", max_side=1000)
         ch = "; ".join(f"{c['action']} {c['cls']}" + (f" ({c['score']:.2f})" if c["score"] is not None else "")

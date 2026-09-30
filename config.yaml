@@ -216,16 +216,30 @@ relabel:
   copy_images: true
   zip: true
 
+# Language versions of the pages for label work (relabel editor, compare-labels):
+# de -> editor.html / <tour>.html, pl -> editor_pl.html / <tour>_pl.html
+ui_languages: [de, pl]
+
 # make compare-labels: the label convention shown to colleagues (old vs. new labels)
 label_guide:
-  allgemein:
-    - "Jedes sichtbare Objekt bekommt genau eine Box – nichts auslassen, nichts doppelt."
-    - "Box eng um den Inhalt ziehen (wenige Pixel Rand), nicht um das ganze Feld."
-    - "CMR: die vorgedruckten Unterschriften/Stempel in Feld 22 und 23 nicht labeln."
-  unterschrift: "nur die handschriftliche Unterschrift, eng um die Tinte"
-  stempel: "der ganze Stempelabdruck, eng um den Abdruck"
-  tour_nummer: "die Tournummer vollständig (Tour/Datum/Werk), eng"
-  cmr_count: "„CMR i/n“ vollständig, eng"
+  de:
+    allgemein:
+      - "Jedes sichtbare Objekt bekommt genau eine Box – nichts auslassen, nichts doppelt."
+      - "Box eng um den Inhalt ziehen (wenige Pixel Rand), nicht um das ganze Feld."
+      - "CMR: die vorgedruckten Unterschriften/Stempel in Feld 22 und 23 nicht labeln."
+    unterschrift: "nur die handschriftliche Unterschrift, eng um die Tinte"
+    stempel: "der ganze Stempelabdruck, eng um den Abdruck"
+    tour_nummer: "die Tournummer vollständig (Tour/Datum/Werk), eng"
+    cmr_count: "„CMR i/n“ vollständig, eng"
+  pl:
+    allgemein:
+      - "Każdy widoczny obiekt dostaje dokładnie jedną ramkę – niczego nie pomijać, niczego nie dublować."
+      - "Ramka ciasno wokół treści (kilka pikseli marginesu), a nie wokół całego pola."
+      - "CMR: nie oznaczać nadrukowanych podpisów/pieczątek w polach 22 i 23."
+    unterschrift: "tylko odręczny podpis, ciasno wokół tuszu"
+    stempel: "cały odcisk pieczątki, ciasno wokół odcisku"
+    tour_nummer: "pełny numer trasy (trasa/data/zakład), ciasno"
+    cmr_count: "„CMR i/n” w całości, ciasno"
 
 report:
   gallery_size: 30

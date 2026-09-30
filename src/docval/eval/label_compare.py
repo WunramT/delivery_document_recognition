@@ -28,17 +28,6 @@ from .label_editor import CLASS_COLORS
 
 KEEP_IOU = 0.9   # old and new box practically identical
 
-DEFAULT_GUIDE = {
-    "allgemein": ["Jedes sichtbare Objekt bekommt genau eine Box – nichts auslassen, nichts doppelt.",
-                  "Box eng um den Inhalt ziehen (wenige Pixel Rand), nicht um das ganze Feld.",
-                  "CMR: die vorgedruckten Unterschriften/Stempel in Feld 22 und 23 nicht labeln."],
-    "unterschrift": "nur die handschriftliche Unterschrift, eng um die Tinte",
-    "stempel": "der ganze Stempelabdruck, eng um den Abdruck",
-    "tour_nummer": "die Tournummer vollständig (Tour/Datum/Werk), eng",
-    "cmr_count": "„CMR i/n“ vollständig, eng",
-}
-
-
 # ------------------------------------------------------------------ loading
 
 def _key(file_name: str) -> str:
@@ -178,7 +167,6 @@ def run_label_compare(cfg, export: str, old: str | None, log, max_pages: int = 4
     old_boxes, old_src = find_old(export_dir, current, artifacts(cfg, "relabel"), old)
     classes = [c for c in cfg["classes"]]
     colors = {c: CLASS_COLORS[i % len(CLASS_COLORS)] for i, c in enumerate(classes)}
-    guide = {**DEFAULT_GUIDE, **(cfg.get("label_guide") or {})}
 
     pages = []
     for img in new_coco["images"]:
@@ -194,9 +182,15 @@ def run_label_compare(cfg, export: str, old: str | None, log, max_pages: int = 4
     st = class_stats(pages, classes)
     out = artifacts(cfg, "label_compare")
     out.mkdir(parents=True, exist_ok=True)
-    path = out / f"{export_dir.name}.html"
-    path.write_text(render(export_dir.name, old_src, str(current), pages, st, classes, colors, guide, max_pages),
-                    encoding="utf-8")
+    from .i18n import SUFFIX, guide, languages
+
+    _IMG_CACHE.clear()
+    paths = []
+    for lang in languages(cfg):
+        path = out / f"{export_dir.name}{SUFFIX[lang]}.html"
+        path.write_text(render(export_dir.name, old_src, str(current), pages, st, classes, colors, guide(cfg, lang),
+                               max_pages, lang), encoding="utf-8")
+        paths.append(path)
     n_changed = sum(1 for p in pages if p["changed"])
     log(f"[compare-labels] {export_dir.name}: {len(pages)} Seiten, {n_changed} geändert; alt aus {old_src}"
         + (f"; {missing_old} Seiten ohne alte Labels" if missing_old else ""))
@@ -204,7 +198,8 @@ def run_label_compare(cfg, export: str, old: str | None, log, max_pages: int = 4
         if s["old"] or s["new"]:
             log(f"[compare-labels]   {c}: {s['old']} -> {s['new']} Boxen, +{s['added']} / -{s['removed']}, "
                 f"{s['adjusted']} angepasst" + (f", Fläche x{s['area_ratio']:.2f}" if s["area_ratio"] else ""))
-    log(f"[compare-labels] {path}")
+    for path in paths:
+        log(f"[compare-labels] {path}")
     return 0
 
 
@@ -212,32 +207,40 @@ def _pct(v):
     return "–" if v is None else f"{v * 100:.1f} %"
 
 
-def render(export, old_src, new_src, pages, st, classes, colors, guide, max_pages) -> str:
+def render(export, old_src, new_src, pages, st, classes, colors, guide, max_pages, lang="de") -> str:
+    from .i18n import CLASS_NAMES, COMPARE
+
+    T = COMPARE[lang]
     esc = html.escape
+
+    def cn(c):
+        return CLASS_NAMES[lang].get(c, c)
+
+    def cns(cs):
+        return ", ".join(cn(c) for c in sorted(cs))
+
     changed = sorted([p for p in pages if p["changed"]], key=lambda p: -p["changed"])
     n_add = sum(s["added"] for s in st.values())
     n_rem = sum(s["removed"] for s in st.values())
     n_adj = sum(s["adjusted"] for s in st.values())
-    legend = " ".join(f"<span class='chip'><span class='sw' style='background:{colors[c]}'></span>{esc(c)}</span>"
+    legend = " ".join(f"<span class='chip'><span class='sw' style='background:{colors[c]}'></span>{esc(cn(c))}</span>"
                       for c in classes)
-    L = [f"<header><h1>Labels vorher / nachher – Tour {esc(export)}</h1>"
-         f"<p class='sub'>{len(pages)} Seiten · {len(changed)} geändert · {n_adj} Boxen angepasst · "
-         f"{n_add} ergänzt · {n_rem} entfernt</p><p class='legend'>{legend}</p></header>"]
+    L = [f"<header><h1>{esc(T['title'].format(export=export))}</h1>"
+         f"<p class='sub'>{esc(T['sub'].format(pages=len(pages), changed=len(changed), adj=n_adj, add=n_add, rem=n_rem))}"
+         f"</p><p class='legend'>{legend}</p></header>"]
 
     # guide
-    L.append("<section><h2>So sollen die Labels aussehen</h2><ul class='guide'>")
+    L.append(f"<section><h2>{esc(T['h_guide'])}</h2><ul class='guide'>")
     for g in guide.get("allgemein", []):
         L.append(f"<li>{esc(g)}</li>")
     for c in classes:
         if guide.get(c):
-            L.append(f"<li><span class='sw' style='background:{colors[c]}'></span><b>{esc(c)}</b>: {esc(guide[c])}</li>")
+            L.append(f"<li><span class='sw' style='background:{colors[c]}'></span><b>{esc(cn(c))}</b>: {esc(guide[c])}</li>")
     L.append("</ul></section>")
 
     # numbers
-    L.append("<section><h2>Was sich geändert hat</h2><div class='tablewrap'><table><thead><tr><th>Klasse</th>"
-             "<th>Boxen vorher → nachher</th><th>ergänzt</th><th>entfernt</th><th>angepasst</th>"
-             "<th>Fläche nachher / vorher</th><th>Größe (Median, Breite × Höhe der Seite)</th>"
-             "<th>Streuung der Boxgröße</th></tr></thead><tbody>")
+    L.append(f"<section><h2>{esc(T['h_changes'])}</h2><div class='tablewrap'><table><thead><tr>"
+             + "".join(f"<th>{esc(h)}</th>" for h in T["cols"]) + "</tr></thead><tbody>")
     for c in classes:
         s = st[c]
         if not (s["old"] or s["new"]):
@@ -245,15 +248,13 @@ def render(export, old_src, new_src, pages, st, classes, colors, guide, max_page
         size = (f"{_pct(s['w_old'])} × {_pct(s['h_old'])} → {_pct(s['w_new'])} × {_pct(s['h_new'])}")
         cv = ("–" if s["cv_old"] is None or s["cv_new"] is None else f"{s['cv_old']:.2f} → {s['cv_new']:.2f}")
         ar = "–" if s["area_ratio"] is None else f"{s['area_ratio']:.2f}×"
-        L.append(f"<tr><td><span class='sw' style='background:{colors[c]}'></span>{esc(c)}</td>"
+        L.append(f"<tr><td><span class='sw' style='background:{colors[c]}'></span>{esc(cn(c))}</td>"
                  f"<td>{s['old']} → {s['new']}</td><td>{s['added']}</td><td>{s['removed']}</td><td>{s['adjusted']}</td>"
-                 f"<td>{ar}</td>"
-                 f"<td>{size}</td><td>{cv}</td></tr>")
-    L.append("</tbody></table></div><p class='note'>„Streuung“ = Variationskoeffizient der Boxfläche: je kleiner, "
-             "desto einheitlicher sind die Boxen gezogen. Fläche &lt; 1 = die neuen Boxen sind enger.</p></section>")
+                 f"<td>{ar}</td><td>{size}</td><td>{cv}</td></tr>")
+    L.append(f"</tbody></table></div><p class='note'>{T['table_note']}</p></section>")
 
     # close-ups per class
-    L.append("<section><h2>Nahaufnahmen: vorher und nachher</h2>")
+    L.append(f"<section><h2>{esc(T['h_close'])}</h2>")
     for c in classes:
         cands = sorted(((x[2], p, x) for p in pages if p["path"] for x in p["pairs"]
                         if x[0][0] == c and x[2] < KEEP_IOU), key=lambda t: t[0])[:3]
@@ -261,41 +262,58 @@ def render(export, old_src, new_src, pages, st, classes, colors, guide, max_page
         items = cands + extra
         if not items:
             continue
-        L.append(f"<h3><span class='sw' style='background:{colors[c]}'></span>{esc(c)}</h3><div class='pairs'>")
+        L.append(f"<h3><span class='sw' style='background:{colors[c]}'></span>{esc(cn(c))}</h3><div class='pairs'>")
         for v, p, (o, n, _) in items:
-            im = to_rgb(Image.open(p["path"]))
-            W, H = im.size
-            box = crop_around(o or n, n, W, H)
-            left = draw(im, [o] if o else [], colors, 360, box)
-            right = draw(im, [n], colors, 360, box)
-            note = "fehlte vorher" if o is None else f"Überlappung alt/neu {v:.0%}"
-            L.append(f"<figure class='pair'><div class='two'><div><span class='tag'>vorher</span><img src='{left}' alt=''>"
-                     f"</div><div><span class='tag new'>nachher</span><img src='{right}' alt=''></div></div>"
-                     f"<figcaption>{esc(p['key'])} · {esc(note)}</figcaption></figure>")
+            left, right = _closeup(p, o, n, colors)
+            note = T["was_missing"] if o is None else T["overlap"].format(v=f"{v:.0%}")
+            L.append(f"<figure class='pair'><div class='two'><div><span class='tag'>{esc(T['before'])}</span>"
+                     f"<img src='{left}' alt=''></div><div><span class='tag new'>{esc(T['after'])}</span>"
+                     f"<img src='{right}' alt=''></div></div><figcaption>{esc(p['key'])} · {esc(note)}</figcaption></figure>")
         L.append("</div>")
     L.append("</section>")
 
     # pages
-    L.append(f"<section><h2>Seiten mit Änderungen ({len(changed)})</h2>"
-             + (f"<p class='note'>Die {max_pages} Seiten mit den meisten Änderungen.</p>" if len(changed) > max_pages else ""))
+    L.append(f"<section><h2>{esc(T['h_pages'].format(n=len(changed)))}</h2>"
+             + (f"<p class='note'>{esc(T['top_pages'].format(n=max_pages))}</p>" if len(changed) > max_pages else ""))
     for p in changed[:max_pages]:
         if not p["path"]:
             continue
-        im = to_rgb(Image.open(p["path"]))
         bits = []
         if p["added"]:
-            bits.append(f"{len(p['added'])} ergänzt ({', '.join(sorted({b[0] for b in p['added']}))})")
+            bits.append(T["added"].format(n=len(p["added"]), c=cns({b[0] for b in p["added"]})))
         if p["removed"]:
-            bits.append(f"{len(p['removed'])} entfernt ({', '.join(sorted({b[0] for b in p['removed']}))})")
+            bits.append(T["removed"].format(n=len(p["removed"]), c=cns({b[0] for b in p["removed"]})))
         adj = [x for x in p["pairs"] if x[2] < KEEP_IOU]
         if adj:
-            bits.append(f"{len(adj)} angepasst ({', '.join(sorted({x[0][0] for x in adj}))})")
+            bits.append(T["adjusted"].format(n=len(adj), c=cns({x[0][0] for x in adj})))
+        left, right = _page_images(p, colors)
         L.append(f"<figure class='page'><figcaption><b>{esc(p['key'])}</b> · {esc(' · '.join(bits))}</figcaption>"
-                 f"<div class='two'><div><span class='tag'>vorher</span><img loading='lazy' src='{draw(im, p['old'], colors, 520)}' alt=''></div>"
-                 f"<div><span class='tag new'>nachher</span><img loading='lazy' src='{draw(im, p['new'], colors, 520)}' alt=''></div></div></figure>")
+                 f"<div class='two'><div><span class='tag'>{esc(T['before'])}</span><img loading='lazy' src='{left}' alt=''></div>"
+                 f"<div><span class='tag new'>{esc(T['after'])}</span><img loading='lazy' src='{right}' alt=''></div></div></figure>")
     L.append("</section>")
-    L.append(f"<footer>Alt: {esc(old_src)}<br>Neu: {esc(new_src)}</footer>")
-    return PAGE.replace("__TITLE__", esc(f"Labels vorher/nachher {export}")).replace("__BODY__", "".join(L))
+    L.append(f"<footer>{esc(T['old'])}: {esc(old_src)}<br>{esc(T['new'])}: {esc(new_src)}</footer>")
+    return (PAGE.replace('<html lang="de">', f'<html lang="{T["html_lang"]}">')
+            .replace("__TITLE__", esc(T["title"].format(export=export))).replace("__BODY__", "".join(L)))
+
+
+_IMG_CACHE: dict = {}   # rendered images are shared between the language versions
+
+
+def _closeup(p, o, n, colors):
+    k = ("c", p["key"], tuple(o or ()), tuple(n))
+    if k not in _IMG_CACHE:
+        im = to_rgb(Image.open(p["path"]))
+        box = crop_around(o or n, n, *im.size)
+        _IMG_CACHE[k] = (draw(im, [o] if o else [], colors, 360, box), draw(im, [n], colors, 360, box))
+    return _IMG_CACHE[k]
+
+
+def _page_images(p, colors):
+    k = ("p", p["key"])
+    if k not in _IMG_CACHE:
+        im = to_rgb(Image.open(p["path"]))
+        _IMG_CACHE[k] = (draw(im, p["old"], colors, 520), draw(im, p["new"], colors, 520))
+    return _IMG_CACHE[k]
 
 
 PAGE = """<!doctype html><html lang="de"><head><meta charset="utf-8">

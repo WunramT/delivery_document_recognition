@@ -217,6 +217,10 @@ gleiche Bild-IDs und Dateinamen) plus `<Tour>_<Datum>.zip`. Darin:
 - Vorhersage auf einer Box anderer Klasse → nicht übernommen (meist Modellfehler)
 - Labels in den maskierten CMR-Feldern 22/23 und nicht gefundene Labels → unverändert
 
+**Polnische Fassung:** Editor `editor_pl.html`, Vergleich `<Tour>_pl.html`, Anleitung mit allen
+Befehlen auf Polnisch: [`docs/INSTRUKCJA_PL.md`](docs/INSTRUKCJA_PL.md). Sprachen über
+`ui_languages` in `config.yaml`.
+
 **Bearbeiten:** `artifacts/relabel/<Tour>_<Datum>/editor.html` per Doppelklick im Browser
 öffnen (Chrome/Edge empfohlen, läuft offline, kein Server nötig). Links die Seitenliste
 (Filter „mit Modell-Vorschlägen“ / „ungeprüft“), in der Mitte die Seite mit allen Boxen:
@@ -245,7 +249,7 @@ make compare-labels EXPORT=425_21.09.2026            # oder nur EXPORT=425
 make compare-labels EXPORT=425 OLD=pfad/zur/alten_annotations.coco.json
 ```
 
-Erzeugt `artifacts/label_compare/<Tour>.html` – eine einzelne Datei mit eingebetteten Bildern
+Erzeugt `artifacts/label_compare/<Tour>.html` (und `<Tour>_pl.html` auf Polnisch) – eine einzelne Datei mit eingebetteten Bildern
 zum Weitergeben: die Label-Konvention (`label_guide` in `config.yaml`), eine Tabelle je Klasse
 (ergänzt, entfernt, angepasst, Flächenverhältnis, Größe, Streuung der Boxgröße), Nahaufnahmen
 vorher/nachher und alle geänderten Seiten nebeneinander. Die alten Labels kommen aus `OLD`,
