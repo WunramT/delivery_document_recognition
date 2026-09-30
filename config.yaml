@@ -216,6 +216,17 @@ relabel:
   copy_images: true
   zip: true
 
+# make compare-labels: the label convention shown to colleagues (old vs. new labels)
+label_guide:
+  allgemein:
+    - "Jedes sichtbare Objekt bekommt genau eine Box – nichts auslassen, nichts doppelt."
+    - "Box eng um den Inhalt ziehen (wenige Pixel Rand), nicht um das ganze Feld."
+    - "CMR: die vorgedruckten Unterschriften/Stempel in Feld 22 und 23 nicht labeln."
+  unterschrift: "nur die handschriftliche Unterschrift, eng um die Tinte"
+  stempel: "der ganze Stempelabdruck, eng um den Abdruck"
+  tour_nummer: "die Tournummer vollständig (Tour/Datum/Werk), eng"
+  cmr_count: "„CMR i/n“ vollständig, eng"
+
 report:
   gallery_size: 30
 

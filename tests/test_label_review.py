@@ -82,3 +82,17 @@ def test_editor_data_keeps_ids_other_categories_and_csv_mapping(tmp_path):
     assert d["csv"]["delimiter"] == ";" and d["csv"]["columns"] == ["file_name", "doc_type", "source_pdf"]
     html = write_editor(tmp_path, d).read_text(encoding="utf-8")
     assert "__DATA__" not in html and '"export": "425_21.09.2026"' in html
+
+
+def test_label_compare_pairs_added_removed_and_tighter_boxes():
+    from docval.eval.label_compare import class_stats, pair
+
+    old = [["cmr_count", 100, 100, 200, 120], ["stempel", 10, 10, 50, 50]]
+    new = [["cmr_count", 130, 102, 180, 118], ["unterschrift", 300, 300, 400, 340]]
+    prs, removed, added = pair(old, new)
+    assert [p[0][0] for p in prs] == ["cmr_count"] and prs[0][2] < 0.9
+    assert removed == [old[1]] and added == [new[1]]
+    st = class_stats([{"w": 1000, "h": 1000, "old": old, "new": new, "pairs": prs,
+                       "removed": removed, "added": added}], ["cmr_count", "stempel", "unterschrift"])
+    assert st["cmr_count"]["adjusted"] == 1 and st["cmr_count"]["area_ratio"] < 0.5
+    assert st["stempel"]["removed"] == 1 and st["unterschrift"]["added"] == 1

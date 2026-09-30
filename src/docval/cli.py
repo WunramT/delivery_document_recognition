@@ -118,6 +118,16 @@ def cmd_relabel(cfg) -> int:
     return run_relabel(cfg, log)
 
 
+def cmd_compare_labels(cfg) -> int:
+    from .eval.label_compare import run_label_compare
+
+    a = cfg.get("_args") or {}
+    if not a.get("export"):
+        log("FEHLER: --export <Tour-Ordner> angeben, z. B. make compare-labels EXPORT=425_21.09.2026")
+        return 2
+    return run_label_compare(cfg, a["export"], a.get("old"), log)
+
+
 def cmd_fetch(cfg) -> int:
     from .models import fetch_all
 
@@ -126,7 +136,7 @@ def cmd_fetch(cfg) -> int:
 
 
 COMMANDS = {"split": cmd_split, "train": cmd_train, "train-doctype": cmd_train_doctype,
-            "export": cmd_export, "eval": cmd_eval, "report": cmd_report, "review-labels": cmd_review_labels, "relabel": cmd_relabel, "fetch-models": cmd_fetch}
+            "export": cmd_export, "eval": cmd_eval, "report": cmd_report, "review-labels": cmd_review_labels, "relabel": cmd_relabel, "compare-labels": cmd_compare_labels, "fetch-models": cmd_fetch}
 
 
 def main(argv=None) -> int:
@@ -134,6 +144,8 @@ def main(argv=None) -> int:
     ap.add_argument("command", choices=sorted(COMMANDS))
     ap.add_argument("--config", default=None, help="default: $DOCVAL_CONFIG or config.yaml")
     ap.add_argument("--split", default=None, help="eval: split to evaluate (test | valid | train); review-labels: also all")
+    ap.add_argument("--export", default=None, help="compare-labels: export folder, e.g. 425_21.09.2026")
+    ap.add_argument("--old", default=None, help="compare-labels: old COCO file (default: backup or editor state)")
     args = ap.parse_args(argv)
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -143,6 +155,7 @@ def main(argv=None) -> int:
     cfg = load_config(args.config)
     from .data.exports import apply_exports
     cfg = apply_exports(cfg, log)
+    cfg["_args"] = {"export": args.export, "old": args.old}
     if args.split:
         cfg.setdefault("eval", {})["split"] = args.split
     if args.command != "fetch-models" and not os.environ.get("DOCVAL_ONLINE"):

@@ -238,6 +238,21 @@ gleich, die Bilder im Export müssen nicht angefasst werden. Danach
 `relabel_changes.csv` listet jede Änderung. Wer lieber im bisherigen Label-Tool arbeitet:
 `<Tour>_<Datum>.zip` dort importieren (am sichersten als neues Projekt).
 
+## Alte und neue Labels zeigen (`make compare-labels`)
+
+```
+make compare-labels EXPORT=425_21.09.2026            # oder nur EXPORT=425
+make compare-labels EXPORT=425 OLD=pfad/zur/alten_annotations.coco.json
+```
+
+Erzeugt `artifacts/label_compare/<Tour>.html` – eine einzelne Datei mit eingebetteten Bildern
+zum Weitergeben: die Label-Konvention (`label_guide` in `config.yaml`), eine Tabelle je Klasse
+(ergänzt, entfernt, angepasst, Flächenverhältnis, Größe, Streuung der Boxgröße), Nahaufnahmen
+vorher/nachher und alle geänderten Seiten nebeneinander. Die alten Labels kommen aus `OLD`,
+sonst aus einer Sicherung im Tour-Ordner (z. B. `_annotations.coco.alt.json`), sonst aus dem
+Editor von `make relabel` (dort steht der Stand vor dem Bearbeiten). Achtung: Die Datei enthält
+die Scans – nur intern weitergeben.
+
 ## Experimente vergleichen (z. B. eine Tour neu gelabelt)
 
 Alle Ordner in `labels/` lassen, nur die überarbeitete Datei austauschen, und den neuen Lauf in
