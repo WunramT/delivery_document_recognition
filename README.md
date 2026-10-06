@@ -275,12 +275,15 @@ nur wenige Test-Seiten – kleine Unterschiede sind Rauschen.
 
 ## Präsentation zum aktuellen Stand (`make create_pdf`)
 
-Nach `make eval`: `make create_pdf` erzeugt `artifacts/report/praesentation.pdf` (16:9, ohne
-Scans, kann weitergegeben werden) und jede Folie als PNG in `artifacts/report/praesentation/`.
-Inhalt: was die Pipeline mit einer Seite macht, die Bausteine mit ihrem Stand, Werkzeuge,
+Nach `make eval`: `make create_pdf` erzeugt `artifacts/report/praesentation.pdf` (16:9, mit
+Beispielseiten aus dem Test-Split – nur intern weitergeben) und jede Folie als PNG in `artifacts/report/praesentation/`.
+Inhalt: was die Pipeline mit einer Seite macht, ein **Beispiel** – eine echte CMR-Testseite durch
+jeden Schritt (Dokumenttyp, Maske vorher/nachher, erkannte Objekte mit Score und Soll-Zone,
+gelesene Tournummer/CMR-Zählung) und ein Härtetest-Beispiel (Unterschrift entfernt) –, die Bausteine mit ihrem Stand, Werkzeuge,
 Datenbasis, Ergebnisse, was beim Sachbearbeiter ankommt, **Betriebspunkte** (aktuelle vs. hohe
 Annahme-Schwelle: falsch freigegebene manipulierte Seiten und Prüfanteil), offene Punkte aus dem
-Lauf und Empfehlung. Alle Zahlen kommen aus `results.json` des letzten Laufs.
+Lauf und Empfehlung. Alle Zahlen kommen aus `results.json` des letzten Laufs; die Beispielseite
+wählt `presentation.example_page` in `config.yaml` (sonst automatisch eine korrekt entschiedene CMR-Seite).
 
 Die hohe Schwelle liegt je Klasse knapp über dem höchsten Score einer echten Fehlerkennung (ohne
 jede Überlappung mit einem Label) auf dem valid-Split; dazwischen entscheidet eine Person. Der

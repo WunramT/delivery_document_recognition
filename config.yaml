@@ -241,6 +241,11 @@ label_guide:
     tour_nummer: "pełny numer trasy (trasa/data/zakład), ciasno"
     cmr_count: "„CMR i/n” w całości, ciasno"
 
+# make create_pdf: example slides with one real CMR test page through every step
+presentation:
+  examples: true
+  example_page: null      # part of a file name, e.g. "425_21.09.2026/polipol_docs_0014"; null = automatic
+
 report:
   gallery_size: 30
 

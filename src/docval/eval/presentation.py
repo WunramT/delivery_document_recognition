@@ -126,6 +126,20 @@ class Deck:
                            fc=fc, ec=ec or fc, lw=lw)
         self.fig.add_artist(p)
 
+    def image(self, x, y, w, h, im):
+        """Image fitted into the box (x, y, w, h in inches), centered, thin border."""
+        import numpy as np
+        iw, ih = im.size
+        s = min(w / iw, h / ih)
+        dw, dh = iw * s, ih * s
+        ox, oy = x + (w - dw) / 2, y + (h - dh) / 2
+        ax = self.fig.add_axes([ox / W, 1 - (oy + dh) / H, dw / W, dh / H])
+        ax.imshow(np.asarray(im), interpolation="lanczos")
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for sp in ax.spines.values():
+            sp.set_color(LINE)
+
     def arrow(self, x1, y1, x2, y2, color=MUTED):
         from matplotlib.patches import FancyArrowPatch
         self.fig.add_artist(FancyArrowPatch((x1 / W, 1 - y1 / H), (x2 / W, 1 - y2 / H), transform=self.fig.transFigure,
@@ -212,13 +226,13 @@ def open_issues(R) -> list:
     return out
 
 
-def build(R, cfg, path, png_dir=None):
+def build(R, cfg, path, png_dir=None, log=print):
     meta = R["meta"]
     det = meta.get("detector", {})
     exports = (R.get("exports") or {}).get("exports") or []
     date = dt.date.today().strftime("%d.%m.%Y")
     D = Deck(path, "Validierung von Lieferpapieren – Stand", png_dir)
-    D.footer = f"Dokumentvalidierung · Stand {date} · Test-Split {meta['n_pages']} Seiten"
+    D.footer = f"Dokumentvalidierung · Stand {date} · Test-Split {meta['n_pages']} Seiten · enthält Beispielseiten – nur intern"
 
     # 1 title
     D.slide("")
@@ -255,6 +269,15 @@ def build(R, cfg, path, png_dir=None):
         D.text(x + 1.35, y0 + 2.45, t, 15, col, ha="center", weight="bold")
         D.text(x + 1.35, y0 + 2.83, sub, 11, INK2, ha="center")
     D.save()
+
+    # 2a-d example page through every step
+    if (cfg.get("presentation") or {}).get("examples", True):
+        try:
+            from .presentation_examples import example_slides
+            example_slides(D, R, cfg, log)
+        except Exception as e:  # examples are a bonus - the deck is built without them
+            log(f"[praesentation] Beispielfolien übersprungen: {e}")
+            D.plt.close("all")
 
     # 3 building blocks
     dta = R["doctype"]["accuracy"]
@@ -376,6 +399,15 @@ def build(R, cfg, path, png_dir=None):
            if n_ok else "manipulierten Seiten wurden fälschlich als „ok“ freigegeben.", 9.1, 13.5, INK2)
     D.save()
 
+    # 7a hard test example
+    if (cfg.get("presentation") or {}).get("examples", True):
+        try:
+            from .presentation_examples import hard_test_slide
+            hard_test_slide(D, R, cfg, log)
+        except Exception as e:
+            log(f"[praesentation] Härtetest-Beispiel übersprungen: {e}")
+            D.plt.close("all")
+
     # 8 operating points
     D.slide("Entscheidung: mit welcher Schwelle starten?", "Empfehlung")
     if len(ops) >= 2:
@@ -449,6 +481,6 @@ def run_presentation(cfg, log) -> int:
         return 2
     R = json.loads(rp.read_text(encoding="utf-8"))
     out = artifacts(cfg, "report", "praesentation.pdf")
-    n = build(R, cfg, out, artifacts(cfg, "report", "praesentation"))
+    n = build(R, cfg, out, artifacts(cfg, "report", "praesentation"), log)
     log(f"[praesentation] {n} Folien -> {out} (einzeln als PNG in {out.parent / 'praesentation'})")
     return 0
