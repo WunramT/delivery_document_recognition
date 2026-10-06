@@ -198,6 +198,8 @@ def apply_exports(cfg: dict, log=None) -> dict:
                 pairs[k] = pairs.get(k, 0) + 1
             log("[exports] WARNUNG gleiche Bilder in mehreren Exporten (Leck zwischen den Splits, "
                 "Labels können sich widersprechen): " + ", ".join(f"{a} ↔ {b}: {n}" for (a, b), n in pairs.items()))
+            for a, b, *_ in dups:
+                log(f"[exports]   {a}  =  {b}")
         for e in info["exports"]:
             if e["doc_types_missing"]:
                 log(f"[exports] WARNUNG {e['name']}: {e['doc_types_missing']} von {e['images']} Seiten ohne "

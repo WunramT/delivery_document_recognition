@@ -99,14 +99,42 @@ def plausibility(R: dict) -> list[str]:
         for _a, _b, ea, eb in dups:
             k = " ↔ ".join(sorted((ea, eb)))
             pairs[k] = pairs.get(k, 0) + 1
+        names = "; ".join(f"`{short_name(a)}` = `{short_name(b)}`" for a, b, *_ in dups[:5])
         out.append(f"{len(dups)} Bilder liegen in mehreren Exporten ("
                    + ", ".join(f"{k}: {n}" for k, n in pairs.items())
-                   + ") – ein Export doppelt? Dann einen Ordner entfernen (Leck zwischen train/valid/test).")
+                   + f": {names}) – Bild in dem Ordner löschen, zu dem es nicht gehört (Bild und Label), "
+                   "sonst Leck zwischen train/valid/test.")
     fm = R.get("form_mask") or {}
     if fm.get("not_found") and fm.get("pages", {}).get("n") and len(fm["not_found"]) >= 0.5 * fm["pages"]["n"]:
         out.append(f"Die CMR-Feldzeile fehlt auf {len(fm['not_found'])} von {fm['pages']['n']} CMR-Seiten – "
                    "sind das wirklich CMR-Seiten?")
     return out
+
+
+OP_NAMES = {"aktuell": "aktuelle Schwelle", "hoch": "hohe Schwelle"}
+
+
+def operating_points_md(R: dict) -> list[str]:
+    ops = R.get("position_operating_points") or {}
+    if len(ops) < 2:
+        return []
+    req = sorted({c for o in ops.values() for c in o["accept"]})
+    L = ["**Betriebspunkte** – dieselben Test-Seiten mit anderer Annahme-Schwelle (darunter bis zur "
+         "Unsicher-Schwelle: Prüfung durch Person):", "",
+         "| Betriebspunkt | Annahme-Schwelle | echt: automatisch richtig | echt: an Person | echt: Fehler übersehen "
+         "| echt: Fehlalarm | synthetisch: fälschlich ok | synthetisch: an Person |", "|---|---|---|---|---|---|---|---|"]
+    for name, o in ops.items():
+        r, sy = o["real"], o["synthetic"]
+        th = ", ".join(f"{c} {o['accept'][c]:g}" for c in req if c in ("unterschrift", "stempel")) or "-"
+        L.append(f"| {OP_NAMES.get(name, name)} | {th} | {r['auto_richtig']}/{r['n']} | {r['person']}/{r['n']} | "
+                 f"**{r['fehler_uebersehen']}** | {r['fehlalarm']} | **{sy['faelschlich_ok']}/{sy['n']}** | "
+                 f"{sy['person']}/{sy['n']} |")
+    h = ops.get("hoch", {}).get("max_hallucination_valid")
+    if h:
+        L += ["", "Hohe Schwelle = knapp über dem höchsten Score einer echten Fehlerkennung (ohne jede Überlappung "
+              "mit einem Label) auf dem valid-Split: " + ", ".join(f"{c} {v:g}" for c, v in h.items()
+                                                                  if c in ("unterschrift", "stempel")) + "."]
+    return L + [""]
 
 
 def conclusion(R: dict) -> list[str]:
@@ -293,6 +321,7 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
               "| automatisch richtig | an Person | automatisch falsch: Fehler übersehen | automatisch falsch: Fehlalarm |",
               "|---|---|---|---|",
               f"| {dq['auto_richtig']} | {dq['person']} | **{dq['auto_falsch_fehler_uebersehen']}** | {dq['auto_falsch_fehlalarm']} |", ""]
+    L += operating_points_md(R)
     L.append(f"- Fehlalarmrate auf echten korrekten Seiten: {fr(p['false_alarm'])}; davon zusätzlich unsicher: {fr(p['uncertain_real'])}")
     L.append(f"- Recall auf echten Negativen (Seiten, die laut GT die Regel verletzen): {fr(p.get('recall_real_negatives'))}")
     L.append(f"- Recall auf synthetischen Negativen: {fr(p['recall_negatives'])}; richtige Art (fehlt vs. falsche Position): {fr(p['correct_kind'])}")

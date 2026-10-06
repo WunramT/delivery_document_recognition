@@ -96,3 +96,19 @@ def test_label_compare_pairs_added_removed_and_tighter_boxes():
                        "removed": removed, "added": added}], ["cmr_count", "stempel", "unterschrift"])
     assert st["cmr_count"]["adjusted"] == 1 and st["cmr_count"]["area_ratio"] < 0.5
     assert st["stempel"]["removed"] == 1 and st["unterschrift"]["added"] == 1
+
+
+def test_high_threshold_sits_above_hallucinations_only():
+    from types import SimpleNamespace
+
+    from docval.data.dataset import Box
+    from docval.eval.run import high_thresholds
+
+    p = SimpleNamespace(file_name="a.png", width=100, height=100,
+                        boxes=[Box("unterschrift", [60, 80, 90, 90])])
+    p.boxes_of = lambda c: [b for b in p.boxes if b.cls == c]
+    preds = {"a.png": [{"cls": "unterschrift", "box": [0.62, 0.8, 0.95, 0.92], "score": 0.9},   # right object
+                       {"cls": "unterschrift", "box": [0.65, 0.78, 0.8, 0.9], "score": 0.7},    # rough box, overlaps
+                       {"cls": "unterschrift", "box": [0.1, 0.1, 0.2, 0.15], "score": 0.47}]}  # hallucination
+    h = high_thresholds([p], preds, ["unterschrift"], {"unterschrift": 0.35})
+    assert h["unterschrift"]["max_hallucination"] == 0.47 and h["unterschrift"]["threshold"] == 0.5

@@ -321,11 +321,58 @@ def working_thresholds(cfg, detector, pages, split, classes, iou_thr, log, prep=
                                      "ap50": average_precision(scored, n_gt),
                                      "at_threshold": pr_at(scored, n_gt, best)}
         calib["detector"] = detector_stats(valid, vpreds, classes, thr, iou_thr)
+        calib["high"] = high_thresholds(valid, vpreds, classes, thr)
         log("[eval] Schwellen (auf valid kalibriert): " + ", ".join(f"{c}={t}" for c, t in thr.items()))
     else:
         thr = {c: float(fixed) for c in classes}
     unc = {c: round(t * factor, 3) for c, t in thr.items()}
     return thr, unc, calib
+
+
+HALLUCINATION_IOU = 0.1   # a detection overlapping no label of its class at all
+
+
+def high_thresholds(pages, preds, classes, thr) -> dict:
+    """Accept threshold for a "never accept wrongly" operating point: just above the
+    highest score of a hallucination (detection without any overlapping label of its
+    class) on the valid split, at least the working threshold, at most 0.95. Box-placement
+    mismatches (overlap, IoU < 0.5) do not count - they are the right object."""
+    out = {}
+    for c in classes:
+        worst = 0.0
+        for p in pages:
+            g = [b.norm(p.width, p.height) for b in p.boxes_of(c)]
+            for d in preds[p.file_name]:
+                if d["cls"] == c and all(iou(d["box"], b) < HALLUCINATION_IOU for b in g):
+                    worst = max(worst, d["score"])
+        t = next((x for x in CALIB_GRID if x > worst), 0.95)
+        out[c] = {"threshold": max(thr[c], min(t, 0.95)), "max_hallucination": round(worst, 3)}
+    return out
+
+
+def operating_point(test, preds, syn, check_fn) -> dict:
+    """What arrives at the operator with given thresholds: real pages with a rule (by GT
+    status) and synthetic negatives (signature/stamp removed or moved)."""
+    bad = (MISSING, WRONG_POSITION)
+    real = {"auto_richtig": 0, "person": 0, "fehler_uebersehen": 0, "fehlalarm": 0, "n": 0}
+    for p, gt in test:
+        st = check_fn(p.doc_type, preds[p.file_name])["status"]
+        real["n"] += 1
+        if st == "unsicher":
+            real["person"] += 1
+        elif st == OK and gt != OK:
+            real["fehler_uebersehen"] += 1
+        elif st in bad and gt not in bad:
+            real["fehlalarm"] += 1
+        else:
+            real["auto_richtig"] += 1
+    s = {"erkannt": 0, "person": 0, "faelschlich_ok": 0, "n": len(syn)}
+    for doc_type, dets in syn:
+        st = check_fn(doc_type, dets)["status"]
+        s["erkannt" if st in bad else "person" if st == "unsicher" else "faelschlich_ok"] += 1
+    return {"real": real, "synthetic": s,
+            "person_share": ratio(real["person"], real["n"]),
+            "false_accept_synthetic": ratio(s["faelschlich_ok"], s["n"])}
 
 
 # ------------------------------------------------------------------ main
@@ -513,6 +560,7 @@ def run_eval(cfg, log) -> int:
     syn_dir.mkdir(parents=True, exist_ok=True)
     rng = random.Random(cfg["seed"])
     syn_rows = []
+    syn_dets = []
     by_fn = {p.file_name: p for p in test}
     for r in ok_pages:
         p = by_fn[r["file_name"]]
@@ -523,6 +571,7 @@ def run_eval(cfg, log) -> int:
             v["image"].save(out)
             d = detector(v["image"])
             res = check(p.doc_type, d)
+            syn_dets.append((p.doc_type, d))
             caught = res["status"] in (MISSING, WRONG_POSITION)
             syn_rows.append({"file_name": p.file_name, "kind": v["kind"], "expected": v["expected"],
                              "status": res["status"], "caught": caught,
@@ -572,6 +621,18 @@ def run_eval(cfg, log) -> int:
                             "split": split.get(p.file_name), "center": [round((nb[0] + nb[2]) / 2, 3),
                                                                         round((nb[1] + nb[3]) / 2, 3)],
                             "box": [round(v, 3) for v in nb], "review_zone": rz[0] if rz else None})
+    # operating points: current thresholds vs. a high accept threshold (from valid);
+    # below the accept threshold down to the uncertain threshold -> "unsicher" = a person checks
+    ruled_pages = [(by_fn[r["file_name"]], r["gt_status"]) for r in ruled]
+    ops = {"aktuell": {"accept": dict(thr), "uncertain": dict(unc)}}
+    if calib and calib.get("high"):
+        ops["hoch"] = {"accept": {c: v["threshold"] for c, v in calib["high"].items()}, "uncertain": dict(unc),
+                       "max_hallucination_valid": {c: v["max_hallucination"] for c, v in calib["high"].items()}}
+    for name, o in ops.items():
+        o.update(operating_point(ruled_pages, preds, syn_dets,
+                                 lambda t, d, o=o: check_page(t, d, zones, rules, zcfg["min_overlap"],
+                                                              o["accept"], o["uncertain"])))
+    R["position_operating_points"] = ops
     R["position"] = {
         "zones": zones, "zones_info": zinfo, "field_stats": field_stats(pages, rules),
         "fields": {t: r["fields"] for t, r in rules.items() if (r or {}).get("fields")},

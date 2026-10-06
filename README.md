@@ -273,6 +273,19 @@ der Treffer. Die neu gelabelte Tour sollte bei der IoU zulegen, die anderen soll
 schlechter werden. Achtung: Die Test-Labels der Tour haben sich mitgeändert, und je Tour liegen
 nur wenige Test-Seiten – kleine Unterschiede sind Rauschen.
 
+## Präsentation zum aktuellen Stand (`make create_pdf`)
+
+Nach `make eval`: `make create_pdf` erzeugt `artifacts/report/praesentation.pdf` (16:9, ohne
+Scans, kann weitergegeben werden) und jede Folie als PNG in `artifacts/report/praesentation/`.
+Inhalt: was die Pipeline mit einer Seite macht, die Bausteine mit ihrem Stand, Werkzeuge,
+Datenbasis, Ergebnisse, was beim Sachbearbeiter ankommt, **Betriebspunkte** (aktuelle vs. hohe
+Annahme-Schwelle: falsch freigegebene manipulierte Seiten und Prüfanteil), offene Punkte aus dem
+Lauf und Empfehlung. Alle Zahlen kommen aus `results.json` des letzten Laufs.
+
+Die hohe Schwelle liegt je Klasse knapp über dem höchsten Score einer echten Fehlerkennung (ohne
+jede Überlappung mit einem Label) auf dem valid-Split; dazwischen entscheidet eine Person. Der
+Report zeigt beide Betriebspunkte in Abschnitt 3.
+
 ## Report lesen (`artifacts/report/report.html`)
 
 1. **Gesamtergebnis und Fazit** – was funktioniert, was verfehlt ist, wo der größte Hebel liegt.
