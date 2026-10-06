@@ -13,16 +13,47 @@ Pipeline (imajev läuft nicht im Browser).
 Voraussetzung: `make eval` lief schon einmal (liefert `artifacts/detector/detector.onnx`,
 `artifacts/report/results.json` und `pages.csv`).
 
-### 1. imajev-Server starten (eigenes Terminal, eigene venv – nicht im docval-Container)
+### 1. imajev-Server starten (zweites Terminal)
 
 Braucht eine NVIDIA-GPU mit ≥ 12 GB (bf16) oder einen Mac mit Apple Silicon. Auf der CPU
-läuft es auch, aber mit mehreren Sekunden pro Seite.
+läuft es auch, aber mit mehreren Sekunden pro Seite und ~16 GB RAM.
+
+**Variante A: im GPU-Devcontainer `docval (GPU, NVIDIA)` (empfohlen)**
+
+Der Container hat schon alles Schwere: Python 3.11, torch 2.14 (CUDA 12.6), transformers,
+peft, accelerate. Die venv nutzt diese Pakete mit (`--system-site-packages`) und ergänzt nur
+den Server (fastapi, uvicorn); die docval-Pakete bleiben unverändert. Alles liegt im
+Volume `/models` und übersteht ein „Rebuild Container“. Im Container-Terminal:
+
+```bash
+cd /models && git clone https://github.com/mohit67890/imajev && cd imajev
+python -m venv --system-site-packages .venv && . .venv/bin/activate
+pip install -e ".[serve,torch]"                          # lädt nur fastapi/uvicorn/multipart nach
+python scripts/download_model.py --model 4b              # Qwen3.5-4B, ~9 GB nach /models/imajev/.cache
+hf download mohit67890/imajev-4b --local-dir adapters/imajev-4b
+PYTHONPATH=src:scripts python scripts/playground/server.py --backend torch \
+  --model-bundle artifacts/model-qwen4b.json --adapter adapters/imajev-4b \
+  --model-name imajev-4b --port 8765
+```
+
+Server und `make vlm-compare` laufen im selben Container → die Standard-URL
+`http://127.0.0.1:8765` passt, `IMAJEV_URL` ist nicht nötig. Ab dem zweiten Mal reichen die
+Zeilen `cd /models/imajev`, `. .venv/bin/activate` und der Server-Befehl.
+
+Falls der Server beim Laden mit einem transformers-Fehler abbricht (der Container hat
+transformers 5.17, imajev ist mit 4.55+ getestet): `pip install "transformers<5"` – das
+installiert nur in die venv, docval bleibt unberührt.
+
+Im CPU-Devcontainer genauso, nur langsam; der Podman-Maschine dann ≥ 16 GB RAM geben
+(`podman machine set --memory 16384`).
+
+**Variante B: außerhalb des Containers (eigene venv auf dem Rechner)**
 
 ```bash
 git clone https://github.com/mohit67890/imajev && cd imajev
 python3.11 -m venv .venv && . .venv/bin/activate         # Windows: .venv\Scripts\activate
 pip install -e ".[serve,torch]"                          # Mac: ".[serve,mlx]"
-python scripts/download_model.py --model 4b              # Qwen3.5-4B, ~9 GB
+python scripts/download_model.py --model 4b
 hf download mohit67890/imajev-4b --local-dir adapters/imajev-4b
 PYTHONPATH=src:scripts python scripts/playground/server.py --backend torch \
   --model-bundle artifacts/model-qwen4b.json --adapter adapters/imajev-4b \
@@ -31,10 +62,14 @@ PYTHONPATH=src:scripts python scripts/playground/server.py --backend torch \
 
 Windows/PowerShell: statt `PYTHONPATH=src:scripts python …` erst `$env:PYTHONPATH="src;scripts"`, dann
 `python scripts/playground/server.py …`. Mac: `--adapter adapters/imajev-4b/mlx`, ohne `--backend torch`.
+Läuft docval dabei im Devcontainer:
+`IMAJEV_URL=http://host.containers.internal:8765/v1/systemone make vlm-compare`
+(Docker: `host.docker.internal`).
 
 Bewusst **ohne** `--calibration` (laut Modellkarte macht die Kalibrierung reine Foto-Fragen
-schlechter) und ohne `--rotations` (für Ja/Nein-Fragen ohne Wirkung). Bereit, wenn
-http://127.0.0.1:8765/ die Playground-Seite zeigt.
+schlechter) und ohne `--rotations` (für Ja/Nein-Fragen ohne Wirkung). Bereit, wenn der
+Server keine Fehler mehr ausgibt; Test (curl fehlt im Container):
+`python -c "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8765/v1/models').read())"`.
 
 ### 2. Vergleich laufen lassen (im docval-Container / docval-venv)
 
@@ -42,10 +77,6 @@ http://127.0.0.1:8765/ die Playground-Seite zeigt.
 make vlm-compare LIMIT=10      # erster Versuch: 10 Seiten
 make vlm-compare               # alle Testseiten (CMR + Lieferschein)
 ```
-
-Läuft docval im Devcontainer und der Server auf dem Windows-Host:
-`IMAJEV_URL=http://host.containers.internal:8765/v1/systemone make vlm-compare`
-(Docker: `host.docker.internal`).
 
 Antworten werden in `artifacts/vlm_compare/cache/` gespeichert – ein zweiter Lauf fragt nur
 neue Seiten. Nach geänderten Fragen in `config.yaml` wird automatisch neu gefragt.
