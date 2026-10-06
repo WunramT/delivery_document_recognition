@@ -241,6 +241,29 @@ label_guide:
     tour_nummer: "pełny numer trasy (trasa/data/zakład), ciasno"
     cmr_count: "„CMR i/n” w całości, ciasno"
 
+# make vlm-compare: prototype - imajev-4b (vision-language decision model, Apache-2.0,
+# https://huggingface.co/mohit67890/imajev-4b) vs. RF-DETR on "signature/stamp present?".
+# imajev runs as its own local server (docs/VLM_VERGLEICH.md). Answers are cached in
+# artifacts/vlm_compare/cache/. Not part of the production pipeline.
+vlm_compare:
+  url: ${IMAJEV_URL:-http://127.0.0.1:8765/v1/systemone}
+  split: null                # null = eval split (test)
+  doc_types: [cmr, lieferschein]   # null = all pages
+  limit: null                # e.g. 10 for a first try
+  # what the model sees: name -> crop [x1, y1, x2, y2] (fraction of the page), null = whole page.
+  # The server shrinks every image to <= 0.4 megapixels: on a whole A4 page a signature is
+  # only a few pixels tall, the crop of the signature area keeps ~2.5x more detail.
+  views:
+    seite: null
+    unten: [0.0, 0.60, 1.0, 1.0]   # CMR fields 22-24 (same as form_mask.search_y)
+  auto_band: 0.9             # P >= 0.9 -> yes, P < 0.1 -> no, in between a person checks
+  timeout_s: 180
+  jpeg_quality: 90
+  # English only (model limit). One noul question = P(yes).
+  questions:
+    unterschrift: "The image contains at least one handwritten signature (pen ink written by hand, not printed text)."
+    stempel: "The image contains at least one stamp impression (an inked rubber-stamp mark, usually a company name and address in a box or circle)."
+
 # make create_pdf: example slides with one real CMR test page through every step
 presentation:
   examples: true

@@ -85,6 +85,7 @@ Ohne `make` (Windows, PowerShell): `$env:PYTHONPATH="src"`, dann `python -m docv
 | `make report` | Report aus `artifacts/report/results.json` neu rendern (ohne neu zu rechnen) |
 | `make relabel` | Vorlabels: bisherige Labels + Modellergebnisse je Export als COCO mit Bildern (+ zip) → `artifacts/relabel/` |
 | `make review-labels` | Label-Prüfung: Detektor vs. Labels auf allen Splits, `cmr_count`-Stapel je Tour → `artifacts/label_review/` (`REVIEW_SPLIT=test` für nur einen Split) |
+| `make vlm-compare` | Prototyp: imajev-4b (Vision-Language-Modell) vs. RF-DETR bei Unterschrift/Stempel auf denselben Testseiten → `artifacts/vlm_compare/report.md`; Server-Setup: `docs/VLM_VERGLEICH.md` (`LIMIT=10` für einen ersten Versuch) |
 | `make test` | pytest-Unit-Tests |
 | `make smoke` | ganze Pipeline auf 12 synthetischen Seiten, 1 Epoche, CPU (~1 min, Grenze 5 min) – prüft, ob die Umgebung intakt ist |
 | `make fetch-models` | alle Gewichte in den Cache (einmalig, online) |
