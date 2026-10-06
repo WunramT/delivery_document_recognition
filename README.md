@@ -292,6 +292,14 @@ nur wenige Test-Seiten – kleine Unterschiede sind Rauschen.
 8. **Fehlergalerie** – bis zu 30 schlimmste Fälle je Stufe: grün = GT, rot = Vorhersage,
    blau = Soll-Zone bzw. OCR-Kopfbereich.
 
+
+**Wo sehe ich alle Fehler?** Die Galerie im Report zeigt je Stufe höchstens `report.gallery_size`
+(30) Seiten, die schwersten zuerst – sind es mehr, steht „30 von N“ in der Überschrift. Die
+vollständige Liste steht in `artifacts/report/fehler.csv`, jede Test-Seite mit allen
+Entscheidungen in `pages.csv`. Der Report wertet nur den Test-Split aus (`make eval SPLIT=valid`
+für den Valid-Split); alle Abweichungen Modell ↔ Label über **alle** Splits mit Ausschnitten
+zeigt `make review-labels`.
+
 ## Struktur
 
 ```

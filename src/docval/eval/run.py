@@ -746,6 +746,19 @@ def run_eval(cfg, log) -> int:
     R["stage_seconds"] = stage_clock.laps
     size = cfg["report"]["gallery_size"]
     R["gallery"] = {k: sorted(v, key=lambda g: -g["severity"])[:size] for k, v in gallery.items()}
+    R["gallery_total"] = {k: len(v) for k, v in gallery.items()}
+    # complete list (the gallery shows at most report.gallery_size per stage)
+    errs_path = artifacts(cfg, "report", "fehler.csv")
+    errs_path.parent.mkdir(parents=True, exist_ok=True)
+    import csv as _csv
+    with open(errs_path, "w", newline="", encoding="utf-8") as fh:
+        w = _csv.writer(fh, delimiter=";")
+        w.writerow(["stufe", "seite", "titel", "grund"])
+        for k, v in gallery.items():
+            if k == "maske":
+                v = [g for g in v if g["severity"]]   # control images, only the misses are errors
+            for g in sorted(v, key=lambda g: (-g["severity"], g["file_name"])):
+                w.writerow([k, g["file_name"], g["title"], g["reason"]])
 
     out = artifacts(cfg, "report")
     out.mkdir(parents=True, exist_ok=True)

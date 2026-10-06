@@ -366,7 +366,9 @@ def to_markdown(cfg: dict, R: dict, gallery_files: dict) -> str:
     # gallery
     L += ["## Fehlergalerie", "", "Grün = Ground Truth, Rot = Vorhersage (mit Score), Blau = Soll-Zone bzw. OCR-Kopfbereich.", ""]
     for stage, items in R["gallery"].items():
-        L += [f"### {stage.capitalize()} ({len(items)})", ""]
+        total = (R.get("gallery_total") or {}).get(stage, len(items))
+        L += [f"### {stage.capitalize()} ({len(items)})" if total <= len(items) else
+              f"### {stage.capitalize()} ({len(items)} von {total} – die schwersten; alle in `fehler.csv`)", ""]
         if not items:
             L += ["Keine Fehler.", ""]
         for it, fn in zip(items, gallery_files.get(stage, [])):
