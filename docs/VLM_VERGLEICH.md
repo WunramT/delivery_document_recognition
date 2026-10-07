@@ -79,11 +79,40 @@ schlechter) und ohne `--rotations` (für Ja/Nein-Fragen ohne Wirkung). Bereit, w
 Server keine Fehler mehr ausgibt; Test (curl fehlt im Container):
 `python -c "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8765/v1/models').read())"`.
 
+### Langsam? GPU-Speicher prüfen
+
+imajev-4b braucht in bf16 ~9 GB GPU-Speicher. Auf einer GPU mit 8 GB (z. B. RTX 2000 Ada
+Laptop) lagert der Windows-Treiber den Rest in den normalen Arbeitsspeicher aus: das Modell
+läuft dann zwar, aber **~3 min pro Anfrage** statt ~1 s (Server-Log: `total_ms=171707`).
+Die Hinweise `causal_conv1d` / `flash-linear-attention` im Log sind dagegen harmlos.
+
+Zwei Wege:
+
+- **imajev-4b über Nacht laufen lassen**, nur mit dem Ausschnitt (halbiert die Anfragen):
+  `make vlm-compare VIEWS=unten`. Eine Seite ≈ 3 min, 20 Seiten ≈ 1 h. Abbrechen ist sicher:
+  der Cache behält jede fertige Antwort, der nächste Lauf macht dort weiter.
+- **imajev-2b** (passt in 8 GB, schnell, aber schwächer und eine Generation älter): ist
+  2B schon so gut wie RF-DETR, ist die Frage beantwortet; ist 2B schlechter, sagt das über 4B
+  noch nichts.
+
+  ```bash
+  cd /models/imajev && . .venv/bin/activate
+  python scripts/download_model.py --model 2b              # -> artifacts/model.json, ~4.5 GB
+  hf download mohit67890/imajev-2b --local-dir adapters/imajev-2b
+  PYTHONPATH=src:scripts python scripts/playground/server.py --backend torch \
+    --model-bundle artifacts/model.json --adapter adapters/imajev-2b \
+    --model-name imajev-2b --port 8765
+  ```
+
+  Der Report zeigt im Titel, welches Modell geantwortet hat. Vor dem Wechsel des Modells
+  `artifacts/vlm_compare/cache/` umbenennen, sonst mischen sich die Antworten.
+
 ### 2. Vergleich laufen lassen (im docval-Container / docval-venv)
 
 ```bash
 make vlm-compare LIMIT=10      # erster Versuch: 10 Seiten
 make vlm-compare               # alle Testseiten (CMR + Lieferschein)
+make vlm-compare VIEWS=unten   # nur der Unterschriftsbereich (halb so viele Anfragen)
 ```
 
 Antworten werden in `artifacts/vlm_compare/cache/` gespeichert – ein zweiter Lauf fragt nur

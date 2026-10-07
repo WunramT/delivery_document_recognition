@@ -19,7 +19,7 @@ help:
 	@echo "relabel  Vorlabels: Labels + Modellergebnisse je Export als COCO (+ Bilder, zip) zum Überarbeiten"
 	@echo "compare  zwei Läufe vergleichen: make compare A=artifacts B=artifacts/exp_x"
 	@echo "compare-labels  alte vs. neue Labels einer Tour als HTML: make compare-labels EXPORT=425_21.09.2026 [OLD=datei]"
-	@echo "vlm-compare  Prototyp: imajev-4b vs. RF-DETR (Unterschrift/Stempel), Server siehe docs/VLM_VERGLEICH.md [LIMIT=10]"
+	@echo "vlm-compare  Prototyp: imajev-4b vs. RF-DETR (Unterschrift/Stempel), Server siehe docs/VLM_VERGLEICH.md [LIMIT=10] [VIEWS=unten]"
 	@echo "test     Unit-Tests"
 	@echo "smoke    ganze Pipeline auf synthetischer Mini-Teilmenge (CPU, < 5 min)"
 	@echo "fetch-models  alle Gewichte in den Cache laden (danach offline)"
@@ -65,8 +65,9 @@ compare-labels:
 	$(DOCVAL) $(CONFIG) compare-labels --export "$(EXPORT)" $(if $(OLD),--old "$(OLD)",)
 
 LIMIT ?=
+VIEWS ?=
 vlm-compare:
-	$(DOCVAL) $(CONFIG) vlm-compare $(if $(LIMIT),--limit $(LIMIT),)
+	$(DOCVAL) $(CONFIG) vlm-compare $(if $(LIMIT),--limit $(LIMIT),) $(if $(VIEWS),--views $(VIEWS),)
 
 fetch-models:
 	$(DOCVAL) $(CONFIG) fetch-models

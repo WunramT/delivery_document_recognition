@@ -209,8 +209,8 @@ def run_vlm_compare(cfg, log) -> int:
             and (not want or p.doc_type in want)]
     if vcfg.get("limit"):
         test = test[:int(vcfg["limit"])]
-    log(f"[vlm] {len(test)} Seiten ({eval_split}, {', '.join(want) if want else 'alle Typen'}), "
-        f"Ansichten: {', '.join(views)}")
+    log(f"[vlm] {len(test)} Seiten ({eval_split}, {', '.join(want) if want else 'alle Typen'}) x "
+        f"Ansichten {', '.join(views)} = {len(test) * len(views)} Anfragen (ohne Cache)")
 
     detector = None
     det_dir = artifacts(cfg, "detector")
@@ -224,7 +224,8 @@ def run_vlm_compare(cfg, log) -> int:
         log("[vlm] WARNUNG: kein artifacts/detector/detector.onnx - nur imajev wird ausgewertet")
 
     prep = PagePrep(cfg)
-    rows, det_ms, failed = [], [], []
+    rows, det_ms, failed, models = [], [], [], set()
+    t_run = time.time()
     for i, p in enumerate(test, 1):
         _, im = prep(p)                                 # masked like the detector input; drops masked GT boxes
         preds = []
@@ -238,6 +239,7 @@ def run_vlm_compare(cfg, log) -> int:
             except Exception as e:  # noqa: BLE001 - one bad page must not stop the run
                 failed.append(f"{short_name(p.file_name)} [{view}]: {e}")
                 continue
+            models.add(ans.get("model"))
             for c in classes:
                 gt = any(center_in(b.norm(p.width, p.height), area) for b in p.boxes_of(c))
                 ds = max([d["score"] for d in preds if d["cls"] == c and center_in(d["box"], area)], default=0.0)
@@ -245,10 +247,13 @@ def run_vlm_compare(cfg, log) -> int:
                 rows.append({"file_name": p.file_name, "doc_type": p.doc_type, "view": view, "cls": c,
                              "gt": gt, "vlm_p": a.get("p"), "vlm_unknown": a.get("unknown"),
                              "det_score": ds if detector else None, "vlm_ms": ans.get("wall_ms")})
-        if i % 10 == 0 or i == len(test):
-            log(f"[vlm] {i}/{len(test)} Seiten, {client.calls} neue Anfragen, {len(failed)} Fehler")
+        # every page: one imajev request can take minutes on a small GPU - show that it is alive
+        el = time.time() - t_run
+        eta = el / i * (len(test) - i)
+        log(f"[vlm] {i}/{len(test)} Seiten, {client.calls} neue Anfragen, {len(failed)} Fehler, "
+            f"{el / 60:.0f} min vergangen, noch ~{eta / 60:.0f} min")
 
-    R = {"meta": {"split": eval_split, "n_pages": len(test), "views": views, "url": vcfg["url"],
+    R = {"meta": {"model": ", ".join(sorted(m for m in models if m)) or "imajev", "split": eval_split, "n_pages": len(test), "views": views, "url": vcfg["url"],
                   "questions": vcfg["questions"], "auto_band": hi, "detector": bool(detector),
                   "det_thresholds": thr, "det_uncertain": unc, "det_threshold_source": thr_src,
                   "failed": failed},
@@ -376,7 +381,7 @@ def _verdict(s: dict) -> str:
 
 def render(R: dict, classes: list[str]) -> str:
     m, lat = R["meta"], R["latency"]
-    L = ["# Prototyp: imajev-4b vs. RF-DETR (Unterschrift / Stempel)", "",
+    L = [f"# Prototyp: {m['model']} vs. RF-DETR (Unterschrift / Stempel)", "",
          f"Split **{m['split']}**, {m['n_pages']} Seiten. imajev: `{m['url']}`. "
          f"RF-DETR-Schwellen: {m['det_threshold_source'] or 'kein Detektor'}.", "",
          "imajev liefert keine Boxen, nur P(ja) je Frage. Verglichen wird deshalb auf **Seitenebene**: "

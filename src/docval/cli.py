@@ -140,6 +140,14 @@ def cmd_vlm_compare(cfg) -> int:
     a = cfg.get("_args") or {}
     if a.get("limit"):
         cfg["vlm_compare"]["limit"] = a["limit"]
+    if a.get("views"):
+        want = [v.strip() for v in a["views"].split(",") if v.strip()]
+        known = cfg["vlm_compare"]["views"]
+        bad = [v for v in want if v not in known]
+        if bad:
+            log(f"FEHLER: unbekannte Ansicht {bad}, vorhanden: {', '.join(known)}")
+            return 2
+        cfg["vlm_compare"]["views"] = {v: known[v] for v in want}
     return run_vlm_compare(cfg, log)
 
 
@@ -163,6 +171,7 @@ def main(argv=None) -> int:
     ap.add_argument("--export", default=None, help="compare-labels: export folder, e.g. 425_21.09.2026")
     ap.add_argument("--old", default=None, help="compare-labels: old COCO file (default: backup or editor state)")
     ap.add_argument("--limit", type=int, default=None, help="vlm-compare: only the first N pages")
+    ap.add_argument("--views", default=None, help="vlm-compare: comma-separated views, e.g. unten")
     args = ap.parse_args(argv)
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -172,7 +181,7 @@ def main(argv=None) -> int:
     cfg = load_config(args.config)
     from .data.exports import apply_exports
     cfg = apply_exports(cfg, log)
-    cfg["_args"] = {"export": args.export, "old": args.old, "limit": args.limit}
+    cfg["_args"] = {"export": args.export, "old": args.old, "limit": args.limit, "views": args.views}
     if args.split:
         cfg.setdefault("eval", {})["split"] = args.split
     if args.command != "fetch-models" and not os.environ.get("DOCVAL_ONLINE"):
