@@ -10,6 +10,13 @@ new `make eval`) costs nothing.
 imajev returns no boxes, only P(yes) per question. Compared are therefore page-level
 decisions: presence per class (both views) and the CMR decision ok / fehlt / unsicher
 against `pages.csv` of the last `make eval`.
+
+Main metric: recall at precision 100 % - the highest score of any page WITHOUT the object
+is the threshold, recall = share of pages WITH the object above it. Real pages almost always
+carry a signature and a stamp, so negatives are made from the labels: per class, a copy of
+the page with every labeled box of that class erased ("ohne_<klasse>"). That copy is only
+evaluated for that class (erasing a signature also damages the stamp beneath it). CMR
+fields 22/23 (pre-printed signature + stamp) are blanked by the form mask for both models.
 """
 
 from __future__ import annotations
@@ -62,6 +69,16 @@ def auto_stats(decisions: list[bool | None], labels: list[bool]) -> dict:
     """decisions: True/False = decided automatically, None = a person checks."""
     done = [(d, y) for d, y in zip(decisions, labels) if d is not None]
     return {"auto": ratio(len(done), len(labels)), "auto_correct": ratio(sum(d == y for d, y in done), len(done))}
+
+
+def recall_at_full_precision(scores: list[float], labels: list[bool]) -> dict:
+    """Threshold = highest negative score; recall = positives strictly above it."""
+    neg = [s for s, y in zip(scores, labels) if not y]
+    pos = [s for s, y in zip(scores, labels) if y]
+    if not neg or not pos:
+        return {"recall": ratio(0, 0), "threshold": None}
+    t = max(neg)
+    return {"recall": ratio(sum(v > t for v in pos), len(pos)), "threshold": t}
 
 
 def three_state(p: float, accept: float, reject: float) -> bool | None:
@@ -122,8 +139,7 @@ class ImajevClient:
         self.url = vcfg["url"]
         self.timeout = vcfg.get("timeout_s", 120)
         self.quality = vcfg.get("jpeg_quality", 90)
-        self.request = build_request(vcfg["questions"])
-        self.qhash = hashlib.sha1(json.dumps(self.request, sort_keys=True).encode()).hexdigest()[:10]
+        self.questions = vcfg["questions"]
         self.cache_dir = cache_dir
         self.log = log
         self.calls = 0
@@ -138,15 +154,20 @@ class ImajevClient:
         except Exception as e:  # noqa: BLE001 - shown to the user as is
             return str(e)
 
-    def __call__(self, file_name: str, view: str, im: Image.Image) -> dict:
-        key = hashlib.sha1(f"{file_name}|{view}|{self.qhash}".encode()).hexdigest()[:16]
+    def __call__(self, file_name: str, view: str, im: Image.Image, classes: list[str] | None = None,
+                 variant: str = "") -> dict:
+        """classes: ask only these questions (one forward pass each - fewer is faster)."""
+        request = build_request({c: q for c, q in self.questions.items() if not classes or c in classes})
+        qhash = hashlib.sha1(json.dumps(request, sort_keys=True).encode()).hexdigest()[:10]
+        tag = f"{file_name}|{view}|{qhash}" if not variant else f"{file_name}|{view}|{variant}|{qhash}"
+        key = hashlib.sha1(tag.encode()).hexdigest()[:16]
         path = self.cache_dir / f"{key}.json"
         if path.is_file():
             return json.loads(path.read_text(encoding="utf-8"))
         t0 = time.perf_counter()
-        res = post_multipart(self.url, self.request, jpeg(im, self.quality), self.timeout)
+        res = post_multipart(self.url, request, jpeg(im, self.quality), self.timeout)
         wall_ms = (time.perf_counter() - t0) * 1000
-        out = {"file_name": file_name, "view": view, "wall_ms": wall_ms,
+        out = {"file_name": file_name, "view": view, "variant": variant, "wall_ms": wall_ms,
                "server_ms": (res.get("usage") or {}).get("total_ms"), "model": res.get("model"),
                "answers": {c: {"p": a.get("noul"), "unknown": a.get("unknown_probability"),
                                "abstained": a.get("abstained")} for c, a in (res.get("answers") or {}).items()}}
@@ -156,6 +177,22 @@ class ImajevClient:
 
 
 # ------------------------------------------------------------------ main
+
+def negative_variants(p, im: Image.Image, classes: list[str], ncfg: dict) -> list[tuple[str, str, Image.Image]]:
+    """Per class with labeled boxes: (variant, class, copy with every box of that class erased)."""
+    from ..zones.synthetic import erase, to_rgb
+
+    out = []
+    for c in classes:
+        boxes = p.boxes_of(c)
+        if not boxes:
+            continue
+        v = to_rgb(im).copy()
+        for b in boxes:
+            erase(v, b.xyxy, pad=ncfg.get("pad_px", 6), fill=ncfg.get("fill", "median"))
+        out.append((f"ohne_{c}", c, v))
+    return out
+
 
 def read_pages_csv(path: Path) -> dict[str, dict]:
     if not path.is_file():
@@ -209,8 +246,13 @@ def run_vlm_compare(cfg, log) -> int:
             and (not want or p.doc_type in want)]
     if vcfg.get("limit"):
         test = test[:int(vcfg["limit"])]
-    log(f"[vlm] {len(test)} Seiten ({eval_split}, {', '.join(want) if want else 'alle Typen'}) x "
-        f"Ansichten {', '.join(views)} = {len(test) * len(views)} Anfragen (ohne Cache)")
+    ncfg = vcfg.get("negatives") or {}
+    n_neg = sum(1 for p in test for c in classes if p.boxes_of(c)) if ncfg.get("enabled") else 0
+    neg_dir = out / "negative"
+    neg_dir.mkdir(exist_ok=True)
+    log(f"[vlm] {len(test)} Seiten ({eval_split}, {', '.join(want) if want else 'alle Typen'}) + "
+        f"{n_neg} synthetische Negative x Ansichten {', '.join(views)} = "
+        f"{(len(test) + n_neg) * len(views)} Anfragen (ohne Cache)")
 
     detector = None
     det_dir = artifacts(cfg, "detector")
@@ -228,25 +270,35 @@ def run_vlm_compare(cfg, log) -> int:
     t_run = time.time()
     for i, p in enumerate(test, 1):
         _, im = prep(p)                                 # masked like the detector input; drops masked GT boxes
-        preds = []
-        if detector:
-            t0 = time.perf_counter()
-            preds = detector(im)
-            det_ms.append((time.perf_counter() - t0) * 1000)
-        for view, area in views.items():
-            try:
-                ans = client(p.file_name, view, crop_norm(im, area))
-            except Exception as e:  # noqa: BLE001 - one bad page must not stop the run
-                failed.append(f"{short_name(p.file_name)} [{view}]: {e}")
-                continue
-            models.add(ans.get("model"))
-            for c in classes:
-                gt = any(center_in(b.norm(p.width, p.height), area) for b in p.boxes_of(c))
-                ds = max([d["score"] for d in preds if d["cls"] == c and center_in(d["box"], area)], default=0.0)
-                a = ans["answers"].get(c) or {}
-                rows.append({"file_name": p.file_name, "doc_type": p.doc_type, "view": view, "cls": c,
-                             "gt": gt, "vlm_p": a.get("p"), "vlm_unknown": a.get("unknown"),
-                             "det_score": ds if detector else None, "vlm_ms": ans.get("wall_ms")})
+        # original: every class, GT from the labels; "ohne_<c>": only class c, GT = no
+        images = [("", classes, im)]
+        if ncfg.get("enabled"):
+            for variant, c, v in negative_variants(p, im, classes, ncfg):
+                v.save(neg_dir / f"{short_name(p.file_name).replace('/', '_').rsplit('.', 1)[0]}__{variant}.jpg",
+                       quality=85)
+                images.append((variant, [c], v))
+        for variant, asked, img in images:
+            preds = []
+            if detector:
+                t0 = time.perf_counter()
+                preds = detector(img)
+                det_ms.append((time.perf_counter() - t0) * 1000)
+            for view, area in views.items():
+                try:
+                    ans = client(p.file_name, view, crop_norm(img, area), None if not variant else asked, variant)
+                except Exception as e:  # noqa: BLE001 - one bad page must not stop the run
+                    failed.append(f"{short_name(p.file_name)} {variant} [{view}]: {e}")
+                    continue
+                models.add(ans.get("model"))
+                for c in asked:
+                    gt = not variant and any(center_in(b.norm(p.width, p.height), area) for b in p.boxes_of(c))
+                    ds = max([d["score"] for d in preds if d["cls"] == c and center_in(d["box"], area)],
+                             default=0.0)
+                    a = ans["answers"].get(c) or {}
+                    rows.append({"file_name": p.file_name, "doc_type": p.doc_type, "variant": variant,
+                                 "view": view, "cls": c, "gt": gt, "vlm_p": a.get("p"),
+                                 "vlm_unknown": a.get("unknown"), "det_score": ds if detector else None,
+                                 "vlm_ms": ans.get("wall_ms")})
         # every page: one imajev request can take minutes on a small GPU - show that it is alive
         el = time.time() - t_run
         eta = el / i * (len(test) - i)
@@ -256,10 +308,12 @@ def run_vlm_compare(cfg, log) -> int:
     R = {"meta": {"model": ", ".join(sorted(m for m in models if m)) or "imajev", "split": eval_split, "n_pages": len(test), "views": views, "url": vcfg["url"],
                   "questions": vcfg["questions"], "auto_band": hi, "detector": bool(detector),
                   "det_thresholds": thr, "det_uncertain": unc, "det_threshold_source": thr_src,
-                  "failed": failed},
-         "latency": {"vlm_ms_median": _median([r["vlm_ms"] for r in rows if r["cls"] == classes[0]]),
+                  "failed": failed, "negatives": n_neg},
+         "latency": {"vlm_ms_median": _median([r["vlm_ms"] for r in rows
+                                               if r["cls"] == classes[0] and not r["variant"]]),
                      "det_ms_median": _median(det_ms)},
-         "presence": presence_stats(rows, classes, views, hi, thr, unc)}
+         "presence": presence_stats(rows, classes, views, hi, thr, unc),
+         "full_precision": full_precision_stats(rows, classes, views)}
     R["decision"] = decision_stats(cfg, test, rows, classes, views, hi)
     (out / "results.json").write_text(dumps(R), encoding="utf-8")
     write_rows(out / "pages.csv", rows)
@@ -298,13 +352,34 @@ def presence_stats(rows, classes, views, hi, thr, unc) -> dict:
     return out
 
 
+def full_precision_stats(rows, classes, views) -> dict:
+    """Per view x class: recall at precision 100 % for both models, plus the negative that
+    sets the threshold (check it: an unlabeled signature there makes the negative wrong)."""
+    out: dict = {}
+    for view in views:
+        for c in classes:
+            rs = [r for r in rows if r["view"] == view and r["cls"] == c and r["vlm_p"] is not None]
+            y = [r["gt"] for r in rs]
+            s = {"n_pos": sum(y), "n_neg": len(y) - sum(y), "n_neg_synth": sum(1 for r in rs if r["variant"])}
+            for k, key in (("vlm", "vlm_p"), ("det", "det_score")):
+                if not rs or rs[0][key] is None:
+                    continue
+                s[k] = recall_at_full_precision([r[key] for r in rs], y)
+                negs = [r for r in rs if not r["gt"]]
+                if negs:
+                    top = max(negs, key=lambda r: r[key])
+                    s[k]["hardest_negative"] = f"{short_name(top['file_name'])} {top['variant'] or 'original'}"
+            out.setdefault(view, {})[c] = s
+    return out
+
+
 def decision_stats(cfg, test, rows, classes, views, hi) -> dict | None:
     """End-to-end decision on pages with a rule (CMR): imajev vs. pages.csv of `make eval`.
     imajev cannot see positions: GT `falsche_position` counts as 'not ok' for both."""
     pos = read_pages_csv(artifacts(cfg, "report", "pages.csv"))
     view = "unten" if "unten" in views else next(iter(views))
     rules = cfg["zones"]["rules"]
-    p_of = {(r["file_name"], r["cls"]): r["vlm_p"] for r in rows if r["view"] == view}
+    p_of = {(r["file_name"], r["cls"]): r["vlm_p"] for r in rows if r["view"] == view and not r["variant"]}
     res = {"view": view, "pages_csv": bool(pos), "vlm": _dq(), "det": _dq() if pos else None, "rows": []}
     for p in test:
         rule = rules.get(p.doc_type) or {}
@@ -347,12 +422,12 @@ def _count(dq: dict, gt: str, st: str) -> None:
 def write_rows(path: Path, rows: list[dict]) -> None:
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f, delimiter=";")
-        w.writerow(["file_name", "doc_type", "ansicht", "klasse", "gt", "imajev_p", "imajev_unknown",
+        w.writerow(["file_name", "doc_type", "variante", "ansicht", "klasse", "gt", "imajev_p", "imajev_unknown",
                     "rfdetr_score", "uneinig_bei_0.5"])
         for r in rows:
             vp, ds = r["vlm_p"], r["det_score"]
             disagree = "" if vp is None or ds is None else int((vp >= 0.5) != (ds >= 0.5))
-            w.writerow([r["file_name"], r["doc_type"], r["view"], r["cls"], int(r["gt"]),
+            w.writerow([r["file_name"], r["doc_type"], r["variant"] or "original", r["view"], r["cls"], int(r["gt"]),
                         _f(vp), _f(r["vlm_unknown"]), _f(ds), disagree])
 
 
@@ -379,6 +454,23 @@ def _verdict(s: dict) -> str:
     return "**imajev besser**" if v > d else "**RF-DETR besser**"
 
 
+def _verdict_p100(s: dict) -> str:
+    v, d = (s.get("vlm") or {}).get("recall"), (s.get("det") or {}).get("recall")
+    if s["n_pos"] < 10 or s["n_neg"] < 10:
+        return "zu wenige Seiten für eine Aussage"
+    if not v or not d or v["value"] is None or d["value"] is None:
+        return "–"
+    if v["k"] == d["k"]:
+        return "gleichauf"
+    return "**imajev besser**" if v["k"] > d["k"] else "**RF-DETR besser**"
+
+
+def _ci(r: dict | None) -> str:
+    if not r or not r.get("ci95"):
+        return ""
+    return f" [{100 * r['ci95'][0]:.0f}–{100 * r['ci95'][1]:.0f} %]"
+
+
 def render(R: dict, classes: list[str]) -> str:
     m, lat = R["meta"], R["latency"]
     L = [f"# Prototyp: {m['model']} vs. RF-DETR (Unterschrift / Stempel)", "",
@@ -396,7 +488,34 @@ def render(R: dict, classes: list[str]) -> str:
     if m["failed"]:
         L += [f"**{len(m['failed'])} Anfragen fehlgeschlagen**, z. B. `{m['failed'][0]}`", ""]
 
-    L += ["## 1. Kurzfazit (AUC, alle Dokumenttypen)", "",
+    L += ["## 1. Hauptergebnis: Recall bei Precision 100 %", "",
+          "Schwelle = höchster Wert einer Seite **ohne** Objekt; Recall = Anteil der Seiten **mit** Objekt "
+          "darüber. So viele echte Unterschriften/Stempel erkennt das Modell, ohne einen einzigen Fehlalarm. "
+          f"Negative: echte Seiten ohne Objekt + {m.get('negatives', 0)} synthetische (alle Label-Boxen der "
+          "Klasse übermalt, Bilder in `artifacts/vlm_compare/negative/`). Feld 22/23 ist bei beiden maskiert. "
+          "Die Schwelle wird auf denselben Seiten bestimmt (für beide gleich optimistisch). "
+          "„Härtestes Negativ“ prüfen: steht dort doch eine (ungelabelte) Unterschrift, ist das Negativ falsch.", "",
+          "| Ansicht | Klasse | mit / ohne Objekt (davon synth.) | Recall imajev [95 %-KI] | Schwelle | "
+          "Recall RF-DETR [95 %-KI] | Schwelle | Ergebnis |", "|---|---|---|---|---|---|---|---|"]
+    for view, per in (R.get("full_precision") or {}).items():
+        for c in classes:
+            s = per.get(c)
+            if not s:
+                continue
+            v, d = s.get("vlm") or {}, s.get("det") or {}
+            L.append(f"| {view} | {c} | {s['n_pos']} / {s['n_neg']} ({s['n_neg_synth']}) | "
+                     f"{_pct(v.get('recall'))}{_ci(v.get('recall'))} | {_f(v.get('threshold'))} | "
+                     f"{_pct(d.get('recall'))}{_ci(d.get('recall'))} | {_f(d.get('threshold'))} | {_verdict_p100(s)} |")
+    L += ["", "Härtestes Negativ (setzt die Schwelle):", ""]
+    for view, per in (R.get("full_precision") or {}).items():
+        for c in classes:
+            s = per.get(c) or {}
+            hv, hd = (s.get("vlm") or {}).get("hardest_negative"), (s.get("det") or {}).get("hardest_negative")
+            if hv or hd:
+                L.append(f"- {view} / {c}: imajev `{hv or '–'}`, RF-DETR `{hd or '–'}`")
+    L.append("")
+
+    L += ["## 2. Kurzfazit (AUC, alle Dokumenttypen, inkl. synthetischer Negative)", "",
           "| Ansicht | Klasse | Seiten (mit Objekt) | AUC imajev | AUC RF-DETR | Ergebnis |", "|---|---|---|---|---|---|"]
     for view, per in R["presence"].items():
         for c in classes:
@@ -406,7 +525,7 @@ def render(R: dict, classes: list[str]) -> str:
                          f"{_f((s.get('det') or {}).get('auc'))} | {_verdict(s)} |")
     L.append("")
 
-    L += ["## 2. Details je Dokumenttyp", "",
+    L += ["## 3. Details je Dokumenttyp", "",
           "| Ansicht | Klasse | Typ | Modell | AUC | Recall | Precision | Fehlalarme | Übersehen | automatisch | davon richtig |",
           "|---|---|---|---|---|---|---|---|---|---|---|"]
     for view, per in R["presence"].items():
@@ -421,7 +540,7 @@ def render(R: dict, classes: list[str]) -> str:
     L.append("")
 
     d = R.get("decision")
-    L += ["## 3. Entscheidung je Seite (Dokumenttypen mit Regel, z. B. CMR)", ""]
+    L += ["## 4. Entscheidung je Seite (nur Original-Seiten mit Regel, z. B. CMR)", ""]
     if not d:
         L += ["Keine Daten: `artifacts/report/pages.csv` fehlt (zuerst `make eval`) oder keine Seite mit Regel.", ""]
     else:

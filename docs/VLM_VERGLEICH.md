@@ -118,14 +118,22 @@ make vlm-compare VIEWS=unten   # nur der Unterschriftsbereich (halb so viele Anf
 Antworten werden in `artifacts/vlm_compare/cache/` gespeichert – ein zweiter Lauf fragt nur
 neue Seiten. Nach geänderten Fragen in `config.yaml` wird automatisch neu gefragt.
 
+Dauer: je Testseite 1 Original (2 Fragen) + bis zu 2 Negative (je 1 Frage). Mit 8-GB-GPU
+und `VIEWS=unten` grob 2–3 min pro Seite – über Nacht laufen lassen.
+
 ### 3. Ergebnis lesen
 
 `artifacts/vlm_compare/report.md`:
 
-1. **Kurzfazit** – AUC je Klasse und Ansicht, imajev vs. RF-DETR, mit Urteil
+1. **Recall bei Precision 100 %** – Hauptergebnis: wie viele echte Unterschriften/Stempel
+   erkennt jedes Modell ohne einen einzigen Fehlalarm? Negative = Seiten ohne Objekt + Kopien
+   jeder Testseite mit übermalten Label-Boxen einer Klasse (`artifacts/vlm_compare/negative/`).
+   Die Seite, die die Schwelle setzt („härtestes Negativ“), ansehen: ist dort doch eine
+   ungelabelte Unterschrift, ist das Label falsch, nicht das Modell.
+2. **Kurzfazit** – AUC je Klasse und Ansicht, imajev vs. RF-DETR, mit Urteil
    (besser / gleichauf / zu wenige Seiten).
-2. **Details** – Recall, Precision, Fehlalarme, Übersehene, Anteil automatisch entschieden.
-3. **Entscheidung je Seite (CMR)** – dieselben vier Töpfe wie im Eval-Report
+3. **Details** – Recall, Precision, Fehlalarme, Übersehene, Anteil automatisch entschieden.
+4. **Entscheidung je Seite (CMR)** – dieselben vier Töpfe wie im Eval-Report
    (automatisch richtig / Person / Fehler übersehen / Fehlalarm) + Liste der Seiten, auf denen
    beide verschieden entscheiden.
 

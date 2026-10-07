@@ -40,3 +40,31 @@ def test_decision_count():
         _count(dq, gt, st)
     assert dq == {"n": 5, "auto_richtig": 2, "person": 1, "auto_falsch_fehler_uebersehen": 1,
                   "auto_falsch_fehlalarm": 1}
+
+
+def test_recall_at_full_precision():
+    from docval.eval.vlm_compare import recall_at_full_precision
+
+    r = recall_at_full_precision([0.9, 0.7, 0.4, 0.6, 0.1], [True, True, True, False, False])
+    assert r["threshold"] == 0.6 and (r["recall"]["k"], r["recall"]["n"]) == (2, 3)
+    r = recall_at_full_precision([0.6, 0.6], [True, False])          # tie with a negative is not enough
+    assert r["recall"]["k"] == 0
+    assert recall_at_full_precision([0.9], [True])["threshold"] is None
+
+
+def test_negative_variants_erase_only_that_class():
+    from PIL import Image
+
+    from docval.data.dataset import Box, Page
+    from docval.eval.vlm_compare import negative_variants
+
+    im = Image.new("RGB", (100, 100), (250, 250, 250))
+    im.paste((0, 0, 0), (10, 10, 30, 30))      # "signature"
+    im.paste((0, 0, 200), (60, 60, 90, 90))    # "stamp"
+    p = Page(1, "a.png", None, 100, 100, "cmr", boxes=[Box("unterschrift", [10, 10, 30, 30])])
+    out = negative_variants(p, im, ["unterschrift", "stempel"], {"fill": "median", "pad_px": 2})
+    assert [(v, c) for v, c, _ in out] == [("ohne_unterschrift", "unterschrift")]   # no stamp label -> no variant
+    v = out[0][2]
+    assert v.getpixel((20, 20)) == (250, 250, 250)    # signature gone, paper color
+    assert v.getpixel((75, 75)) == (0, 0, 200)        # rest untouched
+    assert im.getpixel((20, 20)) == (0, 0, 0)         # original untouched

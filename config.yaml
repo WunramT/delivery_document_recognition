@@ -257,6 +257,10 @@ vlm_compare:
     seite: null
     unten: [0.0, 0.60, 1.0, 1.0]   # CMR fields 22-24 (same as form_mask.search_y)
   auto_band: 0.9             # P >= 0.9 -> yes, P < 0.1 -> no, in between a person checks
+  # Negatives from the labels: per class a copy of each page with every labeled box of that
+  # class erased -> page "without signature" / "without stamp" (recall at precision 100 %).
+  # median = paper color around the box; black would be a visible cue for both models.
+  negatives: {enabled: true, fill: median, pad_px: 6}
   timeout_s: 180
   jpeg_quality: 90
   # English only (model limit). One noul question = P(yes).
