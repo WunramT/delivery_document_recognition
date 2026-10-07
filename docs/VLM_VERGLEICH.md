@@ -36,6 +36,14 @@ PYTHONPATH=src:scripts python scripts/playground/server.py --backend torch \
   --model-name imajev-4b --port 8765
 ```
 
+**Nach dem Start gibt der Server nichts mehr aus – er hängt nicht, er wartet auf Anfragen.**
+Fertig geladen ist er, sobald die Zeile `backend=torch model=imajev-4b … load_seconds=…` erscheint.
+Terminal offen lassen und `make vlm-compare` in einem **zweiten** Terminal starten.
+
+Wichtig: nach `/models` klonen (Docker-Volume, schnell), **nicht** nach `/workspace/models`.
+`/workspace` ist der Windows-Ordner, durchgereicht per Bind-Mount: dort dauert das Laden der
+9 GB eine Viertelstunde statt ~1 Minute.
+
 Server und `make vlm-compare` laufen im selben Container → die Standard-URL
 `http://127.0.0.1:8765` passt, `IMAJEV_URL` ist nicht nötig. Ab dem zweiten Mal reichen die
 Zeilen `cd /models/imajev`, `. .venv/bin/activate` und der Server-Befehl.

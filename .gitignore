@@ -13,3 +13,5 @@ labels/tour_review.html
 /labels/exports/*/_annotations.coco.json
 /labels/*/images/
 /labels/*/_annotations.coco.json
+# imajev server clone + weights (docs/VLM_VERGLEICH.md), if cloned into the repo by mistake
+/models/
