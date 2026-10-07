@@ -436,6 +436,14 @@ def build(R, cfg, path, png_dir=None, log=print):
                12, 15, INK2)
     D.save()
 
+    # 8a alternative approach: vision-language model (make vlm-compare)
+    try:
+        from .presentation_vlm import vlm_slides
+        vlm_slides(D, R, cfg, log)
+    except Exception as e:  # optional prototype - the deck is built without it
+        log(f"[praesentation] Vergleichsfolien übersprungen: {e}")
+        D.plt.close("all")
+
     # 9 open issues
     D.slide("Offene Punkte", "Probleme")
     issues = open_issues(R)

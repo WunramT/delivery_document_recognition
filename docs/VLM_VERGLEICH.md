@@ -139,6 +139,14 @@ und `VIEWS=unten` grob 2–3 min pro Seite – über Nacht laufen lassen.
 
 `artifacts/vlm_compare/pages.csv` – jede Seite × Ansicht × Klasse mit imajev-P und RF-DETR-Score.
 
+### 4. In die Präsentation
+
+`make create_pdf` übernimmt die Ergebnisse automatisch (2 Folien nach den Betriebspunkten):
+Tabelle Recall bei Precision 100 % + Laufzeit, und das Negativ, das die Schwelle von RF-DETR
+setzt – mit Bild, beiden Scores und Recall ohne diese Seite. Anderes Beispiel oder eigener
+Erklärtext: `presentation.vlm_example` / `vlm_example_note` in `config.yaml`. Ohne
+`artifacts/vlm_compare/` entfallen die Folien.
+
 ## Was verglichen wird – und was nicht
 
 - imajev gibt **keine Boxen**, nur P(ja) je Frage. Verglichen wird auf Seitenebene; RF-DETR zählt

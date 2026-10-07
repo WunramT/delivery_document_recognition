@@ -272,6 +272,11 @@ vlm_compare:
 presentation:
   examples: true
   example_page: null      # part of a file name, e.g. "425_21.09.2026/polipol_docs_0014"; null = automatic
+  # slides from make vlm-compare (skipped without artifacts/vlm_compare/): example negative,
+  # e.g. "609_17.09.2026/polipol_docs_0009 ohne_unterschrift"; null = the negative that sets
+  # RF-DETR's signature threshold at precision 100 %. The note is the slide's explanation.
+  vlm_example: null
+  vlm_example_note: null
 
 report:
   gallery_size: 30
