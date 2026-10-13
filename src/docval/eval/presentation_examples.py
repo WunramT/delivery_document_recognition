@@ -17,7 +17,8 @@ from PIL import Image, ImageDraw, ImageFont
 from ..config import artifacts
 
 # categorical slots 1-4 of the validated reference palette, in fixed order
-CLASS_COLORS = {"unterschrift": "#2a78d6", "stempel": "#eb6834", "tour_nummer": "#1baf7a", "cmr_count": "#eda100"}
+CLASS_COLORS = {"unterschrift": "#2a78d6", "stempel": "#eb6834", "tour_nummer": "#1baf7a", "cmr_count": "#eda100",
+                "ta_nummer": "#7048e8", "ls_nummer": "#a61e4d", "seitenzahl": "#5c940d"}
 ZONE = "#4a3aa7"
 
 

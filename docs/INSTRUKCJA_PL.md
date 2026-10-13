@@ -29,9 +29,9 @@ stron (filtr „z propozycjami modelu” / „niesprawdzone”), pośrodku stron
 
 | Czynność | Obsługa |
 |---|---|
-| Nowa ramka | przeciągnąć na pustym miejscu (klasę wybrać wcześniej klawiszem `1`–`4`) |
+| Nowa ramka | przeciągnąć na pustym miejscu (klasę wybrać wcześniej klawiszem `1`–`7`) |
 | Przesunąć / zmienić rozmiar | kliknąć ramkę i przeciągnąć; przeciągnąć róg lub krawędź |
-| Zmienić klasę | zaznaczyć ramkę, potem `1`–`4` |
+| Zmienić klasę | zaznaczyć ramkę, potem `1`–`7` |
 | Usunąć / cofnąć | `Delete` / `Ctrl+Z` |
 | Dokładne przesunięcie | strzałki (`Shift` = 10 px, `Alt` = rozmiar) |
 | Strony | `A` / `D` = poprzednia / następna, `Enter` = sprawdzone i dalej |
@@ -39,7 +39,7 @@ stron (filtr „z propozycjami modelu” / „niesprawdzone”), pośrodku stron
 | Powiększenie | `+`, `-`, `0` = do szerokości, albo Ctrl + kółko myszy |
 | Typ dokumentu | lista rozwijana u góry, osobno dla każdej strony |
 
-Klasy: `1` podpis, `2` pieczątka, `3` numer trasy, `4` licznik CMR.
+Klasy: `1` podpis, `2` pieczątka, `3` numer trasy, `4` licznik CMR, `5` numer TA, `6` nr dowodu dostawy, `7` numer strony. Instrukcja dla wybranej klasy jest wyświetlana pod listą klas.
 Linia przerywana = propozycja modelu, której jeszcze nikt nie poprawiał.
 
 Stan pracy zapisuje się w przeglądarce – można zamknąć stronę i kontynuować później.
@@ -136,3 +136,24 @@ dokument zastępczy, inna trasa, ZCHECKLSARCHIV następnego dnia) i kolejności�
 
 Odczyt numerów TA z listy załadunkowej nie jest jeszcze zweryfikowany – pojawia się tylko jako
 wskazówka. Liczbę TA na liście załadunkowej nadal sprawdza osoba.
+
+## 8. Etykietowanie nowych skanów (`make label-scans`)
+
+Skany zostają lokalnie, nie trafiają do repozytorium.
+
+```
+make process SCANS=skany/503_01.09.2026.pdf
+make label-scans RUN=503_01.09.2026_4000
+```
+
+Wynik: `artifacts/label_scans/503_01.09.2026/` – ten sam układ co eksport etykiet, ramki modelu jako
+propozycje. Folder skopiować do `labels/503_01.09.2026/`, otworzyć `editor_pl.html`, sprawdzić ramki
+i dodać nowe klasy:
+
+- `5` **numer TA**: dowód dostawy – „Zlecenie” i numer TA pod nim w jednej ramce; lista załadunkowa –
+  każdy numer TA osobno; CMR – wszystkie numery TA jednego bloku razem
+- `6` **nr dowodu dostawy**: „Lieferschein XXXXXXXX” (pierwsza strona, u góry pośrodku) lub
+  „Lieferschein (XXXXXXXX)” (kolejne strony, u góry po lewej)
+- `7` **numer strony**: dowód dostawy u dołu po prawej „Seite 1/2”, lista załadunkowa u góry po prawej „2/6”
+
+„Zapisz COCO” do `labels/503_01.09.2026/`, potem `make inspect split train export eval`.

@@ -11,9 +11,11 @@ SUFFIX = {"de": "", "pl": "_pl"}   # editor.html / editor_pl.html, 425.html / 42
 
 CLASS_NAMES = {
     "de": {"unterschrift": "Unterschrift", "stempel": "Stempel", "tour_nummer": "Tournummer",
-           "cmr_count": "CMR-Zählung"},
+           "cmr_count": "CMR-Zählung", "ta_nummer": "TA-Nummer", "ls_nummer": "Lieferschein-Nr.",
+           "seitenzahl": "Seitenzahl"},
     "pl": {"unterschrift": "podpis", "stempel": "pieczątka", "tour_nummer": "numer trasy",
-           "cmr_count": "licznik CMR"},
+           "cmr_count": "licznik CMR", "ta_nummer": "numer TA", "ls_nummer": "nr dowodu dostawy",
+           "seitenzahl": "numer strony"},
 }
 DOC_TYPE_NAMES = {
     "de": {"cmr": "CMR", "lieferschein": "Lieferschein", "loading_list": "Loading List"},

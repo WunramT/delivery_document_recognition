@@ -169,3 +169,22 @@ def test_apply_decision_changes_type_and_count():
                                              "unterschrift": True, "confirmed": True}}})[0]
     assert q["doc_type"] == "cmr" and q["cmr_count"]["parsed"] == [3, 5] and q["tour"]["text"] == "x/y"
     assert q["decision"] == {"unterschrift": True} and "archive" not in q and p["doc_type"] == "unsicher"
+
+
+def test_label_scans_export(tmp_path):
+    from docval.process.labels import build_export, export_name
+
+    pages = [page(1, "cmr", (1, 1)), page(2, "unsicher")]
+    pages[0]["dets"] = [{"cls": "stempel", "box": [0.1, 0.8, 0.3, 0.9], "score": 0.9},
+                        {"cls": "stempel", "box": [0.5, 0.8, 0.6, 0.9], "score": 0.1}]
+    R = result_with_images(tmp_path, pages)
+    R["thresholds"]["accept"] = {"stempel": 0.5}
+    classes = ["unterschrift", "stempel", "ta_nummer"]
+    coco, meta = build_export(R, {"pages": {"2": {"doc_type": "lieferschein"}}}, classes, tmp_path, tmp_path / "out")
+    assert export_name(TOUR, "x") == "503_01.09.2026" and export_name(None, "x") == "x"
+    assert [c["name"] for c in coco["categories"]] == classes
+    assert len(coco["annotations"]) == 1 and coco["annotations"][0]["attributes"]["quelle"] == "modell"
+    assert (tmp_path / "out" / "images" / "s001.png").is_file()
+    rows = (tmp_path / "out" / "page_types.csv").read_text(encoding="utf-8-sig").splitlines()
+    assert rows[2] == "images/s002.png;lieferschein;scan.pdf;2"
+    assert meta[1]["changes"][0]["action"] == "hinzugefügt"

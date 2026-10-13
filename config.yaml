@@ -16,7 +16,8 @@ paths:
   labels: labels                               # writable label CSVs / review page
   models: ${DOCVAL_MODELS:-artifacts/models_cache}  # downloaded weights (docker volume)
 
-classes: [unterschrift, stempel, tour_nummer, cmr_count]
+# new classes go at the end (keys 1..n in the editor, class ids of trained models stay)
+classes: [unterschrift, stempel, tour_nummer, cmr_count, ta_nummer, ls_nummer, seitenzahl]
 doc_types: [cmr, lieferschein, loading_list]
 
 # Where ground truth for doc type and tour number comes from.
@@ -231,6 +232,9 @@ label_guide:
     stempel: "der ganze Stempelabdruck, eng um den Abdruck"
     tour_nummer: "die Tournummer vollständig (Tour/Datum/Werk), eng"
     cmr_count: "„CMR i/n“ vollständig, eng"
+    ta_nummer: "Lieferschein: „Zlecenie“ und die TA-Nummer darunter zusammen in einer Box. Ladeliste: jede TA-Nummer einzeln (eine Box pro Zeile). CMR: alle TA-Nummern eines Blocks zusammen"
+    ls_nummer: "„Lieferschein XXXXXXXX“ (Vorderseite, oben Mitte) bzw. „Lieferschein (XXXXXXXX)“ (Folgeseiten, oben links), samt Wort „Lieferschein“"
+    seitenzahl: "Seitenzählung samt Wort: Lieferschein unten rechts „Seite 1/2“, Ladeliste oben rechts „2/6“"
   pl:
     allgemein:
       - "Każdy widoczny obiekt dostaje dokładnie jedną ramkę – niczego nie pomijać, niczego nie dublować."
@@ -240,6 +244,9 @@ label_guide:
     stempel: "cały odcisk pieczątki, ciasno wokół odcisku"
     tour_nummer: "pełny numer trasy (trasa/data/zakład), ciasno"
     cmr_count: "„CMR i/n” w całości, ciasno"
+    ta_nummer: "Dowód dostawy: „Zlecenie” i numer TA pod nim razem w jednej ramce. Lista załadunkowa: każdy numer TA osobno (jedna ramka na wiersz). CMR: wszystkie numery TA jednego bloku razem"
+    ls_nummer: "„Lieferschein XXXXXXXX” (pierwsza strona, u góry pośrodku) lub „Lieferschein (XXXXXXXX)” (kolejne strony, u góry po lewej), razem ze słowem „Lieferschein”"
+    seitenzahl: "Numeracja stron razem ze słowem: dowód dostawy u dołu po prawej „Seite 1/2”, lista załadunkowa u góry po prawej „2/6”"
 
 # make vlm-compare: prototype - imajev-4b (vision-language decision model, Apache-2.0,
 # https://huggingface.co/mohit67890/imajev-4b) vs. RF-DETR on "signature/stamp present?".

@@ -13,6 +13,29 @@ Papierstapel ──scannen──► make process ──► Prüfseite (pruefung.
                            TA-Abgleich                                        Papier-Reihenfolge
 ```
 
+## Geklärt mit dem Fachbereich (Stand 13.10.2026)
+
+Diese Punkte gelten vor der Tabelle darunter; wo sie abweicht, ist die Umsetzung noch offen
+(siehe „Geplante Änderungen“). Offene Fragen an die Kollegen: Dokument „Offene Fragen an den
+Fachbereich – Dokumentprüfung Vertrieb“.
+
+| Thema | Entscheidung |
+|---|---|
+| TA | = Auftrag, 8 Ziffern, steht auf Ladeliste, CMR und Lieferschein. Beginnt nicht immer mit 12; es gibt andere 8-stellige Nummern → TA nur aus einer `ta_nummer`-Box lesen, nie per Suche über die ganze Seite |
+| Geladene TAs | Quelle ist die **Ladeliste**. Streichungen (nicht mehr in der Tour) stehen handschriftlich auf der Ladeliste; die Person streicht diese TAs in der Anwendung und bestätigt die Liste. Gestrichene TAs werden nicht gemeldet. SAP ist keine Quelle (ohne Streichungen, nicht aktuell) |
+| TA ↔ CMR | ein CMR trägt n TAs, eine TA steht auf genau einem CMR |
+| Lieferschein | Stempel **und/oder** Unterschrift. Mehrseitig: Vorderseite oben Mitte „Lieferschein XXXXXXXX“, Folgeseiten oben links „Lieferschein (XXXXXXXX)“, unten rechts „Seite 1/2“; mehrere TAs pro Seite, TA mittig unter „Zlecenie“. Gleiche TA-Nummern = Duplikat |
+| Ladeliste | mehrseitig möglich, oben rechts „2/6“, Tournummer oben auf jeder Seite; alle Seiten nötig (sie beschreibt die Tour); kein Stempel nötig |
+| CMR | immer einseitig, gleicher Aufbau, eine Folge pro Tour, Sortierung aufsteigend nach CMR-Nummer (auch fürs Papier). Stempel **und** Unterschrift, dürfen auch außerhalb von Feld 24 stehen |
+| Ausnahmen | nur eines von Stempel/Unterschrift beim CMR oder ein fehlendes CMR: nur nach **aktiver Zustimmung mit Grund**; danach gilt die Tour in der Anwendung als abgeschlossen (kein Nachverfolgen) |
+| Fehlende Dokumente | für die Tour anzeigen; die Mail wird erst nach aktiver Bestätigung erzeugt. Senden bleibt bei den Benutzern |
+| Nachtrag | ein Ersatz-CMR kann später gescannt werden, Zuordnung über die Tournummer auf dem Dokument, muss bestätigt werden; fehlende Daten der Tour anzeigen |
+| Polilogistics | keine Mail aus der Anwendung |
+| Rollen, Audit | eine Person reicht, alle dürfen alles (die Daten bleiben im Browser des Benutzers); eingetippter Name reicht; Protokoll unbefristet aufbewahren, Ablage mit fein einstellbaren Rechten möglich; Protokoll nicht in die Archiv-Mail |
+| Mengen, Scans | ~30 Touren/Woche à 50–100 Seiten; Farbe, keine leeren Rückseiten |
+| Sprachen | Polnisch, Rumänisch, Englisch, Deutsch |
+| Nicht Teil des Projekts | Überblick über offene Touren |
+
 ## Wer macht was
 
 | Schritt im bisherigen Ablauf | Neu | Wer |
@@ -93,6 +116,49 @@ Korrekturen der Person neu und schreibt `freigabe/`:
 
 Ist `process.deliver.cmr` / `.lieferschein` gesetzt (z. B. ein Ordner auf `srem-svr-file01`),
 werden die PDFs bei vollständiger Tour dorthin kopiert.
+
+## Neue Labels (`make label-scans`)
+
+Für TA, Lieferschein-Nummer und Seitenzählung braucht der Detektor drei neue Klassen
+(`config.yaml` → `classes`, Anleitung in `label_guide`):
+
+| Klasse | Box |
+|---|---|
+| `ta_nummer` | Lieferschein: „Zlecenie“ + TA darunter in einer Box. Ladeliste: jede TA einzeln (eine Box pro Zeile – darauf streicht die Person später). CMR: alle TAs eines Blocks zusammen |
+| `ls_nummer` | „Lieferschein XXXXXXXX“ (Vorderseite, oben Mitte) bzw. „Lieferschein (XXXXXXXX)“ (Folgeseiten, oben links) |
+| `seitenzahl` | Lieferschein unten rechts „Seite 1/2“, Ladeliste oben rechts „2/6“ |
+
+Neue Scans werden lokal gelabelt (sie kommen nicht ins Repository):
+
+```
+make process SCANS=<scan.pdf>                      # einmal durch die Pipeline
+make label-scans RUN=503_01.09.2026_4000           # -> artifacts/label_scans/503_01.09.2026/
+```
+
+Der Ordner hat den Aufbau eines Label-Exports (`_annotations.coco.json`, `images/`,
+`page_types.csv`, `editor.html`/`editor_pl.html`), die Modellboxen sind als Vorschläge
+eingetragen, die Dokumenttypen kommen aus der Prüfung (falls `entscheidung.json` da ist).
+Ordner nach `labels/503_01.09.2026/` kopieren, dort im Editor die Boxen prüfen und die neuen
+Klassen ziehen (Tasten `5`–`7`, die Anleitung zur gewählten Klasse steht unter der Klassenliste),
+„COCO speichern“ nach `labels/503_01.09.2026/`, dann `make inspect split train export eval`.
+`make relabel` lässt Labels von Klassen, die das Modell noch nicht kennt, unverändert.
+
+## Geplante Änderungen an der Anwendung
+
+Aus den Antworten oben, noch nicht umgesetzt:
+
+1. TA-Nummern nur aus `ta_nummer`-Boxen (8 Ziffern), nicht mehr per Ganzseiten-OCR.
+2. Prüfseite: Ladeliste mit allen gelesenen TAs; die Person streicht TAs (Klick auf die Box)
+   und bestätigt die Liste. Abgleich: jede verbleibende TA auf genau einem CMR und auf einem
+   Lieferschein.
+3. Lieferscheine über `ls_nummer` zu Dokumenten gruppieren, Vollständigkeit über `seitenzahl`;
+   Ladeliste ebenso (alle Seiten 1..n).
+4. CMR: fehlt Stempel oder Unterschrift, bzw. fehlt ein CMR → „trotzdem akzeptieren“ mit Grund
+   (Auswahl + Freitext), im Protokoll.
+5. Fehlende Dokumente der Tour vorne anzeigen; Mail-Entwürfe erst nach aktiver Bestätigung.
+6. Nachtrag: einzelnes Ersatz-CMR scannen, über die Tournummer der Tour zuordnen, bestätigen.
+7. Oberfläche und Protokoll zusätzlich auf Rumänisch und Englisch.
+8. Protokoll pro Tour als Datei auf dem Netzlaufwerk (Browser-Variante).
 
 ## Was noch offen ist
 

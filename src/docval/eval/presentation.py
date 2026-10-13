@@ -30,7 +30,8 @@ WARN_TEXT = "#9a5b00"
 FONT = "DejaVu Sans"
 
 CLASS_DE = {"unterschrift": "Unterschrift", "stempel": "Stempel", "tour_nummer": "Tournummer",
-            "cmr_count": "CMR-Zählung"}
+            "cmr_count": "CMR-Zählung", "ta_nummer": "TA-Nummer", "ls_nummer": "Lieferschein-Nr.",
+            "seitenzahl": "Seitenzahl"}
 
 
 # ------------------------------------------------------------------ helpers

@@ -171,6 +171,16 @@ def cmd_finalize(cfg) -> int:
     return run_finalize(cfg, a["run"], a.get("decision"), bool(a.get("force")), log)
 
 
+def cmd_label_scans(cfg) -> int:
+    from .process.labels import run_label_scans
+
+    a = cfg.get("_args") or {}
+    if not a.get("run"):
+        log("FEHLER: --run <Name> angeben (Ordner unter artifacts/process/), z. B. make label-scans RUN=503_01.09.2026_4000")
+        return 2
+    return run_label_scans(cfg, a["run"], log)
+
+
 def cmd_fetch(cfg) -> int:
     from .models import fetch_all
 
@@ -180,7 +190,7 @@ def cmd_fetch(cfg) -> int:
 
 COMMANDS = {"split": cmd_split, "train": cmd_train, "train-doctype": cmd_train_doctype,
             "export": cmd_export, "eval": cmd_eval, "report": cmd_report, "review-labels": cmd_review_labels, "relabel": cmd_relabel, "compare-labels": cmd_compare_labels, "presentation": cmd_presentation, "vlm-compare": cmd_vlm_compare,
-            "process": cmd_process, "finalize": cmd_finalize, "fetch-models": cmd_fetch}
+            "process": cmd_process, "finalize": cmd_finalize, "label-scans": cmd_label_scans, "fetch-models": cmd_fetch}
 
 
 def main(argv=None) -> int:
@@ -194,7 +204,7 @@ def main(argv=None) -> int:
     ap.add_argument("--views", default=None, help="vlm-compare: comma-separated views, e.g. unten")
     ap.add_argument("--input", default=None, help="process: scanned PDF, image or folder of one tour")
     ap.add_argument("--tour", default=None, help="process: tour number, e.g. 503/01.09.2026/4000 or 503_01.09.2026")
-    ap.add_argument("--run", default=None, help="process: output name; finalize: folder under artifacts/process/")
+    ap.add_argument("--run", default=None, help="process: output name; finalize/label-scans: folder under artifacts/process/")
     ap.add_argument("--decision", default=None, help="finalize: decision file (default: <run>/entscheidung.json)")
     ap.add_argument("--force", action="store_true", help="finalize: also with unconfirmed pages / incomplete tour")
     args = ap.parse_args(argv)

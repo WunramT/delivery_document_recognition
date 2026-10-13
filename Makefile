@@ -5,7 +5,7 @@ SMOKE_CONFIG := configs/smoke.yaml
 export PYTHONPATH := $(CURDIR)/src
 DOCVAL := $(PY) -m docval --config
 
-.PHONY: process finalize create_pdf help inspect split train export eval report review-labels relabel compare compare-labels vlm-compare test smoke fetch-models all clean-smoke gpu-check
+.PHONY: process finalize label-scans create_pdf help inspect split train export eval report review-labels relabel compare compare-labels vlm-compare test smoke fetch-models all clean-smoke gpu-check
 
 help:
 	@echo "inspect  Schritt 0: Datensatz analysieren, Label-Vorlagen + Review-Seite"
@@ -21,6 +21,7 @@ help:
 	@echo "compare-labels  alte vs. neue Labels einer Tour als HTML: make compare-labels EXPORT=425_21.09.2026 [OLD=datei]"
 	@echo "vlm-compare  Prototyp: imajev-4b vs. RF-DETR (Unterschrift/Stempel), Server siehe docs/VLM_VERGLEICH.md [LIMIT=10] [VIEWS=unten]"
 	@echo "process  eine gescannte Tour: make process SCANS=<pdf|ordner> [TOUR=503_01.09.2026] -> Prüfseite"
+	@echo "label-scans  gescannte Tour als Label-Export mit Editor (neue Klassen labeln): make label-scans RUN=<name>"
 	@echo "finalize nach der Prüfung: make finalize RUN=<name> [DECISION=datei] [FORCE=1] -> PDFs, Mails, Protokoll"
 	@echo "test     Unit-Tests"
 	@echo "smoke    ganze Pipeline auf synthetischer Mini-Teilmenge (CPU, < 5 min)"
@@ -81,6 +82,9 @@ process:
 
 finalize:
 	$(DOCVAL) $(CONFIG) finalize --run "$(RUN)" $(if $(DECISION),--decision "$(DECISION)",) $(if $(FORCE),--force,)
+
+label-scans:
+	$(DOCVAL) $(CONFIG) label-scans --run "$(RUN)"
 
 fetch-models:
 	$(DOCVAL) $(CONFIG) fetch-models

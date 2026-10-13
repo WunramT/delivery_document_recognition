@@ -87,6 +87,7 @@ Ohne `make` (Windows, PowerShell): `$env:PYTHONPATH="src"`, dann `python -m docv
 | `make review-labels` | Label-Prüfung: Detektor vs. Labels auf allen Splits, `cmr_count`-Stapel je Tour → `artifacts/label_review/` (`REVIEW_SPLIT=test` für nur einen Split) |
 | `make vlm-compare` | Prototyp: imajev-4b (Vision-Language-Modell) vs. RF-DETR bei Unterschrift/Stempel auf denselben Testseiten → `artifacts/vlm_compare/report.md`; Server-Setup: `docs/VLM_VERGLEICH.md` (`LIMIT=10` für einen ersten Versuch) |
 | `make process` | **Produktion:** eine gescannte Tour (`SCANS=<pdf\|ordner>`, optional `TOUR=503_01.09.2026`) → organisatorische Prüfung automatisch + Prüfseite `artifacts/process/<Tour>/pruefung.html`, auf der eine Person jede Unterschrift/jeden Stempel bestätigt – siehe [`docs/PROZESS.md`](docs/PROZESS.md) |
+| `make label-scans` | gescannte Tour (nach `make process`) als Label-Export mit Editor: `RUN=<Tour>` → `artifacts/label_scans/<Tour>_<Datum>/`, Modellboxen als Vorschläge, neue Klassen (`ta_nummer`, `ls_nummer`, `seitenzahl`) labeln |
 | `make finalize` | nach der Prüfung: `RUN=<Tour>` → sortierte PDFs (CMR 1..n, Lieferscheine), Mail-Entwürfe, Protokoll mit „Zu tun“ |
 | `make test` | pytest-Unit-Tests |
 | `make smoke` | ganze Pipeline auf 12 synthetischen Seiten, 1 Epoche, CPU (~1 min, Grenze 5 min) – prüft, ob die Umgebung intakt ist |
@@ -229,7 +230,7 @@ Befehlen auf Polnisch: [`docs/INSTRUKCJA_PL.md`](docs/INSTRUKCJA_PL.md). Sprache
 (Filter „mit Modell-Vorschlägen“ / „ungeprüft“), in der Mitte die Seite mit allen Boxen:
 
 - Box anklicken und verschieben, Ecken/Kanten ziehen = Größe, auf freier Fläche aufziehen = neue Box
-- `1`–`4` Klasse wählen bzw. die markierte Box umstellen, `Entf` löschen, `Strg+Z` rückgängig
+- `1`–`7` Klasse wählen bzw. die markierte Box umstellen (die Label-Anleitung zur gewählten Klasse steht darunter), `Entf` löschen, `Strg+Z` rückgängig
 - Pfeiltasten verschieben (Shift = 10 px, Alt = Größe), `A`/`D` Seite zurück/vor, `Enter` = geprüft + weiter
 - `O` blendet die alten Labels grau ein, `+`/`-`/`0` Zoom; Dokumenttyp oben pro Seite änderbar
 - gestrichelt = Vorschlag des Modells, noch nicht angefasst

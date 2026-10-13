@@ -14,7 +14,9 @@ NOT_REQUIRED = "nicht_gefordert"
 
 # display name and negation article for the reason texts
 DISPLAY = {"unterschrift": ("Unterschrift", "keine"), "stempel": ("Stempel", "kein"),
-           "tour_nummer": ("Tournummer", "keine"), "cmr_count": ("CMR-Zählung", "keine")}
+           "tour_nummer": ("Tournummer", "keine"), "cmr_count": ("CMR-Zählung", "keine"),
+           "ta_nummer": ("TA-Nummer", "keine"), "ls_nummer": ("Lieferschein-Nr.", "keine"),
+           "seitenzahl": ("Seitenzahl", "keine")}
 
 
 def _name(cls: str) -> str:

@@ -59,7 +59,7 @@ def editor_data(export: str, coco: dict, coco_name: str, meta: dict, classes: li
             "doc_types": doc_types, "coco": base, "other_annotations": other, "pages": pages, "csv": csv}
 
 
-def write_editor(out_dir: Path, data: dict, lang: str = "de") -> Path:
+def write_editor(out_dir: Path, data: dict, lang: str = "de", guide: dict | None = None) -> Path:
     import html as _html
 
     from .i18n import CLASS_NAMES, DOC_TYPE_NAMES, EDITOR, SUFFIX
@@ -67,7 +67,8 @@ def write_editor(out_dir: Path, data: dict, lang: str = "de") -> Path:
     t = EDITOR[lang]
     blob = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     js_t = {k: v for k, v in t.items() if k not in ("help", "note")}
-    js_t.update(cls=CLASS_NAMES[lang], dt=DOC_TYPE_NAMES[lang])
+    js_t.update(cls=CLASS_NAMES[lang], dt=DOC_TYPE_NAMES[lang],
+                guide={c: v for c, v in (guide or {}).items() if isinstance(v, str)})
     fill = {**{k: _html.escape(str(v)) for k, v in t.items() if isinstance(v, str)},
             "help": "".join(f"<tr><td>{a}</td><td>{b}</td></tr>" for a, b in t["help"]),
             "note": t["note"].replace("{export}", _html.escape(data["export"]))}
@@ -139,7 +140,7 @@ table.help td{padding:1px 4px;vertical-align:top}
   <div id="stage"><div id="wrap"><img id="img" alt=""><svg id="svg"></svg></div></div>
   <section id="side">
     <div id="pageinfo" class="muted"></div>
-    <h2>{{h_class}}</h2><div id="classes"></div>
+    <h2>{{h_class}}</h2><div id="classes"></div><div id="guide" class="muted" style="margin:6px 0 0"></div>
     <h2>{{h_sel}}</h2><div id="selinfo" class="muted">{{sel_none}}</div>
     <h2>{{h_changes}}</h2><ul id="changes" style="padding-left:18px;margin:0"></ul>
     <h2>{{h_help}}</h2>
@@ -315,6 +316,7 @@ function renderSide() {
     d.onclick = () => setClass(c);
     C.appendChild(d);
   });
+  $("guide").textContent = (T.guide && T.guide[curCls]) || "";
   const s = ps(), b = s.boxes[sel];
   $("selinfo").textContent = b ? cname(b.cls) + " · " + (T.src[b.source] || b.source)
     + " · " + Math.round(b.x2 - b.x1) + "×" + Math.round(b.y2 - b.y1) + " px" : T.sel_none;

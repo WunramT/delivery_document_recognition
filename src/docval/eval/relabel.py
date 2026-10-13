@@ -30,7 +30,7 @@ from ..data.dataset import load_pages
 from ..data.labels import short_name
 from ..detect.onnx_detector import OnnxDetector, iou
 from ..models import setup_cache
-from .i18n import languages
+from .i18n import guide, languages
 from .label_editor import editor_data, write_editor
 from .label_review import classify_page, thresholds
 from .metrics import match
@@ -153,6 +153,9 @@ def run_relabel(cfg, log) -> int:
         gts = {c: [b.norm(W, H) for b in p.boxes_of(c)] for c in classes}
         boxes, changes = propose(gts, preds, thr, iou_m, pol)
         boxes += [{"cls": c, "box": b, "source": "label", "score": None} for c, b in masked_out]
+        # classes the model does not know yet (newly added to config.classes): labels stay as they are
+        boxes += [{"cls": b.cls, "box": b.norm(W, H), "source": "label", "score": None}
+                  for b in p.boxes if b.cls not in classes]
         E["pages"][orig_id] = boxes
         E["meta"][orig_id]["changes"] = [{"action": ch["action"], "cls": ch["cls"], "score": ch["score"]}
                                          for ch in changes]
@@ -174,7 +177,7 @@ def run_relabel(cfg, log) -> int:
         data = editor_data(exp, coco, coco_name, E["meta"], cfg["classes"], cfg["doc_types"],
                            E["dir"] / "page_types.csv")
         for lang in languages(cfg):
-            editors.append(write_editor(out / exp, data, lang))
+            editors.append(write_editor(out / exp, data, lang, guide(cfg, lang)))
         if pol["zip"]:
             shutil.make_archive(str(out / exp), "zip", root_dir=out / exp)
     write_changes(out, all_changes)
