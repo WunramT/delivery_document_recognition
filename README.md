@@ -86,6 +86,8 @@ Ohne `make` (Windows, PowerShell): `$env:PYTHONPATH="src"`, dann `python -m docv
 | `make relabel` | Vorlabels: bisherige Labels + Modellergebnisse je Export als COCO mit Bildern (+ zip) → `artifacts/relabel/` |
 | `make review-labels` | Label-Prüfung: Detektor vs. Labels auf allen Splits, `cmr_count`-Stapel je Tour → `artifacts/label_review/` (`REVIEW_SPLIT=test` für nur einen Split) |
 | `make vlm-compare` | Prototyp: imajev-4b (Vision-Language-Modell) vs. RF-DETR bei Unterschrift/Stempel auf denselben Testseiten → `artifacts/vlm_compare/report.md`; Server-Setup: `docs/VLM_VERGLEICH.md` (`LIMIT=10` für einen ersten Versuch) |
+| `make process` | **Produktion:** eine gescannte Tour (`SCANS=<pdf\|ordner>`, optional `TOUR=503_01.09.2026`) → organisatorische Prüfung automatisch + Prüfseite `artifacts/process/<Tour>/pruefung.html`, auf der eine Person jede Unterschrift/jeden Stempel bestätigt – siehe [`docs/PROZESS.md`](docs/PROZESS.md) |
+| `make finalize` | nach der Prüfung: `RUN=<Tour>` → sortierte PDFs (CMR 1..n, Lieferscheine), Mail-Entwürfe, Protokoll mit „Zu tun“ |
 | `make test` | pytest-Unit-Tests |
 | `make smoke` | ganze Pipeline auf 12 synthetischen Seiten, 1 Epoche, CPU (~1 min, Grenze 5 min) – prüft, ob die Umgebung intakt ist |
 | `make fetch-models` | alle Gewichte in den Cache (einmalig, online) |
@@ -290,6 +292,16 @@ Die hohe Schwelle liegt je Klasse knapp über dem höchsten Score einer echten F
 jede Überlappung mit einem Label) auf dem valid-Split; dazwischen entscheidet eine Person. Der
 Report zeigt beide Betriebspunkte in Abschnitt 3.
 
+## Produktion: eine Tour prüfen (`make process`, `make finalize`)
+
+Der Soll-Prozess im Vertrieb steht in [`docs/PROZESS.md`](docs/PROZESS.md): Den unsortierten
+Stapel einmal scannen, `make process SCANS=...` erkennt Dokumenttyp, Tournummer, CMR-Zählung,
+Duplikate und Vollständigkeit automatisch und schreibt eine Prüfseite (Deutsch/Polnisch), auf
+der eine Person je CMR/Lieferschein Stempel und Unterschrift bestätigt oder korrigiert – ihre
+Entscheidung gilt. `make finalize RUN=<Tour>` erzeugt daraus die sortierten PDFs, Mail-Entwürfe
+an `leopol-cmr@`/`leopol-ls@` und das Protokoll. Einstellungen: `process:` in `config.yaml`.
+Der TA-Abgleich mit der Ladeliste ist noch nicht validiert und erscheint nur als Hinweis.
+
 ## Report lesen (`artifacts/report/report.html`)
 
 1. **Gesamtergebnis und Fazit** – was funktioniert, was verfehlt ist, wo der größte Hebel liegt.
@@ -328,6 +340,7 @@ src/docval/doctype   Keyword-Regeln + Kombination, Klassifikator (ONNX)
 src/docval/zones     Zonen ableiten, Positionsprüfung, synthetische Negative
 src/docval/ocr       PP-OCR ONNX (Det + Rec), Tournummer-Korrektur, CMR-Zählung
 src/docval/eval      Metriken, Evaluation, Report
+src/docval/process   Produktion: eine Tour (run), Organisatorisches (organize), Prüfseite (review), Abschluss (finalize)
 scripts/             inspect_dataset.py, make_smoke_dataset.py, fetch_models.py
 labels/              page_types.csv, tour_numbers.csv, tour_review.html
 tests/               pytest

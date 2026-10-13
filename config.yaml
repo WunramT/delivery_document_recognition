@@ -268,6 +268,47 @@ vlm_compare:
     unterschrift: "The image contains at least one handwritten signature (pen ink written by hand, not printed text)."
     stempel: "The image contains at least one stamp impression (an inked rubber-stamp mark, usually a company name and address in a box or circle)."
 
+# make process / make finalize: one scanned tour in production (docs/PROZESS.md).
+# Organisational checks run automatically; every signature/stamp result is confirmed or
+# corrected by a person on the review page (artifacts/process/<tour>/pruefung.html).
+process:
+  dpi: 150                   # PDF rendering, same as the label exports
+  # thresholds from the last make eval: aktuell (recall-weighted) | hoch (fewer wrong "ok").
+  # The person decides every page anyway; the threshold only sets the pre-selection.
+  operating_point: aktuell
+  # replaces zones.rules per doc type for the review proposal (CMR stays as in zones.rules)
+  rules:
+    # a Lieferschein is valid with a stamp, a signature or both (customers without stamp)
+    lieferschein: {require: [unterschrift, stempel], mode: any}
+  zone_overrides:            # Lieferschein: stamp/signature anywhere on the page
+    lieferschein:
+      unterschrift: {x1: 0.0, y1: 0.0, x2: 1.0, y2: 1.0}
+      stempel: {x1: 0.0, y1: 0.0, x2: 1.0, y2: 1.0}
+  # part of the page a review card shows (plus every detected signature/stamp)
+  view:
+    cmr: [0.0, 0.55, 1.0, 1.0]
+    lieferschein: [0.0, 0.40, 1.0, 1.0]
+  # TA numbers: full-page OCR of loading list, CMR and Lieferschein. Loading list -> loaded TA,
+  # a row with a "not shipped" note is excluded; every loaded TA needs a CMR and a Lieferschein,
+  # Lieferscheine with the same TA are duplicates. Not validated on real data yet ->
+  # validated: false shows the results as hints only (no error). Handwritten notes and
+  # crossed-out rows are not recognized reliably.
+  ta:
+    enabled: true
+    regex: '(?<!\d)12\d{6}(?!\d)'   # e.g. 12283251
+    not_shipped: [nie jedzie, niejedzie, nicht verladen, not shipped]
+    det_limit_side_len: 1600
+    validated: false
+  # e-mail drafts (.eml, open in Outlook and send) created by make finalize
+  mail:
+    cmr: leopol-cmr@polipol.de
+    lieferschein: leopol-ls@polipol.de
+  # make finalize copies the PDFs here when the tour is complete (null = do not copy),
+  # e.g. //srem-svr-file01/<share>/CMR
+  deliver:
+    cmr: null
+    lieferschein: null
+
 # make create_pdf: example slides with one real CMR test page through every step
 presentation:
   examples: true

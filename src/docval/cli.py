@@ -151,6 +151,26 @@ def cmd_vlm_compare(cfg) -> int:
     return run_vlm_compare(cfg, log)
 
 
+def cmd_process(cfg) -> int:
+    from .process.run import run_process
+
+    a = cfg.get("_args") or {}
+    if not a.get("input"):
+        log("FEHLER: --input <PDF oder Ordner> angeben, z. B. make process SCANS=scans/503_01.09.2026.pdf")
+        return 2
+    return run_process(cfg, a["input"], a.get("tour"), a.get("run"), log)
+
+
+def cmd_finalize(cfg) -> int:
+    from .process.finalize import run_finalize
+
+    a = cfg.get("_args") or {}
+    if not a.get("run"):
+        log("FEHLER: --run <Name> angeben (Ordner unter artifacts/process/), z. B. make finalize RUN=503_01.09.2026_4000")
+        return 2
+    return run_finalize(cfg, a["run"], a.get("decision"), bool(a.get("force")), log)
+
+
 def cmd_fetch(cfg) -> int:
     from .models import fetch_all
 
@@ -160,7 +180,7 @@ def cmd_fetch(cfg) -> int:
 
 COMMANDS = {"split": cmd_split, "train": cmd_train, "train-doctype": cmd_train_doctype,
             "export": cmd_export, "eval": cmd_eval, "report": cmd_report, "review-labels": cmd_review_labels, "relabel": cmd_relabel, "compare-labels": cmd_compare_labels, "presentation": cmd_presentation, "vlm-compare": cmd_vlm_compare,
-            "fetch-models": cmd_fetch}
+            "process": cmd_process, "finalize": cmd_finalize, "fetch-models": cmd_fetch}
 
 
 def main(argv=None) -> int:
@@ -172,6 +192,11 @@ def main(argv=None) -> int:
     ap.add_argument("--old", default=None, help="compare-labels: old COCO file (default: backup or editor state)")
     ap.add_argument("--limit", type=int, default=None, help="vlm-compare: only the first N pages")
     ap.add_argument("--views", default=None, help="vlm-compare: comma-separated views, e.g. unten")
+    ap.add_argument("--input", default=None, help="process: scanned PDF, image or folder of one tour")
+    ap.add_argument("--tour", default=None, help="process: tour number, e.g. 503/01.09.2026/4000 or 503_01.09.2026")
+    ap.add_argument("--run", default=None, help="process: output name; finalize: folder under artifacts/process/")
+    ap.add_argument("--decision", default=None, help="finalize: decision file (default: <run>/entscheidung.json)")
+    ap.add_argument("--force", action="store_true", help="finalize: also with unconfirmed pages / incomplete tour")
     args = ap.parse_args(argv)
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -181,7 +206,9 @@ def main(argv=None) -> int:
     cfg = load_config(args.config)
     from .data.exports import apply_exports
     cfg = apply_exports(cfg, log)
-    cfg["_args"] = {"export": args.export, "old": args.old, "limit": args.limit, "views": args.views}
+    cfg["_args"] = {"export": args.export, "old": args.old, "limit": args.limit, "views": args.views,
+                    "input": args.input, "tour": args.tour, "run": args.run, "decision": args.decision,
+                    "force": args.force}
     if args.split:
         cfg.setdefault("eval", {})["split"] = args.split
     if args.command != "fetch-models" and not os.environ.get("DOCVAL_ONLINE"):

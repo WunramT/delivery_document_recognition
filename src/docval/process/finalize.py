@@ -1,0 +1,327 @@
+"""`make finalize RUN=<name>`: the person's decision -> archive files of the tour.
+
+Reads artifacts/process/<name>/ergebnis.json + entscheidung.json (saved from the review
+page), applies the decision (signature/stamp, archive flags, doc type, CMR i/n, tour
+number), runs the organisational checks again and writes freigabe/:
+
+    CMR_<tour>.pdf        CMR sorted 1..n, duplicates removed
+    LS_<tour>.pdf         Lieferscheine
+    andere_touren/        pages of another tour (additional load), one PDF per tour + type
+    CMR_<tour>.eml        e-mail drafts with the PDF attached (open in Outlook, send)
+    LS_<tour>.eml
+    protokoll_de.txt / protokoll_pl.txt / protokoll.csv
+                          result, what is still to do, paper sort order, model vs. person
+
+Refuses to run while CMR/Lieferscheine are unconfirmed (FORCE=1 overrides). Copies the PDFs
+into process.deliver.* only when the tour is complete (or with FORCE=1).
+"""
+
+from __future__ import annotations
+
+import copy
+import csv
+import json
+import shutil
+from email.message import EmailMessage
+from pathlib import Path
+
+from PIL import Image
+
+from ..config import artifacts, resolve
+from ..zones.synthetic import to_rgb
+from .organize import ERROR, REVIEW_TYPES, organize, page_valid
+from .run import safe_name
+from .texts import MSG, pages_text, render_check
+
+OBJ = ("unterschrift", "stempel")
+
+PROTO = {
+    "de": {
+        "title": "Prüfprotokoll Tour {tour}",
+        "scan": "Scan: {input} – {n} Seiten, verarbeitet {created}",
+        "reviewer": "Geprüft von: {reviewer} ({saved})",
+        "complete": "ERGEBNIS: VOLLSTÄNDIG – Papier kann ins Dokumentenarchiv.",
+        "open": "ERGEBNIS: OFFEN – Papier noch nicht ins Archiv, siehe „Zu tun“.",
+        "forced": "ACHTUNG: mit FORCE=1 abgeschlossen, obwohl {n} Seiten nicht bestätigt waren: {pages}",
+        "h_org": "Organisatorisch",
+        "h_sig": "Unterschrift / Stempel (Entscheidung der prüfenden Person)",
+        "sig_line": "{type}: {valid} gültig, {invalid} ungültig",
+        "invalid_item": "{page} {title}: {missing}",
+        "missing_cls": "{cls} fehlt",
+        "differs": "Abweichung vom Modellvorschlag: {pages}",
+        "differs_none": "Entscheidung stimmt auf allen Seiten mit dem Modellvorschlag überein",
+        "h_todo": "Zu tun",
+        "todo_cmr_missing": "CMR Nr. {missing} von {total} fehlt – an Polilogistics melden, Ersatz-CMR besorgen",
+        "todo_invalid": "{page} {title}: {missing} – Ersatzdokument besorgen",
+        "todo_other": "{page} gehört zu Tour {tour} – zu dieser Tour legen",
+        "todo_send": "Senden: {file} an {to} (Entwurf {eml}) und ins digitale Archiv ({archive})",
+        "todo_paper": "Papier ins Dokumentenarchiv (Reihenfolge unten)",
+        "todo_paper_wait": "Papier erst ins Archiv, wenn die offenen Punkte erledigt sind",
+        "todo_sap": "Am nächsten Tag: SAP-Transaktion ZCHECKLSARCHIV, Tour {tour}{tas} – Meldung „alles archiviert“ prüfen",
+        "tas": ", TA {tas}",
+        "h_paper": "Reihenfolge Papier",
+        "paper_cmr": "CMR (1..n): {pages}",
+        "paper_ls": "Lieferscheine: {pages}",
+        "paper_drop": "Nicht archivieren (Duplikat/aussortiert): {pages}",
+        "h_files": "Dateien",
+        "archive_dir": "srem-svr-file01",
+        "delivered": "kopiert nach {dir}",
+        "not_delivered": "nicht ins Archiv kopiert (Tour nicht vollständig, FORCE=1 erzwingt es)",
+    },
+    "pl": {
+        "title": "Protokół kontroli trasy {tour}",
+        "scan": "Skan: {input} – stron: {n}, przetworzono {created}",
+        "reviewer": "Sprawdził(a): {reviewer} ({saved})",
+        "complete": "WYNIK: KOMPLETNE – papier może trafić do archiwum dokumentów.",
+        "open": "WYNIK: OTWARTE – papieru jeszcze nie archiwizować, patrz „Do zrobienia”.",
+        "forced": "UWAGA: zamknięto z FORCE=1, mimo że stron niepotwierdzonych było {n}: {pages}",
+        "h_org": "Organizacja",
+        "h_sig": "Podpis / pieczątka (decyzja osoby sprawdzającej)",
+        "sig_line": "{type}: ważne {valid}, nieważne {invalid}",
+        "invalid_item": "{page} {title}: {missing}",
+        "missing_cls": "brak: {cls}",
+        "differs": "Inna decyzja niż propozycja modelu: {pages}",
+        "differs_none": "Decyzja zgodna z propozycją modelu na wszystkich stronach",
+        "h_todo": "Do zrobienia",
+        "todo_cmr_missing": "Brak CMR nr {missing} z {total} – zgłosić do Polilogistics, załatwić zastępczy CMR",
+        "todo_invalid": "{page} {title}: {missing} – załatwić dokument zastępczy",
+        "todo_other": "{page} należy do trasy {tour} – dołączyć do tej trasy",
+        "todo_send": "Wysłać: {file} na {to} (szkic {eml}) i do archiwum cyfrowego ({archive})",
+        "todo_paper": "Papier do archiwum dokumentów (kolejność poniżej)",
+        "todo_paper_wait": "Papier do archiwum dopiero po załatwieniu otwartych punktów",
+        "todo_sap": "Następnego dnia: transakcja SAP ZCHECKLSARCHIV, trasa {tour}{tas} – sprawdzić komunikat "
+                    "„wszystko zarchiwizowane”",
+        "tas": ", TA {tas}",
+        "h_paper": "Kolejność papieru",
+        "paper_cmr": "CMR (1..n): {pages}",
+        "paper_ls": "Dowody dostawy: {pages}",
+        "paper_drop": "Nie archiwizować (duplikat/odłożone): {pages}",
+        "h_files": "Pliki",
+        "archive_dir": "srem-svr-file01",
+        "delivered": "skopiowano do {dir}",
+        "not_delivered": "nie skopiowano do archiwum (trasa niekompletna, FORCE=1 wymusza)",
+    },
+}
+TYPE_NAMES = {"de": {"cmr": "CMR", "lieferschein": "Lieferscheine"},
+              "pl": {"cmr": "CMR", "lieferschein": "Dowody dostawy"}}
+SINGULAR = {"de": {"lieferschein": "Lieferschein"}, "pl": {"lieferschein": "dowód dostawy"}}
+CLS_NAMES = {"de": {"unterschrift": "Unterschrift", "stempel": "Stempel"},
+             "pl": {"unterschrift": "podpis", "stempel": "pieczątka"}}
+
+
+def apply_decision(pages: list[dict], decision: dict) -> list[dict]:
+    """Page records with the person's decision applied (copies; ergebnis.json stays as is)."""
+    out = []
+    dpages = decision.get("pages") or {}
+    for p in pages:
+        q = copy.deepcopy(p)
+        d = dpages.get(str(p["n"])) or {}
+        if d.get("doc_type"):
+            q["doc_type"] = d["doc_type"]
+        q["proposal"] = (q.get("proposals") or {}).get(q["doc_type"], {}).get("classes", {})
+        if d.get("archive_set", "archive" in d and not d["archive"]):
+            q["archive"] = bool(d.get("archive", True))   # else organize() picks among duplicates
+        q["confirmed"] = bool(d.get("confirmed"))
+        q["decision"] = {c: bool(d[c]) for c in OBJ if d.get(c) is not None}
+        if d.get("cmr_count"):
+            q["cmr_count"] = dict(q.get("cmr_count") or {}, parsed=[int(x) for x in d["cmr_count"]])
+        if d.get("tour"):
+            q["tour"] = dict(q.get("tour") or {}, text=d["tour"], accepted=True, manual=True)
+        out.append(q)
+    return out
+
+
+def card_title(p: dict, lang: str) -> str:
+    if p["doc_type"] == "cmr":
+        c = (p.get("cmr_count") or {}).get("parsed")
+        return MSG[lang]["cmr_of"].format(i=c[0], n=c[1]) if c else "CMR ?"
+    return SINGULAR[lang].get(p["doc_type"], p["doc_type"])
+
+
+def missing_text(p: dict, rule: dict, lang: str) -> str:
+    miss = [c for c in rule.get("require") or [] if (p.get("decision") or {}).get(c) is False]
+    return ", ".join(PROTO[lang]["missing_cls"].format(cls=CLS_NAMES[lang].get(c, c)) for c in miss)
+
+
+def write_pdf(images: list[Path], path: Path, dpi: int) -> None:
+    ims = [to_rgb(Image.open(p)) for p in images]
+    ims[0].save(path, save_all=True, append_images=ims[1:], resolution=float(dpi))
+
+
+def write_eml(path: Path, to: str, subject: str, body: str, attachment: Path) -> None:
+    """Unsent e-mail draft (X-Unsent: 1): Outlook opens it ready to send."""
+    msg = EmailMessage()
+    msg["To"] = to
+    msg["Subject"] = subject
+    msg["X-Unsent"] = "1"
+    msg.set_content(body)
+    msg.add_attachment(attachment.read_bytes(), maintype="application", subtype="pdf", filename=attachment.name)
+    path.write_bytes(bytes(msg))
+
+
+def run_finalize(cfg, run: str, decision_path: str | None, force: bool, log) -> int:
+    base = artifacts(cfg, "process", run)
+    res_path = base / "ergebnis.json"
+    if not res_path.is_file():
+        log(f"FEHLER: {res_path} fehlt - zuerst `make process`")
+        return 2
+    dec_path = resolve(decision_path) if decision_path else base / "entscheidung.json"
+    if not dec_path.is_file():
+        log(f"FEHLER: {dec_path} fehlt - auf der Prüfseite „Entscheidung speichern“ und die Datei dort ablegen")
+        return 2
+    R = json.loads(res_path.read_text(encoding="utf-8"))
+    dec = json.loads(dec_path.read_text(encoding="utf-8"))
+    if dec.get("format") != "docval-entscheidung":
+        log(f"FEHLER: {dec_path} ist keine Entscheidungsdatei der Prüfseite")
+        return 2
+    if dec.get("ergebnis_created") != R["created"] and not force:
+        log(f"FEHLER: Entscheidung gehört zu einem anderen Lauf ({dec.get('ergebnis_created')} statt "
+            f"{R['created']}) - Prüfseite dieses Laufs verwenden (FORCE=1 erzwingt)")
+        return 2
+    pcfg = cfg["process"]
+    pages = apply_decision(R["pages"], dec)
+    by_n = {p["n"]: p for p in pages}
+    rules = R["rules"]
+    tour = R["tour"]
+    org = organize(pages, tour, rules, bool(R.get("ta_validated")))
+    archived = org["cmr_order"] + org["ls_order"] + [n for n in org["other_tour"] if by_n[n].get("archive", True)]
+    open_pages = sorted(n for n in archived if not by_n[n]["confirmed"])
+    if open_pages and not force:
+        log(f"FEHLER: {len(open_pages)} Seiten nicht bestätigt (S. {', '.join(map(str, open_pages))}) - "
+            "auf der Prüfseite bestätigen und neu speichern (FORCE=1 schließt trotzdem ab)")
+        return 2
+    invalid = [n for n in archived if page_valid(by_n[n], rules.get(by_n[n]["doc_type"]) or {}) is not True]
+    # the person contradicts a definite model proposal (ja/nein; "unsicher" is no contradiction)
+    differs = [p["n"] for p in pages if p["n"] in archived and any(
+        c in p["decision"] and p["proposal"].get(c) in ("ja", "nein")
+        and (p["proposal"][c] == "ja") != p["decision"][c] for c in OBJ)]
+    complete = org["complete"] and not invalid
+
+    # ---------------------------------------------------------------- files
+    out = base / "freigabe"
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True)
+    dpi = R.get("dpi", 150)
+    tname = safe_name(tour or run)
+    files = {}
+    for kind, order in (("cmr", org["cmr_order"]), ("lieferschein", org["ls_order"])):
+        if order:
+            f = out / f"{'CMR' if kind == 'cmr' else 'LS'}_{tname}.pdf"
+            write_pdf([base / by_n[n]["image"] for n in order], f, dpi)
+            files[kind] = f
+    other: dict[tuple, list[int]] = {}
+    for n, t in org["other_tour"].items():
+        if by_n[n].get("archive", True):
+            other.setdefault((t, by_n[n]["doc_type"]), []).append(n)
+    for (t, kind), ns in sorted(other.items()):
+        d = out / "andere_touren"
+        d.mkdir(exist_ok=True)
+        write_pdf([base / by_n[n]["image"] for n in ns], d / f"{'CMR' if kind == 'cmr' else 'LS'}_{safe_name(t)}.pdf", dpi)
+    mails = pcfg.get("mail") or {}
+    emls = {}
+    for kind, f in files.items():
+        to = mails.get(kind)
+        if to:
+            label = "CMR" if kind == "cmr" else "Lieferscheine"
+            emls[kind] = out / f.with_suffix(".eml").name
+            write_eml(emls[kind], to, f"{label} Tour {tour or run}", f"Tour {tour or run}\n{f.name}\n", f)
+    delivered = {}
+    deliver = pcfg.get("deliver") or {}
+    if complete or force:
+        for kind, f in files.items():
+            d = deliver.get(kind)
+            if d:
+                dd = resolve(d)
+                dd.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, dd / f.name)
+                delivered[kind] = str(dd)
+
+    # ---------------------------------------------------------------- protocol
+    ta_list = (org.get("ta") or {}).get("loaded") or []
+    for lang in cfg.get("ui_languages") or ["de"]:
+        t = PROTO[lang]
+        pg = lambda n: MSG[lang]["page"].format(n=n)  # noqa: E731
+        pgs = lambda ns: pages_text(list(ns), lang) if ns else "–"  # noqa: E731
+        L = [t["title"].format(tour=tour or "?"), "",
+             t["scan"].format(input=R["input"], n=len(pages), created=R["created"]),
+             t["reviewer"].format(reviewer=dec.get("reviewer") or "?", saved=dec.get("saved") or "?"), "",
+             t["complete"] if complete else t["open"]]
+        if open_pages:
+            L.append(t["forced"].format(n=len(open_pages), pages=pgs(open_pages)))
+        L += ["", t["h_org"]]
+        ic = {"ok": "✓", "fehler": "✗", "hinweis": "!"}
+        L += [f"  {ic[c['level']]} {render_check(c, lang)}" for c in org["checks"]]
+        L += ["", t["h_sig"]]
+        for kind, order in (("cmr", org["cmr_order"]), ("lieferschein", org["ls_order"])):
+            if not order:
+                continue
+            bad = [n for n in order if n in invalid]
+            L.append("  " + t["sig_line"].format(type=TYPE_NAMES[lang][kind], valid=len(order) - len(bad),
+                                                 invalid=len(bad)))
+            for n in bad:
+                p = by_n[n]
+                L.append("    - " + t["invalid_item"].format(page=pg(n), title=card_title(p, lang),
+                                                             missing=missing_text(p, rules[p["doc_type"]], lang)))
+        L.append("  " + (t["differs"].format(pages=pgs(differs)) if differs else t["differs_none"]))
+        L += ["", t["h_todo"]]
+        todo = []
+        if org["missing_cmr"]:
+            todo.append(t["todo_cmr_missing"].format(missing=", ".join(map(str, org["missing_cmr"])),
+                                                     total=org["cmr_total"]))
+        for n in invalid:
+            p = by_n[n]
+            todo.append(t["todo_invalid"].format(page=pg(n), title=card_title(p, lang),
+                                                 missing=missing_text(p, rules[p["doc_type"]], lang)))
+        for n, tr in org["other_tour"].items():
+            todo.append(t["todo_other"].format(page=pg(n), tour=tr))
+        todo += [render_check(c, lang) for c in org["checks"]
+                 if c["level"] == ERROR and c["code"] not in ("cmr_missing",)]
+        for kind, f in files.items():
+            todo.append(t["todo_send"].format(file=f.name, to=mails.get(kind, "?"),
+                                              eml=emls[kind].name if kind in emls else "–",
+                                              archive=delivered.get(kind) or t["archive_dir"]))
+        todo.append(t["todo_paper"] if complete else t["todo_paper_wait"])
+        todo.append(t["todo_sap"].format(tour=tour or "?", tas=t["tas"].format(tas=", ".join(ta_list)) if ta_list else ""))
+        L += [f"  {k + 1}. {x}" for k, x in enumerate(todo)]
+        L += ["", t["h_paper"], "  " + t["paper_cmr"].format(pages=pgs(org["cmr_order"])),
+              "  " + t["paper_ls"].format(pages=pgs(org["ls_order"]))]
+        drop = sorted(set(org["duplicates"]) | set(org["not_archived"]))
+        if drop:
+            L.append("  " + t["paper_drop"].format(pages=pgs(drop)))
+        L += ["", t["h_files"]]
+        for kind, f in files.items():
+            note = (t["delivered"].format(dir=delivered[kind]) if kind in delivered
+                    else t["not_delivered"] if deliver.get(kind) else "")
+            L.append(f"  {f.name}" + (f" – {note}" if note else ""))
+            if kind in emls:
+                L.append(f"  {emls[kind].name}")
+        for f in sorted((out / "andere_touren").glob("*.pdf")) if (out / "andere_touren").is_dir() else []:
+            L.append(f"  andere_touren/{f.name}")
+        (out / f"protokoll_{lang}.txt").write_text("\n".join(L).rstrip() + "\n", encoding="utf-8")
+
+    with open(out / "protokoll.csv", "w", newline="", encoding="utf-8-sig") as fh:
+        w = csv.writer(fh, delimiter=";")
+        w.writerow(["seite", "quelle", "dokumenttyp", "dokumenttyp_modell", "cmr", "tour", "ta",
+                    "modell_unterschrift", "entscheidung_unterschrift", "modell_stempel", "entscheidung_stempel",
+                    "gueltig", "archiviert", "ziel", "bestaetigt"])
+        orig = {p["n"]: p for p in R["pages"]}
+        for p in pages:
+            n = p["n"]
+            target = ("CMR" if n in org["cmr_order"] else "LS" if n in org["ls_order"]
+                      else f"Tour {org['other_tour'][n]}" if n in org["other_tour"]
+                      else "Duplikat" if n in org["duplicates"] else "")
+            c = (p.get("cmr_count") or {}).get("parsed")
+            v = page_valid(p, rules.get(p["doc_type"]) or {}) if p["doc_type"] in REVIEW_TYPES else None
+            w.writerow([n, p["source"], p["doc_type"], orig[n]["doc_type"], f"{c[0]}/{c[1]}" if c else "",
+                        (p.get("tour") or {}).get("text", ""), " ".join(x["ta"] for x in p.get("ta") or []),
+                        p["proposal"].get("unterschrift", ""), p["decision"].get("unterschrift", ""),
+                        p["proposal"].get("stempel", ""), p["decision"].get("stempel", ""),
+                        "" if v is None else v, n in archived, target, p["confirmed"]])
+    log(f"[finalize] Tour {tour}: {'VOLLSTÄNDIG' if complete else 'OFFEN'} - "
+        f"CMR {len(org['cmr_order'])}, Lieferscheine {len(org['ls_order'])}, ungültig {len(invalid)}, "
+        f"Abweichung vom Modell {len(differs)}")
+    for c in org["checks"]:
+        log(f"[finalize] {c['level']:8s} {render_check(c, 'de')}")
+    log(f"[finalize] -> {out} (protokoll_de.txt)")
+    return 0

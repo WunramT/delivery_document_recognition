@@ -5,7 +5,7 @@ SMOKE_CONFIG := configs/smoke.yaml
 export PYTHONPATH := $(CURDIR)/src
 DOCVAL := $(PY) -m docval --config
 
-.PHONY: create_pdf help inspect split train export eval report review-labels relabel compare compare-labels vlm-compare test smoke fetch-models all clean-smoke gpu-check
+.PHONY: process finalize create_pdf help inspect split train export eval report review-labels relabel compare compare-labels vlm-compare test smoke fetch-models all clean-smoke gpu-check
 
 help:
 	@echo "inspect  Schritt 0: Datensatz analysieren, Label-Vorlagen + Review-Seite"
@@ -20,6 +20,8 @@ help:
 	@echo "compare  zwei Läufe vergleichen: make compare A=artifacts B=artifacts/exp_x"
 	@echo "compare-labels  alte vs. neue Labels einer Tour als HTML: make compare-labels EXPORT=425_21.09.2026 [OLD=datei]"
 	@echo "vlm-compare  Prototyp: imajev-4b vs. RF-DETR (Unterschrift/Stempel), Server siehe docs/VLM_VERGLEICH.md [LIMIT=10] [VIEWS=unten]"
+	@echo "process  eine gescannte Tour: make process SCANS=<pdf|ordner> [TOUR=503_01.09.2026] -> Prüfseite"
+	@echo "finalize nach der Prüfung: make finalize RUN=<name> [DECISION=datei] [FORCE=1] -> PDFs, Mails, Protokoll"
 	@echo "test     Unit-Tests"
 	@echo "smoke    ganze Pipeline auf synthetischer Mini-Teilmenge (CPU, < 5 min)"
 	@echo "fetch-models  alle Gewichte in den Cache laden (danach offline)"
@@ -69,6 +71,17 @@ VIEWS ?=
 vlm-compare:
 	$(DOCVAL) $(CONFIG) vlm-compare $(if $(LIMIT),--limit $(LIMIT),) $(if $(VIEWS),--views $(VIEWS),)
 
+SCANS ?=
+TOUR ?=
+RUN ?=
+DECISION ?=
+FORCE ?=
+process:
+	$(DOCVAL) $(CONFIG) process --input "$(SCANS)" $(if $(TOUR),--tour "$(TOUR)",) $(if $(RUN),--run "$(RUN)",)
+
+finalize:
+	$(DOCVAL) $(CONFIG) finalize --run "$(RUN)" $(if $(DECISION),--decision "$(DECISION)",) $(if $(FORCE),--force,)
+
 fetch-models:
 	$(DOCVAL) $(CONFIG) fetch-models
 
@@ -89,7 +102,8 @@ smoke:
 	$(DOCVAL) $(SMOKE_CONFIG) eval && \
 	$(DOCVAL) $(SMOKE_CONFIG) review-labels && \
 	$(DOCVAL) $(SMOKE_CONFIG) relabel && \
-	$(DOCVAL) $(SMOKE_CONFIG) presentation || exit 1; \
+	$(DOCVAL) $(SMOKE_CONFIG) presentation && \
+	$(DOCVAL) $(SMOKE_CONFIG) process --input artifacts/smoke/data/images --tour 503_01.09.2026 || exit 1; \
 	end=$$(date +%s); echo "[smoke] OK in $$((end-start)) s"; \
 	if [ $$((end-start)) -gt 300 ]; then echo "[smoke] WARNUNG: länger als 5 Minuten"; exit 4; fi
 

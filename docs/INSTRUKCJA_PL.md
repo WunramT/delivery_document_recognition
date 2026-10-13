@@ -99,3 +99,40 @@ make compare A=artifacts B=artifacts/exp_nowe
 
 Raport: `artifacts/exp_nowe/report/report.html` (po niemiecku), porównanie:
 `artifacts/exp_nowe/report/compare.md`.
+
+## 7. Kontrola trasy w praktyce (produkcja)
+
+Cały nieposortowany stos trasy skanuje się jeden raz. Aplikacja automatycznie sprawdza część
+organizacyjną (typ dokumentu, numer trasy, licznik CMR, duplikaty, kompletność). Osoba
+sprawdzająca decyduje na jednej stronie o wszystkich pieczątkach i podpisach – **ostatnie słowo
+należy zawsze do niej**. Pełny opis procesu (po niemiecku): `docs/PROZESS.md`.
+
+```
+make process SCANS=skany/503_01.09.2026.pdf            # PDF, obraz albo folder
+make process SCANS=skany/trasa503/ TOUR=503_01.09.2026  # numer trasy, jeśli nie ma go w nazwie
+```
+
+Wynik: `artifacts/process/<trasa>/pruefung_pl.html` – otworzyć podwójnym kliknięciem (Chrome/Edge).
+
+1. **Organizacja** – wynik automatyczny (✓ / ✗ / ! wskazówka) i kolejność CMR 1..n
+   (brakujący numer na czerwono, duplikat na żółto).
+2. **Do wyjaśnienia** – tylko jeśli są: wybrać typ dokumentu, wpisać nr CMR `i/n` lub numer trasy.
+3. **Podpis i pieczątka** – karta dla każdego CMR / dowodu dostawy. Dla każdego obiektu
+   „jest” / „brak” (wstępnie ustawione według modelu, przy „model niepewny” puste), potem
+   **„Potwierdź”**. Kliknięcie obrazu = cała strona. Klawisze: `J`/`K` zmiana karty, `1` podpis,
+   `2` pieczątka, `A` archiwizować, `Enter` potwierdź + dalej, spacja = cała strona.
+
+Wpisać imię i nazwisko w polu „Sprawdzający”, **„Zapisz decyzję”** → plik `entscheidung.json`
+umieścić w folderze strony kontrolnej. Następnie:
+
+```
+make finalize RUN=503_01.09.2026_4000
+```
+
+W `freigabe/`: `CMR_<trasa>.pdf` (posortowane 1..n, bez duplikatów), `LS_<trasa>.pdf`, szkice
+e-maili `.eml` do `leopol-cmr@polipol.de` / `leopol-ls@polipol.de` (otworzyć w Outlooku i wysłać)
+oraz `protokoll_pl.txt` z wynikiem KOMPLETNE/OTWARTE, listą „Do zrobienia” (Polilogistics,
+dokument zastępczy, inna trasa, ZCHECKLSARCHIV następnego dnia) i kolejnością papieru do archiwum.
+
+Odczyt numerów TA z listy załadunkowej nie jest jeszcze zweryfikowany – pojawia się tylko jako
+wskazówka. Liczbę TA na liście załadunkowej nadal sprawdza osoba.
