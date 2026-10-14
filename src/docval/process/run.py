@@ -281,9 +281,18 @@ class Pipeline:
                           for c in ("unterschrift", "stempel")},
                "tour": self.tour(im, dets) if reviewable else None,
                "cmr_count": self.cmr_count(im, dets) if dt_["doc_type"] in ("cmr", UNCERTAIN) else None,
-               "ta": self.ta(im), "view": self.view(dt_["doc_type"], dets)}
+               "ta": self.ta(im), "view": self.view(dt_["doc_type"], dets),
+               "carrier": carrier(dt_["header"], self.cfg) if dt_["doc_type"] == "bestaetigung" else None}
         rec["proposal"] = props.get(dt_["doc_type"], {}).get("classes", {})
         return rec
+
+
+def carrier(header: str, cfg: dict) -> str | None:
+    """Carrier of a collective confirmation from its header text (process.confirmations),
+    e.g. "DLW Kartons" -> hermes, "Entladebericht" -> dhl. None if unknown or ambiguous."""
+    d = cfg["doctype"]
+    hits = keyword_scores(header, (cfg["process"].get("confirmations") or {}), d.get("fuzzy_min_len", 7))
+    return next(iter(hits)) if len(hits) == 1 else None
 
 
 def find_ta(lines: list[dict], regex: str, not_shipped: list[str]) -> list[dict]:

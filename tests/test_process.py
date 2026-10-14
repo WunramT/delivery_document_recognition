@@ -188,3 +188,13 @@ def test_label_scans_export(tmp_path):
     rows = (tmp_path / "out" / "page_types.csv").read_text(encoding="utf-8-sig").splitlines()
     assert rows[2] == "images/s002.png;lieferschein;scan.pdf;2"
     assert meta[1]["changes"][0]["action"] == "hinzugefügt"
+
+
+def test_confirmation_carrier():
+    from docval.process.run import carrier
+
+    cfg = {"doctype": {"fuzzy_min_len": 7}, "process": {"confirmations": {
+        "hermes": ["DLW Kartons"], "dhl": ["Entladebericht", "2-Mann-Handling"]}}}
+    assert carrier("DLW Kartons  Übergabe 17.09.2026", cfg) == "hermes"
+    assert carrier("DHL 2-Mann-Handling GmbH Entladebereicht", cfg) == "dhl"   # 1 OCR error tolerated
+    assert carrier("Lieferschein 80012345", cfg) is None
