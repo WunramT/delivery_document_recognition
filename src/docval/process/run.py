@@ -168,19 +168,17 @@ class Pipeline:
 
     # ---------------------------------------------------------- stages
     def doc_type(self, im: Image.Image) -> dict:
-        from ..eval.run import ocr_det_rec_text
+        from ..eval.run import header_keywords
 
         d = self.cfg["doctype"]
-        head = im.crop((0, 0, im.width, max(1, int(im.height * d["header_fraction"]))))
-        text, _ = ocr_det_rec_text(self.ocr, pil_to_bgr(head), self.ocr.header_rec)
-        kw_type, kw_reason = keyword_decision(keyword_scores(text, d["keywords"], d.get("fuzzy_min_len", 7)),
-                                              d.get("priority", []))
+        text, hits = header_keywords(self.ocr, im, d)
+        kw_type, kw_reason = keyword_decision(hits, d.get("priority", []))
         clf_type = clf_conf = None
         if self.clf is not None:
             clf_type, clf_conf, _ = self.clf.predict(im)
         c = d["classifier"]
         dec = combine(kw_type, kw_reason, clf_type, clf_conf, c["min_confidence"], c["conflict_confidence"])
-        return {"doc_type": dec["doc_type"], "reason": dec["reason"], "header": text[:200]}
+        return {"doc_type": dec["doc_type"], "reason": dec["reason"], "header": text[:300]}
 
     def detect(self, im: Image.Image, doc_type: str) -> tuple[list[dict], list]:
         """Detections (>= uncertain threshold) on the detector input; CMR (and pages of
@@ -282,16 +280,19 @@ class Pipeline:
                "tour": self.tour(im, dets) if reviewable else None,
                "cmr_count": self.cmr_count(im, dets) if dt_["doc_type"] in ("cmr", UNCERTAIN) else None,
                "ta": self.ta(im), "view": self.view(dt_["doc_type"], dets),
-               "carrier": carrier(dt_["header"], self.cfg) if dt_["doc_type"] == "bestaetigung" else None}
+               "carrier": (carrier(dt_["header"], self.cfg) if dt_["doc_type"] == "bestaetigung" else
+                           carrier(dt_["header"], self.cfg, "customers") if dt_["doc_type"] == "lieferschein"
+                           else None)}
         rec["proposal"] = props.get(dt_["doc_type"], {}).get("classes", {})
         return rec
 
 
-def carrier(header: str, cfg: dict) -> str | None:
-    """Carrier of a collective confirmation from its header text (process.confirmations),
-    e.g. "DLW Kartons" -> hermes, "Entladebericht" -> dhl. None if unknown or ambiguous."""
+def carrier(header: str, cfg: dict, key: str = "confirmations") -> str | None:
+    """Carrier from the header text: of a collective confirmation (process.confirmations, e.g.
+    "DLW Kartons" -> hermes) or of a Lieferschein by its delivery address (process.customers,
+    e.g. "Hermes"). None if unknown or ambiguous."""
     d = cfg["doctype"]
-    hits = keyword_scores(header, (cfg["process"].get("confirmations") or {}), d.get("fuzzy_min_len", 7))
+    hits = keyword_scores(header, (cfg["process"].get(key) or {}), d.get("fuzzy_min_len", 7))
     return next(iter(hits)) if len(hits) == 1 else None
 
 

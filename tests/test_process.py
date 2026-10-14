@@ -198,3 +198,12 @@ def test_confirmation_carrier():
     assert carrier("DLW Kartons  Übergabe 17.09.2026", cfg) == "hermes"
     assert carrier("DHL 2-Mann-Handling GmbH Entladebereicht", cfg) == "dhl"   # 1 OCR error tolerated
     assert carrier("Lieferschein 80012345", cfg) is None
+
+
+def test_lieferschein_customer():
+    from docval.process.run import carrier
+
+    cfg = {"doctype": {"fuzzy_min_len": 7}, "process": {"customers": {"hermes": ["Hermes"], "dhl": ["DHL"]}}}
+    assert carrier("Lieferschein 80012345 Lieferanschrift Hermes Germany GmbH", cfg, "customers") == "hermes"
+    assert carrier("Lieferanschrift DHL Home Delivery GmbH", cfg, "customers") == "dhl"
+    assert carrier("Lieferanschrift Möbel Meyer", cfg, "customers") is None

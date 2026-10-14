@@ -148,6 +148,24 @@ def ocr_det_rec_text(eng: OcrEngine, bgr, rec=None) -> tuple[str, float]:
     return text, score
 
 
+def header_keywords(eng: OcrEngine, im: Image.Image, dcfg: dict) -> tuple[str, dict]:
+    """OCR of the page header + doc type keyword hits. Only when the top header_fraction has
+    no keyword, the larger header_fallback_fraction is read too (e.g. confirmation slips with
+    their text in the top quarter) - pages decided before stay exactly as they were."""
+    def read(frac):
+        head = im.crop((0, 0, im.width, max(1, int(im.height * frac))))
+        text, _ = ocr_det_rec_text(eng, pil_to_bgr(head), eng.header_rec)
+        return text, keyword_scores(text, dcfg["keywords"], dcfg.get("fuzzy_min_len", 7))
+
+    text, hits = read(dcfg["header_fraction"])
+    fb = dcfg.get("header_fallback_fraction") or 0
+    if not hits and fb > dcfg["header_fraction"]:
+        text2, hits2 = read(fb)
+        if hits2:
+            return text2, hits2
+    return text, hits
+
+
 def ocr_tour(eng: OcrEngine, crop: Image.Image, mode: str, ocfg: dict, regex: str) -> dict:
     bgr = pil_to_bgr(crop)
     if mode == "rec_only":
@@ -481,11 +499,9 @@ def run_eval(cfg, log) -> int:
     dt_rows = []
     for p in test:
         im = originals[p.file_name]
-        head = im.crop((0, 0, im.width, max(1, int(im.height * dcfg["header_fraction"]))))
         t0 = time.perf_counter()
-        text, _ = ocr_det_rec_text(primary, pil_to_bgr(head), primary.header_rec)
+        text, hits = header_keywords(primary, im, dcfg)
         timer.add("dokumenttyp_ocr", time.perf_counter() - t0)
-        hits = keyword_scores(text, dcfg["keywords"], dcfg.get("fuzzy_min_len", 7))
         kw_type, kw_reason = keyword_decision(hits, dcfg.get("priority", []))
         clf_type = clf_conf = None
         if clf is not None:
