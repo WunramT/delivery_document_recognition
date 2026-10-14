@@ -83,6 +83,7 @@ Ohne `make` (Windows, PowerShell): `$env:PYTHONPATH="src"`, dann `python -m docv
 | `make export` | Detektor → `artifacts/detector/detector.onnx` + **Paritätstest** PyTorch vs. ONNX Runtime (CPU) auf 20 Bildern → `parity.json` (Exit 3 bei Abweichung) |
 | `make eval` | alle Stufen auf dem Test-Split mit ONNX → `artifacts/report/report.md` + `report.html` + `pages.csv`; **Exit-Code 1, wenn ein Kriterium verfehlt wird**. `make eval SPLIT=valid` wertet zur Diagnose den valid-Split aus |
 | `make report` | Report aus `artifacts/report/results.json` neu rendern (ohne neu zu rechnen) |
+| `make relabel-model` | Vorlage-Modell aus den Touren, die für **alle** Klassen gelabelt sind (z. B. nach dem Nachlabeln neuer Klassen in einer Tour), in Folds → `artifacts/relabel_model/`; danach liefert `make relabel` damit Vorschläge für alle Touren |
 | `make relabel` | Vorlabels: bisherige Labels + Modellergebnisse je Export als COCO mit Bildern (+ zip) → `artifacts/relabel/` |
 | `make review-labels` | Label-Prüfung: Detektor vs. Labels auf allen Splits, `cmr_count`-Stapel je Tour → `artifacts/label_review/` (`REVIEW_SPLIT=test` für nur einen Split) |
 | `make vlm-compare` | Prototyp: imajev-4b (Vision-Language-Modell) vs. RF-DETR bei Unterschrift/Stempel auf denselben Testseiten → `artifacts/vlm_compare/report.md`; Server-Setup: `docs/VLM_VERGLEICH.md` (`LIMIT=10` für einen ersten Versuch) |
@@ -245,6 +246,33 @@ gleich, die Bilder im Export müssen nicht angefasst werden. Danach
 `relabel_overview.html` zeigt alle geänderten Seiten mit Links zu den Editoren,
 `relabel_changes.csv` listet jede Änderung. Wer lieber im bisherigen Label-Tool arbeitet:
 `<Tour>_<Datum>.zip` dort importieren (am sichersten als neues Projekt).
+
+## Neue Klassen in allen Touren nachlabeln (`make relabel-model`)
+
+Kommt eine Klasse neu dazu (z. B. `ta_nummer`), ist zuerst nur die Tour gelabelt, die man im
+Editor überarbeitet hat. Ein normales Training würde die TAs der anderen Touren als Hintergrund
+lernen; `make split` lässt solche Klassen deshalb weg, bis jede Tour für sie gelabelt ist
+(`split.partial_classes`, Hinweis im Log). Stattdessen:
+
+```
+make relabel-model    # Vorlage-Modell nur aus den vollständig gelabelten Touren
+make relabel          # Vorschläge für alle Touren, auch für die Vorlage-Tour selbst
+```
+
+- **Vorlage-Touren** = Exporte, deren COCO alle Klassen aus `classes` enthält (der Editor speichert
+  immer alle), oder `relabel.reference.exports`.
+- Training in `relabel.reference.folds` (2) Teilen: Jede Seite einer Vorlage-Tour bekommt ihre
+  Vorschläge vom Modell, das sie nicht gesehen hat – so fallen dort durchgerutschte Boxen auf. In
+  der Vorlage-Tour werden standardmäßig nur fehlende Boxen ergänzt (`on_template: add_only`).
+- Andere Touren: die Klassen, für die sie gelabelt sind, wie bisher vom Hauptmodell; die
+  fehlenden Klassen vom Vorlage-Modell (alle Folds zusammen).
+- Schwellen je Klasse werden auf den zurückgehaltenen Seiten kalibriert (recall-betont); das Log
+  zeigt Recall/Precision je Klasse – daran sieht man, wie viel Nacharbeit zu erwarten ist.
+- In `relabel_changes.csv` sagt die Spalte `modell`, woher ein Vorschlag kommt (`haupt`/`vorlage`).
+
+Durchsehen und korrigieren im Editor, „COCO speichern“ nach `labels/<Tour>/`. Jede gespeicherte
+Tour wird damit selbst zur Vorlage: `make relabel-model relabel` erneut, bis alle Touren durch
+sind; danach `make split train export eval` mit allen Klassen.
 
 ## Alte und neue Labels zeigen (`make compare-labels`)
 

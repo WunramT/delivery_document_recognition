@@ -18,7 +18,9 @@ paths:
 
 # new classes go at the end (keys 1..n in the editor, class ids of trained models stay)
 classes: [unterschrift, stempel, tour_nummer, cmr_count, ta_nummer, ls_nummer, seitenzahl]
-doc_types: [cmr, lieferschein, loading_list]
+# bestaetigung = collective delivery confirmation (Hermes, DHL: one signed page for all their
+# Lieferscheine, scanned after them) - stands in for stamp/signature on those Lieferscheine
+doc_types: [cmr, lieferschein, loading_list, bestaetigung]
 
 # Where ground truth for doc type and tour number comes from.
 labels:
@@ -54,6 +56,10 @@ split:
   # Only one loading list exists -> its pages are split individually so every
   # split contains one. Leakage risk, stated in the report.
   ungroup_doc_types: [loading_list]
+  # a class labeled in some exports only (new class, not all tours re-labeled yet):
+  # exclude = leave it out of the detector until every export is labeled for it (its objects
+  # would be background in the other tours); keep = train it anyway
+  partial_classes: exclude
 
 # ---------------------------------------------------------------- step 3: detector
 detector:
@@ -216,6 +222,15 @@ relabel:
   mark: none               # none | category (model boxes as class "vorschlag_<klasse>")
   copy_images: true
   zip: true
+  # make relabel-model: template model from the tours labeled for ALL classes (saved with the
+  # editor after new classes were added) -> suggestions for the classes the other tours lack.
+  # Folds: every page of a template tour is predicted by the model that did not see it.
+  reference:
+    exports: auto            # auto = every export labeled for all classes, or a list of folder names
+    folds: 2
+    epochs: null             # null = detector.epochs
+    use: true                # make relabel uses it when artifacts/relabel_model/ exists
+    on_template: add_only    # template tours: add_only = only missing boxes | full = same rules as above
 
 # Language versions of the pages for label work (relabel editor, compare-labels):
 # de -> editor.html / <tour>.html, pl -> editor_pl.html / <tour>_pl.html

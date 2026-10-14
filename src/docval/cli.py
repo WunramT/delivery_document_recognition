@@ -26,6 +26,16 @@ def cmd_split(cfg) -> int:
     assign = grouped_stratified_split(pages, cfg["split"]["ratios"], cfg["seed"])
     summary = split_summary(pages, assign)
     classes = info["classes_in_coco"]
+    # a class labeled in some exports only: in the others its objects are unlabeled and
+    # would be learned as background -> left out until every export is labeled (make relabel)
+    from .data.coverage import labeled_classes, partial_classes
+    partial = partial_classes(labeled_classes(cfg), classes)
+    if partial and cfg["split"].get("partial_classes", "exclude") == "exclude":
+        classes = [c for c in classes if c not in partial]
+        for c, missing in partial.items():
+            log(f"[split] Klasse {c} weggelassen: in {len(missing)} Export(s) noch nicht gelabelt "
+                f"({', '.join(missing[:5])}{' …' if len(missing) > 5 else ''}) - erst `make relabel-model relabel`, "
+                "dort nachlabeln (split.partial_classes: keep trainiert sie trotzdem)")
     out = artifacts(cfg, "splits", "detector")
     winfo = write_rfdetr_dataset(pages, assign, classes, out, cfg.get("form_mask"))
     manifest = {
@@ -118,6 +128,12 @@ def cmd_relabel(cfg) -> int:
     return run_relabel(cfg, log)
 
 
+def cmd_relabel_model(cfg) -> int:
+    from .eval.reference_model import run_reference_train
+
+    return run_reference_train(cfg, log)
+
+
 def cmd_compare_labels(cfg) -> int:
     from .eval.label_compare import run_label_compare
 
@@ -189,7 +205,7 @@ def cmd_fetch(cfg) -> int:
 
 
 COMMANDS = {"split": cmd_split, "train": cmd_train, "train-doctype": cmd_train_doctype,
-            "export": cmd_export, "eval": cmd_eval, "report": cmd_report, "review-labels": cmd_review_labels, "relabel": cmd_relabel, "compare-labels": cmd_compare_labels, "presentation": cmd_presentation, "vlm-compare": cmd_vlm_compare,
+            "export": cmd_export, "eval": cmd_eval, "report": cmd_report, "review-labels": cmd_review_labels, "relabel": cmd_relabel, "relabel-model": cmd_relabel_model, "compare-labels": cmd_compare_labels, "presentation": cmd_presentation, "vlm-compare": cmd_vlm_compare,
             "process": cmd_process, "finalize": cmd_finalize, "label-scans": cmd_label_scans, "fetch-models": cmd_fetch}
 
 

@@ -116,14 +116,28 @@ def run_relabel(cfg, log) -> int:
     setup_cache(cfg)
     t0 = time.time()
     pol = {**DEFAULT_POLICY, **(cfg.get("relabel") or {})}
+    from ..data.coverage import labeled_classes
+    from .reference_model import ReferenceModel, plan_classes
+
     pages, _ = load_pages(cfg)
     det_dir = artifacts(cfg, "detector")
-    if not (det_dir / "detector.onnx").is_file():
-        log("FEHLER: kein ONNX-Modell - zuerst `make train export`")
+    rcfg = pol.get("reference") or {}
+    ref = ReferenceModel(cfg) if rcfg.get("use", True) and ReferenceModel.available(cfg) else None
+    detector = OnnxDetector(det_dir, min_score=0.01) if (det_dir / "detector.onnx").is_file() else None
+    if detector is None and ref is None:
+        log("FEHLER: kein ONNX-Modell - zuerst `make train export` (oder `make relabel-model`)")
         return 2
-    detector = OnnxDetector(det_dir, min_score=0.01)
-    classes = detector.classes
-    thr, thr_src = thresholds(cfg, classes, log)
+    classes = detector.classes if detector else []
+    thr, thr_src = thresholds(cfg, classes, log) if detector else ({}, "-")
+    coverage = labeled_classes(cfg)
+    # template tours: by default only additions (boxes that slipped through), the freshly
+    # corrected boxes stay as they are
+    ref_pol = pol if rcfg.get("on_template", "add_only") == "full" else {
+        **pol, "matched": "gt", "different_box": "gt", "drop_duplicates": False}
+    if ref:
+        log(f"[relabel] Vorlage-Modell ({ref.created}) aus {', '.join(ref.exports)}: "
+            + ", ".join(f"{c}={t:g}" for c, t in ref.thresholds.items())
+            + " - Vorlage-Touren: Vorschläge vom Modell, das die Seite nicht kannte")
     iou_m = cfg["detector"]["iou_match"]
     prep = PagePrep(cfg)
     origin = _exports_of(cfg)
@@ -131,7 +145,8 @@ def run_relabel(cfg, log) -> int:
     sp = artifacts(cfg, "splits", "split.json")
     if sp.is_file():
         split = {p["file_name"]: p["split"] for p in json.loads(sp.read_text())["pages"]}
-    log(f"[relabel] {len(pages)} Seiten, Schwellen {thr_src}: " + ", ".join(f"{c}={t:g}" for c, t in thr.items()))
+    log(f"[relabel] {len(pages)} Seiten" + (f", Hauptmodell-Schwellen {thr_src}: " + ", ".join(
+        f"{c}={t:g}" for c, t in thr.items()) if detector else ", kein Hauptmodell"))
 
     per_export: dict[str, dict] = {}
     all_changes, overview = [], []
@@ -149,13 +164,23 @@ def run_relabel(cfg, log) -> int:
             continue
         _, im = prep(p)  # p.boxes loses labels in the masked CMR fields 22/23 -> kept unchanged below
         masked_out = _removed_by_mask(labels_all, [(b.cls, b.norm(W, H)) for b in p.boxes])
-        preds = detector(im)
-        gts = {c: [b.norm(W, H) for b in p.boxes_of(c)] for c in classes}
-        boxes, changes = propose(gts, preds, thr, iou_m, pol)
+        is_ref = ref is not None and exp in ref.exports
+        main_cls, ref_cls = plan_classes(coverage.get(exp, set()), is_ref, classes, ref.classes if ref else None)
+        boxes, changes = [], []
+        for cls_, model, t, policy in ((main_cls, detector, thr, pol),
+                                      (ref_cls, ref, ref.thresholds if ref else {}, ref_pol if is_ref else pol)):
+            if not cls_:
+                continue
+            pr = [d for d in (model(im) if model is detector else model(p.file_name, im)) if d["cls"] in cls_]
+            b, ch = propose({c: [x.norm(W, H) for x in p.boxes_of(c)] for c in cls_}, pr, t, iou_m, policy)
+            for x in ch:
+                x["model"] = "vorlage" if model is ref else "haupt"
+            boxes, changes = boxes + b, changes + ch
+        gts = {c: [b.norm(W, H) for b in p.boxes_of(c)] for c in set(main_cls) | set(ref_cls)}
         boxes += [{"cls": c, "box": b, "source": "label", "score": None} for c, b in masked_out]
-        # classes the model does not know yet (newly added to config.classes): labels stay as they are
+        # classes no model makes suggestions for (e.g. new, no template yet): labels stay as they are
         boxes += [{"cls": b.cls, "box": b.norm(W, H), "source": "label", "score": None}
-                  for b in p.boxes if b.cls not in classes]
+                  for b in p.boxes if b.cls not in gts]
         E["pages"][orig_id] = boxes
         E["meta"][orig_id]["changes"] = [{"action": ch["action"], "cls": ch["cls"], "score": ch["score"]}
                                          for ch in changes]
@@ -269,10 +294,11 @@ def write_changes(out: Path, changes: list[dict]) -> None:
     out.mkdir(parents=True, exist_ok=True)
     with open(out / "relabel_changes.csv", "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh, delimiter=";")
-        w.writerow(["export", "file_name", "split", "doc_type", "aktion", "klasse", "score", "alte_box", "neue_box"])
+        w.writerow(["export", "file_name", "split", "doc_type", "aktion", "klasse", "score", "alte_box", "neue_box",
+                    "modell"])
         for c in sorted(changes, key=lambda c: (c["export"], c["file_name"])):
             w.writerow([c["export"], c["file_name"], c["split"], c["doc_type"], c["action"], c["cls"],
-                        c["score"] if c["score"] is not None else "", _b(c["old"]), _b(c["new"])])
+                        c["score"] if c["score"] is not None else "", _b(c["old"]), _b(c["new"]), c.get("model", "")])
 
 
 def write_overview(out: Path, items: list[dict], thr, thr_src, pol, editors=()) -> None:
@@ -285,7 +311,7 @@ def write_overview(out: Path, items: list[dict], thr, thr_src, pol, editors=()) 
     L = [f"<h1>Vorlabels zum Überarbeiten</h1><p>{len(items)} Seiten mit Änderungen. Grün = bisheriges Label, "
          "Rot = vom Modell übernommen/ergänzt (mit Score). Schwellen " + esc(thr_src) + ": "
          + ", ".join(f"{esc(c)} {t:g}" for c, t in thr.items()) + ". Regeln: "
-         + esc(", ".join(f"{k}={v}" for k, v in pol.items() if k not in ("copy_images", "zip"))) + ".</p>"]
+         + esc(", ".join(f"{k}={v}" for k, v in pol.items() if k not in ("copy_images", "zip", "reference"))) + ".</p>"]
     if editors:
         L.append("<p><b>Bearbeiten im Editor</b> (je Export, Boxen verschieben/ändern/löschen/neu, dann "
                  "„COCO speichern“; polnische Fassung = <i>_pl</i>): " + " · ".join(

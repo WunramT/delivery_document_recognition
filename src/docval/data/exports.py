@@ -140,6 +140,8 @@ def merge_exports(cfg: dict, exports: list[Path], out: Path, root: Path | None =
                     n_from_name += 1
         tour_rows += [[fn_map[k], v] for k, v in tm.items()]
         info["exports"].append({"name": name, "images": n_img, "annotations": n_ann,
+                                # classes this export is labeled for (editor saves every class)
+                                "categories": sorted(set(cat_name.values())),
                                 "doc_types": len(matched), "doc_types_missing": len(stats["unmatched_coco"]),
                                 "tour_numbers": len(tm), "tour_from_name": from_name,
                                 "tour_from_name_pages": n_from_name})

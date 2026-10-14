@@ -18,8 +18,10 @@ CLASS_NAMES = {
            "seitenzahl": "numer strony"},
 }
 DOC_TYPE_NAMES = {
-    "de": {"cmr": "CMR", "lieferschein": "Lieferschein", "loading_list": "Loading List"},
-    "pl": {"cmr": "CMR", "lieferschein": "dowód dostawy (WZ)", "loading_list": "lista załadunkowa"},
+    "de": {"cmr": "CMR", "lieferschein": "Lieferschein", "loading_list": "Loading List",
+           "bestaetigung": "Sammelbestätigung"},
+    "pl": {"cmr": "CMR", "lieferschein": "dowód dostawy (WZ)", "loading_list": "lista załadunkowa",
+           "bestaetigung": "potwierdzenie zbiorcze"},
 }
 
 EDITOR = {

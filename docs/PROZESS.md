@@ -13,7 +13,7 @@ Papierstapel ──scannen──► make process ──► Prüfseite (pruefung.
                            TA-Abgleich                                        Papier-Reihenfolge
 ```
 
-## Geklärt mit dem Fachbereich (Stand 13.10.2026)
+## Geklärt mit dem Fachbereich (Stand 14.10.2026)
 
 Diese Punkte gelten vor der Tabelle darunter; wo sie abweicht, ist die Umsetzung noch offen
 (siehe „Geplante Änderungen“). Offene Fragen an die Kollegen: Dokument „Offene Fragen an den
@@ -24,14 +24,16 @@ Fachbereich – Dokumentprüfung Vertrieb“.
 | TA | = Auftrag, 8 Ziffern, steht auf Ladeliste, CMR und Lieferschein. Beginnt nicht immer mit 12; es gibt andere 8-stellige Nummern → TA nur aus einer `ta_nummer`-Box lesen, nie per Suche über die ganze Seite |
 | Geladene TAs | Quelle ist die **Ladeliste**. Streichungen (nicht mehr in der Tour) stehen handschriftlich auf der Ladeliste; die Person streicht diese TAs in der Anwendung und bestätigt die Liste. Gestrichene TAs werden nicht gemeldet. SAP ist keine Quelle (ohne Streichungen, nicht aktuell) |
 | TA ↔ CMR | ein CMR trägt n TAs, eine TA steht auf genau einem CMR |
-| Lieferschein | Stempel **und/oder** Unterschrift. Mehrseitig: Vorderseite oben Mitte „Lieferschein XXXXXXXX“, Folgeseiten oben links „Lieferschein (XXXXXXXX)“, unten rechts „Seite 1/2“; mehrere TAs pro Seite, TA mittig unter „Zlecenie“. Gleiche TA-Nummern = Duplikat |
+| Lieferschein | Stempel **und/oder** Unterschrift. Ausnahme bekannte Kunden (W4000: Hermes, DHL): sie unterschreiben nicht auf dem Lieferschein, sondern auf einer **Sammelbestätigung** für alle Aufträge; sie wird hinter ihren Lieferscheinen gescannt und hängt in SAP am letzten Lieferschein (Dokumenttyp `bestaetigung`; Beispiele in `609_17.09.2026`, Seiten 7, 8, 48, 52; DHL nennt die Bestellnummer, Hermes die Lieferscheinnummer). Kleinere Kunden: lehnt die Prüfung ab, entscheidet die Person selbst und sendet den Lieferschein außerhalb der Anwendung. Keine Kundenliste. Mehrseitig: Vorderseite oben Mitte „Lieferschein XXXXXXXX“, Folgeseiten oben links „Lieferschein (XXXXXXXX)“, unten rechts „Seite 1/2“; mehrere TAs pro Seite, TA mittig unter „Zlecenie“. Gleiche TA-Nummern = Duplikat |
 | Ladeliste | mehrseitig möglich, oben rechts „2/6“, Tournummer oben auf jeder Seite; alle Seiten nötig (sie beschreibt die Tour); kein Stempel nötig |
-| CMR | immer einseitig, gleicher Aufbau, eine Folge pro Tour, Sortierung aufsteigend nach CMR-Nummer (auch fürs Papier). Stempel **und** Unterschrift, dürfen auch außerhalb von Feld 24 stehen |
-| Ausnahmen | nur eines von Stempel/Unterschrift beim CMR oder ein fehlendes CMR: nur nach **aktiver Zustimmung mit Grund**; danach gilt die Tour in der Anwendung als abgeschlossen (kein Nachverfolgen) |
+| CMR | immer einseitig, gleicher Aufbau, eine Folge pro Tour. Stempel **und** Unterschrift, dürfen auch außerhalb von Feld 24 stehen; die Kundenausnahme gilt **nicht** für CMR. Reihenfolge im PDF ist dem Archiv egal (es liest den Barcode), die Anwendung sortiert trotzdem aufsteigend |
+| Ausnahmen | ein fehlendes CMR oder eine Seite, die die Prüfung nicht besteht: nur nach **aktiver Zustimmung mit Grund**; danach gilt die Tour in der Anwendung als abgeschlossen (kein Nachverfolgen) |
+| Archiv, Versand | die Archiv-Mail kommt heute direkt vom Drucker und enthält nur das gescannte PDF als Anhang; das Archiv liest den Barcode. CMR werden einzeln archiviert und warten nicht auf fehlende; fehlende Dokumente werden später einzeln gesendet und normal archiviert |
 | Fehlende Dokumente | für die Tour anzeigen; die Mail wird erst nach aktiver Bestätigung erzeugt. Senden bleibt bei den Benutzern |
 | Nachtrag | ein Ersatz-CMR kann später gescannt werden, Zuordnung über die Tournummer auf dem Dokument, muss bestätigt werden; fehlende Daten der Tour anzeigen |
 | Polilogistics | keine Mail aus der Anwendung |
-| Rollen, Audit | eine Person reicht, alle dürfen alles (die Daten bleiben im Browser des Benutzers); eingetippter Name reicht; Protokoll unbefristet aufbewahren, Ablage mit fein einstellbaren Rechten möglich; Protokoll nicht in die Archiv-Mail |
+| Rollen, Audit | eine Person reicht, alle dürfen alles (die Daten bleiben im Browser des Benutzers); eingetippter Name reicht; Protokoll unbefristet aufbewahren, Ablage mit fein einstellbaren Rechten möglich; Protokoll nicht in die Archiv-Mail. Ein Browser darf nur mit ausdrücklicher Erlaubnis des Benutzers in einen Ordner schreiben (File System Access API), still schreiben geht nur über einen Server |
+| Arbeitsplätze | aktuelles Microsoft Edge, 8 GB RAM |
 | Mengen, Scans | ~30 Touren/Woche à 50–100 Seiten; Farbe, keine leeren Rückseiten |
 | Sprachen | Polnisch, Rumänisch, Englisch, Deutsch |
 | Nicht Teil des Projekts | Überblick über offene Touren |
@@ -143,6 +145,12 @@ Klassen ziehen (Tasten `5`–`7`, die Anleitung zur gewählten Klasse steht unte
 „COCO speichern“ nach `labels/503_01.09.2026/`, dann `make inspect split train export eval`.
 `make relabel` lässt Labels von Klassen, die das Modell noch nicht kennt, unverändert.
 
+Bestehende Touren (schon als Label-Export vorhanden): eine Tour vollständig mit allen Klassen
+labeln, dann `make relabel-model relabel` – das Vorlage-Modell schlägt die neuen Klassen für alle
+anderen Touren vor und prüft die Vorlage-Tour auf vergessene Boxen (Details: README, „Neue Klassen
+in allen Touren nachlabeln“). Sammelbestätigungen (Hermes/DHL) dabei im Editor oben als
+Dokumenttyp „Sammelbestätigung“ markieren.
+
 ## Geplante Änderungen an der Anwendung
 
 Aus den Antworten oben, noch nicht umgesetzt:
@@ -158,7 +166,10 @@ Aus den Antworten oben, noch nicht umgesetzt:
 5. Fehlende Dokumente der Tour vorne anzeigen; Mail-Entwürfe erst nach aktiver Bestätigung.
 6. Nachtrag: einzelnes Ersatz-CMR scannen, über die Tournummer der Tour zuordnen, bestätigen.
 7. Oberfläche und Protokoll zusätzlich auf Rumänisch und Englisch.
-8. Protokoll pro Tour als Datei auf dem Netzlaufwerk (Browser-Variante).
+8. Protokoll pro Tour als Datei: Die Person wählt den Protokoll-Ordner (Netzlaufwerk) einmal aus
+   und erlaubt das Schreiben; die Anwendung legt dort je Tour die Datei ab. Ohne Erlaubnis: Download.
+9. Sammelbestätigung (`bestaetigung`): Lieferscheine von Hermes/DHL gelten mit der Bestätigung im
+   Stapel als bestätigt; die Person sieht beides nebeneinander und bestätigt.
 
 ## Was noch offen ist
 

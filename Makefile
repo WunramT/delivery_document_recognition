@@ -5,7 +5,7 @@ SMOKE_CONFIG := configs/smoke.yaml
 export PYTHONPATH := $(CURDIR)/src
 DOCVAL := $(PY) -m docval --config
 
-.PHONY: process finalize label-scans create_pdf help inspect split train export eval report review-labels relabel compare compare-labels vlm-compare test smoke fetch-models all clean-smoke gpu-check
+.PHONY: process finalize label-scans relabel-model create_pdf help inspect split train export eval report review-labels relabel compare compare-labels vlm-compare test smoke fetch-models all clean-smoke gpu-check
 
 help:
 	@echo "inspect  Schritt 0: Datensatz analysieren, Label-Vorlagen + Review-Seite"
@@ -16,6 +16,7 @@ help:
 	@echo "report   Report aus letzter results.json neu rendern"
 	@echo "create_pdf  Präsentation (PDF) zum aktuellen Stand aus dem letzten make eval"
 	@echo "review-labels  Label-Prüfung: Detektor vs. Labels auf allen Splits, cmr_count-Stapel je Tour"
+	@echo "relabel-model  Vorlage-Modell aus den vollständig gelabelten Touren (neue Klassen), danach make relabel"
 	@echo "relabel  Vorlabels: Labels + Modellergebnisse je Export als COCO (+ Bilder, zip) zum Überarbeiten"
 	@echo "compare  zwei Läufe vergleichen: make compare A=artifacts B=artifacts/exp_x"
 	@echo "compare-labels  alte vs. neue Labels einer Tour als HTML: make compare-labels EXPORT=425_21.09.2026 [OLD=datei]"
@@ -56,6 +57,9 @@ review-labels:
 
 relabel:
 	$(DOCVAL) $(CONFIG) relabel
+
+relabel-model:
+	$(DOCVAL) $(CONFIG) relabel-model
 
 A ?= artifacts
 B ?= $(DOCVAL_ARTIFACTS)

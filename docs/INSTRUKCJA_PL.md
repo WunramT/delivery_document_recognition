@@ -157,3 +157,19 @@ i dodać nowe klasy:
 - `7` **numer strony**: dowód dostawy u dołu po prawej „Seite 1/2”, lista załadunkowa u góry po prawej „2/6”
 
 „Zapisz COCO” do `labels/503_01.09.2026/`, potem `make inspect split train export eval`.
+
+## 9. Nowe klasy we wszystkich trasach (`make relabel-model`)
+
+Gdy jedna trasa jest w pełni oznaczona nowymi klasami (zapisana w edytorze):
+
+```
+make relabel-model    # model wzorcowy tylko z tras oznaczonych wszystkimi klasami
+make relabel          # propozycje dla wszystkich tras, także dla trasy wzorcowej
+```
+
+Trasa wzorcowa: każda strona dostaje propozycje od modelu, który jej nie widział – tak widać
+zapomniane ramki; dodawane są tylko brakujące ramki, poprawione ramki zostają. Pozostałe trasy:
+propozycje dla nowych klas (linia przerywana). Przejrzeć, poprawić, „Zapisz COCO”. Każda zapisana
+trasa staje się kolejnym wzorcem – powtarzać `make relabel-model relabel`, aż wszystkie trasy będą
+gotowe. Potwierdzenia zbiorcze (Hermes/DHL) oznaczyć u góry jako typ dokumentu
+„potwierdzenie zbiorcze”.

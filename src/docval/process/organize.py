@@ -28,7 +28,7 @@ from __future__ import annotations
 from ..ocr.postprocess import stack_complete
 
 REVIEW_TYPES = ("cmr", "lieferschein")
-KNOWN_TYPES = ("cmr", "lieferschein", "loading_list")
+KNOWN_TYPES = ("cmr", "lieferschein", "loading_list", "bestaetigung")
 OK, ERROR, HINT = "ok", "fehler", "hinweis"
 
 
