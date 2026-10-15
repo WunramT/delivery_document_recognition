@@ -84,19 +84,32 @@ def test_other_tour_unread_and_unclear():
     assert "504/01.09.2026/4000" in render_check(c["tour_other"], "de")
 
 
-def test_ta_check_hint_and_ls_duplicates():
+def ls(n, number, page_i=1, page_n=1, **kw):
+    p = page(n, "lieferschein", **kw)
+    p["ls_number"], p["ls_page"] = number, [page_i, page_n]
+    return p
+
+
+def test_ta_check_loading_list_cmr_and_lieferschein():
     ll = page(1, "loading_list", tour=None)
     ll["ta"] = [{"ta": "12283251", "excluded": False}, {"ta": "12288834", "excluded": False},
-                {"ta": "12258864", "excluded": True}]
-    pages = [ll, page(2, "cmr", (1, 1), ta=["12283251", "12288834"]),
-             page(3, "lieferschein", ta=["12283251"], s="nein", u="nein"), page(4, "lieferschein", ta=["12283251"])]
+                {"ta": "33258864", "excluded": True}]                       # struck out by the person
+    pages = [ll,
+             page(2, "cmr", (1, 1), ta=["12283251", "12288834", "44400001"]),  # one TA too many on the CMR
+             ls(3, "12283251", 1, 2), ls(4, "12283251", 2, 2),               # two-page Lieferschein
+             ls(5, "12283251", 1, 2, s="nein", u="nein"),                    # copy of page 1 without stamp
+             ls(6, "55500001")]                                              # number not on the loading list
     org = organize(pages, TOUR, RULES)
-    assert org["ta"]["loaded"] == ["12283251", "12288834"] and org["ta"]["excluded"] == ["12258864"]
-    assert org["ta"]["ls_missing"] == ["12288834"]
-    assert org["duplicates"] == {3: 4}
+    ta = org["ta"]
+    assert ta["loaded"] == ["12283251", "12288834"] and ta["excluded"] == ["33258864"]
+    assert ta["cmr_missing"] == [] and ta["cmr_extra"] == ["44400001"]
+    assert ta["ls_missing"] == ["12288834"] and ta["ls_extra"] == ["55500001"]
+    assert org["duplicates"] == {5: 3}                                       # page 4 is NOT a duplicate
+    assert sorted(org["ls_order"]) == [3, 4, 6]
     c = codes(org)
-    assert c["ta_ls_missing"]["level"] == "hinweis" and org["complete"]  # not validated -> hint only
+    assert c["ta_ls_missing"]["level"] == "hinweis" and org["complete"]       # not validated -> hint only
     assert "nicht validiert" in render_check(c["ta_ls_missing"], "de")
+    assert "44400001" in render_check(c["ta_cmr_extra"], "pl")
     assert organize(pages, TOUR, RULES, ta_validated=True)["complete"] is False
 
 

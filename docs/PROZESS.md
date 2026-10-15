@@ -21,9 +21,9 @@ Fachbereich – Dokumentprüfung Vertrieb“.
 
 | Thema | Entscheidung |
 |---|---|
-| TA | = Auftrag, 8 Ziffern, steht auf Ladeliste, CMR und Lieferschein. Beginnt nicht immer mit 12; es gibt andere 8-stellige Nummern → TA nur aus einer `ta_nummer`-Box lesen, nie per Suche über die ganze Seite |
+| TA | = Auftrag, 8 Ziffern. Auf der Ladeliste mehrere pro Seite (mittig), auf dem CMR mehrere hintereinander; ein Lieferschein steht für genau eine TA: **Lieferscheinnummer = TA-Nummer**. Beginnt nicht immer mit 12; es gibt andere 8-stellige Nummern → TA nur aus einer `ta_nummer`-Box lesen, nie per Suche über die ganze Seite |
 | Geladene TAs | Quelle ist die **Ladeliste**. Streichungen (nicht mehr in der Tour) stehen handschriftlich auf der Ladeliste; die Person streicht diese TAs in der Anwendung und bestätigt die Liste. Gestrichene TAs werden nicht gemeldet. SAP ist keine Quelle (ohne Streichungen, nicht aktuell) |
-| TA ↔ CMR | ein CMR trägt n TAs, eine TA steht auf genau einem CMR |
+| Abgleich | 1. alle TAs der Ladeliste lesen; 2. die Person entfernt gestrichene/markierte TAs; 3. CMR sortieren und die TAs mit der Ladeliste abgleichen – angezeigt wird, was nur auf der Ladeliste steht (CMR fehlt) und was nur auf CMR steht; 4. je TA der Ladeliste prüfen, ob es einen Lieferschein mit dieser Nummer gibt (und Lieferscheine mit Nummern, die nicht auf der Ladeliste stehen). Ein CMR trägt n TAs, eine TA steht auf genau einem CMR |
 | TA im Bild | Ladeliste: mittig in der Zeile, „Zlecenie“ darüber (eine Box pro Zeile). CMR: mehrere TAs hintereinander (x, y, z) → eine Box pro CMR, daher oft breite Boxen |
 | Abholschein | eigener Dokumenttyp `abholschein`; nicht Teil der Prüfung, wird verworfen (Beispiele: Seiten nur mit „Seite i/n“) |
 | Negativbeispiele | CMR ohne Unterschrift oder ganz ohne Stempel/Unterschrift und Lieferscheine ohne Stempel/Unterschrift kommen echt vor und bleiben als Negativbeispiele in den Daten |
@@ -160,9 +160,9 @@ Aus den Antworten oben, noch nicht umgesetzt:
 
 1. TA-Nummern nur aus `ta_nummer`-Boxen (8 Ziffern), nicht mehr per Ganzseiten-OCR.
 2. Prüfseite: Ladeliste mit allen gelesenen TAs; die Person streicht TAs (Klick auf die Box)
-   und bestätigt die Liste. Abgleich: jede verbleibende TA auf genau einem CMR und auf einem
-   Lieferschein.
-3. Lieferscheine über `ls_nummer` zu Dokumenten gruppieren, Vollständigkeit über `seitenzahl`;
+   und bestätigt die Liste. Der Abgleich (CMR in beide Richtungen, Lieferschein über seine
+   Nummer = TA) ist in `process/organize.py` schon umgesetzt; es fehlt das Lesen der Boxen (1., 3.).
+3. Lieferschein-Nummer aus `ls_nummer` lesen (= TA), Seiten eines Lieferscheins über Nummer + `seitenzahl` gruppieren, Vollständigkeit über `seitenzahl`;
    Ladeliste ebenso (alle Seiten 1..n).
 4. CMR: fehlt Stempel oder Unterschrift, bzw. fehlt ein CMR → „trotzdem akzeptieren“ mit Grund
    (Auswahl + Freitext), im Protokoll.
