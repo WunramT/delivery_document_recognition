@@ -19,9 +19,9 @@ CLASS_NAMES = {
 }
 DOC_TYPE_NAMES = {
     "de": {"cmr": "CMR", "lieferschein": "Lieferschein", "loading_list": "Loading List",
-           "bestaetigung": "Sammelbestätigung"},
+           "bestaetigung": "Sammelbestätigung", "abholschein": "Abholschein"},
     "pl": {"cmr": "CMR", "lieferschein": "dowód dostawy (WZ)", "loading_list": "lista załadunkowa",
-           "bestaetigung": "potwierdzenie zbiorcze"},
+           "bestaetigung": "potwierdzenie zbiorcze", "abholschein": "dowód odbioru (Abholschein)"},
 }
 
 EDITOR = {

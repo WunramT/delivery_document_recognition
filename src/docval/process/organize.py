@@ -28,7 +28,8 @@ from __future__ import annotations
 from ..ocr.postprocess import stack_complete
 
 REVIEW_TYPES = ("cmr", "lieferschein")
-KNOWN_TYPES = ("cmr", "lieferschein", "loading_list", "bestaetigung")
+KNOWN_TYPES = ("cmr", "lieferschein", "loading_list", "bestaetigung", "abholschein")
+DISCARD_TYPES = ("abholschein",)   # recognized, not part of the check, not archived
 OK, ERROR, HINT = "ok", "fehler", "hinweis"
 
 
@@ -114,6 +115,9 @@ def organize(pages: list[dict], tour: str | None, rules: dict, ta_validated: boo
     else:
         add("doctype_ok", OK, n=len(pages), cmr=len(by_type.get("cmr", [])),
             ls=len(by_type.get("lieferschein", [])), ll=len(by_type.get("loading_list", [])))
+    discarded = [p["n"] for t in DISCARD_TYPES for p in by_type.get(t, [])]
+    if discarded:
+        add("discarded", HINT, pages=sorted(discarded))
 
     # ---------------------------------------------------------------- tour number
     this_tour, other_tour, unread_tour = [], {}, []
@@ -250,6 +254,6 @@ def organize(pages: list[dict], tour: str | None, rules: dict, ta_validated: boo
     return {
         "tour": tour, "checks": checks, "complete": not any(c["level"] == ERROR for c in checks),
         "cmr_order": cmr_order, "ls_order": ls_order, "cmr_total": total, "missing_cmr": missing_cmr,
-        "duplicates": duplicates, "not_archived": sorted(not_archived), "other_tour": other_tour, "ta": ta,
+        "duplicates": duplicates, "not_archived": sorted(not_archived), "discarded": sorted(discarded), "other_tour": other_tour, "ta": ta,
         "unclear": {"doc_type": unclear_dt, "tour": unread_tour, "cmr_count": [p["n"] for p in unread_count]},
     }

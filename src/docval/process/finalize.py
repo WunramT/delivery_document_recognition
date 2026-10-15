@@ -286,7 +286,7 @@ def run_finalize(cfg, run: str, decision_path: str | None, force: bool, log) -> 
         L += [f"  {k + 1}. {x}" for k, x in enumerate(todo)]
         L += ["", t["h_paper"], "  " + t["paper_cmr"].format(pages=pgs(org["cmr_order"])),
               "  " + t["paper_ls"].format(pages=pgs(org["ls_order"]))]
-        drop = sorted(set(org["duplicates"]) | set(org["not_archived"]))
+        drop = sorted(set(org["duplicates"]) | set(org["not_archived"]) | set(org.get("discarded") or []))
         if drop:
             L.append("  " + t["paper_drop"].format(pages=pgs(drop)))
         L += ["", t["h_files"]]

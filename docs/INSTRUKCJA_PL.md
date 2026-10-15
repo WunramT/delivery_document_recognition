@@ -150,8 +150,8 @@ Wynik: `artifacts/label_scans/503_01.09.2026/` – ten sam układ co eksport ety
 propozycje. Folder skopiować do `labels/503_01.09.2026/`, otworzyć `editor_pl.html`, sprawdzić ramki
 i dodać nowe klasy:
 
-- `5` **numer TA**: dowód dostawy – „Zlecenie” i numer TA pod nim w jednej ramce; lista załadunkowa –
-  każdy numer TA osobno; CMR – wszystkie numery TA jednego bloku razem
+- `5` **numer TA**: lista załadunkowa – „Zlecenie” i numer TA pod nim w jednej ramce, jedna ramka na
+  wiersz; CMR – wszystkie numery TA po kolei (x, y, z) w jednej ramce; dowód dostawy – nie oznaczać
 - `6` **nr dowodu dostawy**: „Lieferschein XXXXXXXX” (pierwsza strona, u góry pośrodku) lub
   „Lieferschein (XXXXXXXX)” (kolejne strony, u góry po lewej)
 - `7` **numer strony**: dowód dostawy u dołu po prawej „Seite 1/2”, lista załadunkowa u góry po prawej „2/6”

@@ -207,3 +207,11 @@ def test_lieferschein_customer():
     assert carrier("Lieferschein 80012345 Lieferanschrift Hermes Germany GmbH", cfg, "customers") == "hermes"
     assert carrier("Lieferanschrift DHL Home Delivery GmbH", cfg, "customers") == "dhl"
     assert carrier("Lieferanschrift Möbel Meyer", cfg, "customers") is None
+
+
+def test_abholschein_discarded():
+    pages = [page(1, "cmr", (1, 1)), page(2, "abholschein", tour=None), page(3, "lieferschein")]
+    org = organize(pages, TOUR, RULES)
+    assert org["discarded"] == [2] and org["complete"]
+    assert 2 not in org["cmr_order"] + org["ls_order"]
+    assert "Abholschein" in render_check(codes(org)["discarded"], "de")
