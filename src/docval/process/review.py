@@ -1,11 +1,16 @@
 """Review page of one tour: pruefung.html (German) / pruefung_pl.html (Polish).
 
-One view, three parts:
-1. organisational result (automatic): doc types, tour number, CMR sequence, duplicates, TA
-2. Klärfälle: pages where the automatic part was not sure (doc type, CMR i/n, tour number)
+One view, four parts:
+0. what is missing in this tour (live): CMR numbers, Lieferschein/loading list pages, TA
+   comparison, pages without stamp/signature. Each item can be accepted anyway with a reason;
+   the person confirms the list - only then `make finalize` writes the e-mail drafts
+1. organisational result (automatic): doc types, tour number, CMR sequence, duplicates; the
+   loading list with its TAs - the person strikes the TAs that were not loaded and confirms it
+2. Klärfälle: pages where the automatic part was not sure (doc type, CMR i/n, tour number,
+   Lieferschein number)
 3. one card per CMR/Lieferschein with the detected signature/stamp - the person marks
-   "present"/"missing" per object (pre-set from the model) and confirms every card.
-   The person's decision is final.
+   "present"/"missing" per object (pre-set from the model) and confirms every card; TAs of a
+   CMR and number/page of a Lieferschein can be corrected there. The person's decision is final.
 
 Self-contained, opens by double click (no server, no internet); images are loaded from
 seiten/ next to it. Intermediate state stays in the browser (localStorage). "Entscheidung
@@ -20,7 +25,7 @@ from pathlib import Path
 
 from ..eval.i18n import CLASS_NAMES, DOC_TYPE_NAMES, SUFFIX
 from ..eval.label_editor import CLASS_COLORS
-from .texts import render_check
+from .texts import MSG, REASONS, render_check
 
 UI = {
     "de": {
@@ -59,6 +64,20 @@ UI = {
         "no_review": "Keine CMR/Lieferscheine zu prüfen.", "img_missing": "Bild fehlt: ",
         "pages_of": "Seiten", "tour_label": "Tour",
         "no_mask": "Vordruckfelder 22/23 nicht erkannt – Unterschrift/Stempel dort selbst prüfen",
+        "h_missing": "0 · Fehlt in dieser Tour – vor dem Abschluss bestätigen",
+        "missing_none": "Nichts fehlt.", "accept": "trotzdem akzeptieren", "accepted": "akzeptiert",
+        "undo": "zurücknehmen", "note": "Bemerkung", "cancel": "abbrechen",
+        "note_needed": "Bei „Sonstiges“ bitte eine Bemerkung eintragen.",
+        "confirm_missing": "Fehlliste bestätigen – Mail-Entwürfe freigeben", "missing_confirmed": "Fehlliste bestätigt",
+        "missing_changed": "Die Liste hat sich seit der Bestätigung geändert – bitte erneut bestätigen.",
+        "need_ta_confirm": "Zuerst die Ladeliste bestätigen (Abschnitt 1).",
+        "ta_click": "TA anklicken = gestrichen / nicht verladen (nochmal klicken = zurück). Bild der Seite: Seitenzahl anklicken.",
+        "ta_add": "TA hinzufügen", "ta_confirm": "Ladeliste bestätigen", "ta_confirmed": "Ladeliste bestätigt",
+        "ta_unread": "TA-Feld nicht lesbar – Seite ansehen, TA ggf. hinzufügen", "struck": "gestrichen",
+        "ls_number": "LS-Nr.", "ls_page": "Seite", "ta_field": "TA", "clear_ls": "Lieferscheinnummer nicht gelesen",
+        "bad_number": "Bitte eine 8-stellige Nummer eintragen.", "missing_cls": "{cls} fehlt",
+        "save_unconfirmed": "Die Fehlliste ist noch nicht bestätigt – make finalize erzeugt dann keine "
+                            "Mail-Entwürfe. Trotzdem speichern?",
     },
     "pl": {
         "html_lang": "pl", "title": "Kontrola trasy", "reviewer": "Sprawdzający", "save": "Zapisz decyzję",
@@ -95,19 +114,34 @@ UI = {
         "no_review": "Brak CMR/dowodów dostawy do sprawdzenia.", "img_missing": "Brak obrazu: ",
         "pages_of": "stron", "tour_label": "Trasa",
         "no_mask": "Nie rozpoznano pól 22/23 z nadrukiem – podpis/pieczątkę tam sprawdzić samodzielnie",
+        "h_missing": "0 · Braki w tej trasie – potwierdzić przed zamknięciem",
+        "missing_none": "Niczego nie brakuje.", "accept": "mimo to zaakceptuj", "accepted": "zaakceptowano",
+        "undo": "cofnij", "note": "uwaga", "cancel": "anuluj",
+        "note_needed": "Przy „Inne” proszę wpisać uwagę.",
+        "confirm_missing": "Potwierdź listę braków – zwolnij szkice e-maili", "missing_confirmed": "Lista braków potwierdzona",
+        "missing_changed": "Lista zmieniła się od potwierdzenia – proszę potwierdzić ponownie.",
+        "need_ta_confirm": "Najpierw potwierdź listę załadunkową (część 1).",
+        "ta_click": "Kliknij TA = skreślone / nie jedzie (ponowne kliknięcie = cofnij). Obraz strony: kliknij numer strony.",
+        "ta_add": "dodaj TA", "ta_confirm": "Potwierdź listę załadunkową", "ta_confirmed": "Lista załadunkowa potwierdzona",
+        "ta_unread": "Nieczytelne pole TA – obejrzeć stronę, ew. dodać TA", "struck": "skreślone",
+        "ls_number": "nr dowodu", "ls_page": "strona", "ta_field": "TA", "clear_ls": "Nie odczytano numeru dowodu dostawy",
+        "bad_number": "Proszę wpisać numer 8-cyfrowy.", "missing_cls": "brak: {cls}",
+        "save_unconfirmed": "Lista braków nie jest potwierdzona – make finalize nie utworzy szkiców e-maili. "
+                            "Zapisać mimo to?",
     },
 }
 
 # what the page needs of a page record (OCR texts of the header etc. stay in ergebnis.json)
 PAGE_KEYS = ("n", "id", "image", "source", "w", "h", "doc_type", "doc_reason", "dets", "masked", "proposals",
-             "scores", "tour", "cmr_count", "ta", "view", "mask_found")
+             "scores", "tour", "cmr_count", "ta", "ta_unread", "ls_number", "ls_page", "ls_read", "page_of",
+             "view", "mask_found")
 
 
 def page_data(result: dict, lang: str) -> dict:
     classes = result["classes"]
     return {
         "name": result["name"], "tour": result["tour"], "created": result["created"],
-        "rules": result["rules"], "doc_types": result["doc_types"],
+        "rules": result["rules"], "doc_types": result["doc_types"], "ta_validated": bool(result.get("ta_validated")),
         "thr": result["thresholds"]["accept"],
         "colors": {c: CLASS_COLORS[i % len(CLASS_COLORS)] for i, c in enumerate(classes)},
         "pages": [{k: p.get(k) for k in PAGE_KEYS} for p in result["pages"]],
@@ -118,7 +152,8 @@ def page_data(result: dict, lang: str) -> dict:
 
 def write_review(out_dir: Path, result: dict, lang: str = "de") -> Path:
     t = UI[lang]
-    js_t = dict(t, cls=CLASS_NAMES[lang], dt=DOC_TYPE_NAMES[lang])
+    js_t = dict(t, cls=CLASS_NAMES[lang], dt=DOC_TYPE_NAMES[lang], reasons=REASONS[lang],
+                items={k: v for k, v in MSG[lang].items() if k.startswith("item_")})
     page = TEMPLATE
     for k, v in t.items():
         page = page.replace("{{" + k + "}}", html.escape(v))
@@ -199,6 +234,12 @@ li.ok .ic{color:var(--ok)} li.fehler .ic{color:var(--err)} li.hinweis .ic{color:
 .card.confirmed .conf{background:var(--okbg);border-color:var(--ok);color:var(--ok)}
 .flash{animation:fl .6s}
 @keyframes fl{0%,100%{box-shadow:none}50%{box-shadow:0 0 0 4px rgba(201,42,42,.6)}}
+.chip.ta{background:#fff} .chip.struck{text-decoration:line-through;background:var(--errbg);border-color:var(--err);color:var(--err)}
+a.lnk,a[data-go]{cursor:pointer;color:var(--sel)}
+.acc{color:var(--ok);font-size:12px} .accbtn{font-size:12px;padding:1px 8px;margin-left:6px}
+.accform{display:inline-flex;gap:4px;flex-wrap:wrap;margin-left:6px} .accform input{width:180px}
+.mconf{margin:8px 0} .flds{display:flex;gap:10px;flex-wrap:wrap;margin:4px 0;font-size:12px}
+.flds input{width:120px;padding:2px 6px} .flds input.wide{width:220px}
 #modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10;align-items:center;justify-content:center}
 #modal.on{display:flex}
 #modal .view{height:94vh;width:auto;cursor:zoom-out;background:#fff}
@@ -213,6 +254,8 @@ li.ok .ic{color:var(--ok)} li.fehler .ic{color:var(--err)} li.hinweis .ic{color:
 </header>
 <div id="notice"></div>
 <main>
+  <h2>{{h_missing}}</h2>
+  <div id="missing"></div>
   <h2>{{h_org}}</h2>
   <ul class="checks" id="checks"></ul>
   <div class="stale" id="stale">{{stale}}</div>
@@ -262,7 +305,122 @@ const dupOf = p => D.org.duplicates[String(p.n)];
 const archive = p => has(p, "archive") ? S.pages[p.n].archive : dupOf(p) == null;
 const needsReview = p => reviewable(p) && archive(p);
 const confirmed = p => !!(S.pages[p.n] && S.pages[p.n].confirmed);
-const touched = () => D.pages.some(p => ["doc_type", "cmr", "tour", "archive"].some(k => has(p, k)));
+const touched = () => D.pages.some(p => ["doc_type", "cmr", "tour", "archive", "ls", "ls_page", "ta"].some(k => has(p, k)));
+// 8-digit numbers (TA / Lieferschein number), a single space inside allowed - as in run.py
+function parse8(s) { const out = []; for (const m of String(s || "").matchAll(/(?<!\d)(?:\d ?){7}\d(?!\d)/g)) { const n = m[0].replace(/ /g, ""); if (!out.includes(n)) out.push(n); } return out; }
+function parsePageOf(s) { const m = /(\d{1,2})\s*\/\s*(\d{1,2})/.exec(s || ""); return m && +m[1] >= 1 && +m[1] <= +m[2] ? [+m[1], +m[2]] : null; }
+const lsNumber = p => has(p, "ls") ? (parse8(S.pages[p.n].ls)[0] || null) : p.ls_number || null;
+const lsPage = p => has(p, "ls_page") ? parsePageOf(S.pages[p.n].ls_page) : p.ls_page || null;
+const cmrTAs = p => has(p, "ta") ? parse8(S.pages[p.n].ta) : (p.ta || []).map(t => t.ta);
+const struck = t => !!(S.struck && S.struck[t]);
+function listTAs() {   // TAs of the loading list (read + added by the person), each once
+  const out = [], seen = new Set();
+  for (const p of D.pages) if (docType(p) === "loading_list") for (const t of p.ta || []) if (!seen.has(t.ta)) { seen.add(t.ta); out.push({ta: t.ta, n: p.n}); }
+  for (const t of S.added || []) if (!seen.has(t)) { seen.add(t); out.push({ta: t, n: null, manual: true}); }
+  return out;
+}
+const loaded = () => listTAs().filter(x => !struck(x.ta)).map(x => x.ta);
+function cardTitle(p) {
+  const dt = docType(p), cc = cmrCount(p);
+  if (dt === "cmr") return cc ? `CMR ${cc[0]}/${cc[1]}` : "CMR ?";
+  let t = T.dt[dt] || dt;
+  if (dt === "lieferschein") { const num = lsNumber(p), pg = lsPage(p); if (num) t += " " + num; if (pg) t += ` · ${T.ls_page} ${pg[0]}/${pg[1]}`; }
+  return t;
+}
+function missingPages(list) {
+  const got = list.filter(Boolean); if (!got.length) return [];
+  const n = Math.max(...got.map(x => x[1])), seen = new Set(got.map(x => x[0])), out = [];
+  for (let i = 1; i <= n; i++) if (!seen.has(i)) out.push(i);
+  return out;
+}
+
+// ------------------------------------------------------------ missing list (mirrors organize.py)
+function missingItems() {
+  const it = [], I = T.items, acc = S.accepted || {};
+  const add = (key, code, level, params, go) => it.push({key, level, go, accepted: !!acc[key], text: fmt(I[code], params)});
+  const st = stackInfo();
+  if (st.tot.size === 1) { const total = [...st.tot][0]; for (let i = 1; i <= total; i++) if (!st.by[i]) add("cmr:" + i, "item_cmr", "fehler", {i, total}); }
+  const ls = D.pages.filter(p => docType(p) === "lieferschein" && archive(p) && !otherTour(p));
+  const byNum = {};
+  for (const p of ls) { const num = lsNumber(p); if (num) (byNum[num] = byNum[num] || []).push(lsPage(p)); }
+  for (const num of Object.keys(byNum).sort()) {
+    const total = Math.max(0, ...byNum[num].filter(Boolean).map(x => x[1]));
+    for (const i of missingPages(byNum[num])) add(`ls:${num}:${i}`, "item_ls_page", "fehler", {number: num, i, total});
+  }
+  const ll = D.pages.filter(p => docType(p) === "loading_list");
+  if (ll.length) {
+    const pos = ll.map(p => p.page_of), total = Math.max(0, ...pos.filter(Boolean).map(x => x[1]));
+    for (const i of missingPages(pos)) add("ll:" + i, "item_ll_page", "fehler", {i, total});
+    const L = loaded();
+    if (L.length) {
+      const lvl = D.ta_validated ? "fehler" : "hinweis", ex = listTAs().filter(x => struck(x.ta)).map(x => x.ta);
+      const cmrT = [];
+      D.pages.filter(p => docType(p) === "cmr" && archive(p) && !otherTour(p)).forEach(p => cmrTAs(p).forEach(t => { if (!cmrT.includes(t)) cmrT.push(t); }));
+      const lsN = [...new Set(ls.map(lsNumber).filter(Boolean))].sort();
+      L.filter(t => !cmrT.includes(t)).forEach(t => add("ta_cmr:" + t, "item_ta_cmr", lvl, {ta: t}));
+      cmrT.filter(t => !L.includes(t) && !ex.includes(t)).forEach(t => add("ta_cmr_extra:" + t, "item_ta_cmr_extra", lvl, {ta: t}));
+      L.filter(t => !lsN.includes(t)).forEach(t => add("ta_ls:" + t, "item_ta_ls", lvl, {ta: t}));
+      lsN.filter(t => !L.includes(t) && !ex.includes(t)).forEach(t => add("ta_ls_extra:" + t, "item_ta_ls_extra", lvl, {ta: t}));
+    }
+  }
+  for (const p of order()) if (needsReview(p) && valid(p) === false)
+    add("page:" + p.n, "item_page", "fehler", {title: cardTitle(p), page: fmt(T.page, {n: p.n}),
+      missing: rule(p).require.filter(c => val(p, c) === false).map(c => fmt(T.missing_cls, {cls: T.cls[c] || c})).join(", ")}, p.n);
+  return it.sort((a, b) => (a.level === "fehler" ? 0 : 1) - (b.level === "fehler" ? 0 : 1));
+}
+const missingKeys = items => items.map(x => x.key).sort();
+const missingConfirmed = items => !items.length || (!!S.missing_keys && JSON.stringify(S.missing_keys) === JSON.stringify(missingKeys(items)));
+let accOpen = null;
+function accHtml(key) {
+  const a = (S.accepted || {})[key];
+  if (a) return ` <span class="acc">· ✓ ${T.accepted}: ${esc(T.reasons[a.reason] || a.reason)}${a.note ? " – " + esc(a.note) : ""}</span> <a class="lnk small" data-unacc="${esc(key)}">${T.undo}</a>`;
+  if (accOpen === key) return `<span class="accform"><select data-accr><option value="">${T.choose}</option>${Object.entries(T.reasons).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select><input data-accn placeholder="${esc(T.note)}"><button data-accok="${esc(key)}">OK</button><button data-acccancel="1">${T.cancel}</button></span>`;
+  return `<button class="accbtn" data-acc="${esc(key)}">${T.accept}</button>`;
+}
+function renderMissing() {
+  const items = missingItems(), ic = {fehler: "✗", hinweis: "!"};
+  let h = items.length ? `<ul class="checks">` + items.map(x => `<li class="${x.accepted ? "ok" : x.level}"><span class="ic">${x.accepted ? "✓" : ic[x.level]}</span><span>${x.go ? `<a data-go="${x.go}">${esc(x.text)}</a>` : esc(x.text)}${accHtml(x.key)}</span></li>`).join("") + `</ul>`
+    : `<p style="color:var(--ok)">✓ ${T.missing_none}</p>`;
+  if (items.length) {
+    const needTa = D.pages.some(p => docType(p) === "loading_list") && !S.ta_confirmed;
+    h += `<div class="mconf">` + (missingConfirmed(items) ? `<span class="pill is-valid">✓ ${T.missing_confirmed}</span> <a class="lnk small" data-mreset="1">${T.undo}</a>`
+      : `<button id="mconfirm" class="primary"${needTa ? " disabled" : ""}>${T.confirm_missing}</button>` + (needTa ? ` <span class="muted small">${T.need_ta_confirm}</span>` : "")
+        + (S.missing_keys ? ` <span class="small" style="color:var(--warn)">${T.missing_changed}</span>` : "")) + `</div>`;
+  }
+  $("missing").innerHTML = h;
+}
+function refreshAcc(key) {
+  renderMissing();
+  const m = /^page:(\d+)$/.exec(key || ""); if (m && byN[+m[1]]) update(byN[+m[1]]);
+}
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-acc],[data-accok],[data-acccancel],[data-unacc],[data-mreset],#mconfirm,#taconf,#taaddbtn,.chip.ta");
+  if (!t) return;
+  if (t.dataset.acc != null) { const prev = accOpen; accOpen = t.dataset.acc; refreshAcc(prev); refreshAcc(accOpen); }
+  else if (t.dataset.acccancel != null) { const prev = accOpen; accOpen = null; refreshAcc(prev); }
+  else if (t.dataset.accok != null) {
+    const f = t.closest(".accform"), reason = f.querySelector("[data-accr]").value, note = f.querySelector("[data-accn]").value.trim();
+    if (!reason) { f.querySelector("[data-accr]").focus(); return; }
+    if (reason === "sonstiges" && !note) { alert(T.note_needed); f.querySelector("[data-accn]").focus(); return; }
+    S.accepted = S.accepted || {}; S.accepted[t.dataset.accok] = {reason, note}; accOpen = null; persist(); refreshAcc(t.dataset.accok);
+  }
+  else if (t.dataset.unacc != null) { delete S.accepted[t.dataset.unacc]; persist(); refreshAcc(t.dataset.unacc); }
+  else if (t.dataset.mreset != null) { delete S.missing_keys; persist(); renderMissing(); }
+  else if (t.id === "mconfirm") { S.missing_keys = missingKeys(missingItems()); persist(); renderMissing(); }
+  else if (t.id === "taconf") { S.ta_confirmed = true; persist(); renderLoadingList(); renderMissing(); }
+  else if (t.id === "taaddbtn") {
+    const v = parse8($("taadd").value);
+    if (!v.length) { alert(T.bad_number); return; }
+    S.added = S.added || []; v.forEach(x => { if (!S.added.includes(x)) S.added.push(x); });
+    S.ta_confirmed = false; persist(); renderLoadingList(); renderMissing();
+  }
+  else if (t.classList.contains("ta")) {
+    S.struck = S.struck || {}; const ta = t.dataset.ta;
+    if (S.struck[ta]) delete S.struck[ta]; else S.struck[ta] = true;
+    S.ta_confirmed = false; persist(); renderLoadingList(); renderMissing();
+  }
+  e.stopPropagation();
+}, true);
 
 // ------------------------------------------------------------ header + organisational part
 function renderHeader() {
@@ -275,7 +433,7 @@ function renderChecks() {
   const ic = {ok: "✓", fehler: "✗", hinweis: "!"};
   $("checks").innerHTML = D.checks.map(c => `<li class="${c.level}"><span class="ic">${ic[c.level]}</span><span>${esc(c.text)}</span></li>`).join("");
 }
-function renderStack() {
+function stackInfo() {
   const by = {}, tot = new Set(), unread = [];
   for (const p of D.pages) {
     if (docType(p) !== "cmr" || !archive(p) || otherTour(p)) continue;
@@ -283,6 +441,10 @@ function renderStack() {
     if (!c) { unread.push(p.n); continue; }
     (by[c[0]] = by[c[0]] || []).push(p.n); tot.add(c[1]);
   }
+  return {by, tot, unread};
+}
+function renderStack() {
+  const {by, tot, unread} = stackInfo();
   const N = Math.max(0, ...tot, ...Object.keys(by).map(Number));
   let h = "";
   for (let i = 1; i <= N; i++) {
@@ -296,12 +458,13 @@ function renderStack() {
 function renderLoadingList() {
   const ll = D.pages.filter(p => docType(p) === "loading_list");
   if (!ll.length) { $("ll").innerHTML = ""; return; }
-  let h = `<b>${T.loading_list}</b>: ` + ll.map(p => `<a data-modal="${p.n}">${fmt(T.page, {n: p.n})}</a>`).join(", ");
-  const ta = D.org.ta;
-  if (ta) {
-    h += `<br><span class="muted">${T.ta_loaded} (${ta.loaded.length}):</span> ${esc(ta.loaded.join(", ")) || T.none}`;
-    if (ta.excluded.length) h += `<br><span class="muted">${T.ta_excluded}:</span> ${esc(ta.excluded.join(", "))}`;
-  }
+  const tas = listTAs(), unread = ll.filter(p => (p.ta_unread || []).length), L = loaded();
+  let h = `<b>${T.loading_list}</b>: ` + ll.map(p => `<a class="lnk" data-modal="${p.n}">${fmt(T.page, {n: p.n})}${p.page_of ? " (" + p.page_of.join("/") + ")" : ""}</a>`).join(", ");
+  h += `<div class="muted small">${T.ta_click}</div><div class="stack">` + (tas.map(x => `<span class="chip ta${struck(x.ta) ? " struck" : ""}" data-ta="${x.ta}" title="${x.n ? esc(fmt(T.page, {n: x.n})) : "+"}">${x.ta}${x.manual ? " +" : ""}</span>`).join("") || `<span class="muted">${T.none}</span>`) + `</div>`;
+  if (unread.length) h += `<div class="small" style="color:var(--warn)">${T.ta_unread}: ${unread.map(p => `<a class="lnk" data-modal="${p.n}">${fmt(T.page, {n: p.n})}</a>`).join(", ")}</div>`;
+  h += `<div class="small">${T.ta_loaded}: ${L.length}${tas.length > L.length ? ` · ${T.struck}: ${tas.length - L.length}` : ""}</div>`;
+  h += `<div style="margin-top:4px"><input id="taadd" placeholder="12345678" style="width:120px"> <button id="taaddbtn">${T.ta_add}</button> `
+    + (S.ta_confirmed ? `<span class="pill is-valid">✓ ${T.ta_confirmed}</span>` : `<button id="taconf" class="primary">${T.ta_confirm}</button>`) + `</div>`;
   $("ll").innerHTML = h;
 }
 
@@ -311,6 +474,7 @@ function unclearKinds(p) {
   if (p.doc_type === "unsicher") k.push("dt");
   if (reviewable(p) && REVIEW.includes(p.doc_type) && !(p.tour && p.tour.accepted)) k.push("tour");
   if (docType(p) === "cmr" && !(p.cmr_count && p.cmr_count.parsed)) k.push("cmr");
+  if (docType(p) === "lieferschein" && p.doc_type === "lieferschein" && !p.ls_number) k.push("ls");
   return k;
 }
 function renderClear() {
@@ -318,7 +482,7 @@ function renderClear() {
   $("clearwrap").style.display = items.length ? "block" : "none";
   $("clear").innerHTML = items.map(p => {
     const k = unclearKinds(p);
-    const done = (!k.includes("dt") || has(p, "doc_type")) && (!k.includes("cmr") || cmrCount(p));
+    const done = (!k.includes("dt") || has(p, "doc_type")) && (!k.includes("cmr") || cmrCount(p)) && (!k.includes("ls") || lsNumber(p));
     const opts = [`<option value="">${T.choose}</option>`].concat(D.doc_types.map(t =>
       `<option value="${t}"${docType(p) === t && (has(p, "doc_type") || p.doc_type === t) ? " selected" : ""}>${esc(T.dt[t] || t)}</option>`)).join("");
     let f = `<b>${fmt(T.page, {n: p.n})}</b> <span class="muted small">${esc(p.source)}</span>` + (done ? ` <span class="small" style="color:var(--ok)">✓ ${T.resolved}</span>` : "");
@@ -327,6 +491,10 @@ function renderClear() {
     if (docType(p) === "cmr") {
       const read = p.cmr_count && p.cmr_count.text ? ` <span class="muted small">${T.ocr_read}: „${esc(p.cmr_count.text)}“</span>` : "";
       f += `<label>${T.cmr_count} <input data-n="${p.n}" data-f="cmr" placeholder="3/13" value="${esc(has(p, "cmr") ? S.pages[p.n].cmr : (cmrCount(p) || []).join("/"))}">${read}</label>`;
+    }
+    if (docType(p) === "lieferschein") {
+      const read = p.ls_read && p.ls_read.text ? ` <span class="muted small">${T.ocr_read}: „${esc(p.ls_read.text)}“</span>` : "";
+      f += `<label>${T.ls_number} <input data-n="${p.n}" data-f="ls" placeholder="12345678" value="${esc(has(p, "ls") ? S.pages[p.n].ls : lsNumber(p) || "")}">${read}</label>`;
     }
     if (reviewable(p)) {
       const read = p.tour && p.tour.raw ? ` <span class="muted small">${T.ocr_read}: „${esc(p.tour.raw)}“</span>` : "";
@@ -340,7 +508,7 @@ $("clear").addEventListener("change", e => {
   if (!p) return;
   const s = us(p), f = el.dataset.f;
   if (el.value === "") delete s[f]; else s[f] = el.value;
-  s.confirmed = false;
+  if (f !== "ls") s.confirmed = false;
   persist(); renderAll();
 });
 
@@ -374,10 +542,11 @@ function viewHtml(p, v, classes) {
   return `<div class="view" data-modal="${p.n}" style="aspect-ratio:${rw * p.w} / ${rh * p.h}">${h}</div>`;
 }
 function cardHtml(p) {
-  const dt = docType(p), cc = cmrCount(p), v = valid(p), r = rule(p);
-  let title = dt === "cmr" ? (cc ? `CMR ${cc[0]}/${cc[1]}` : "CMR ?") : (T.dt[dt] || dt);
-  const tas = (p.ta || []).map(t => t.ta);
-  if (dt === "lieferschein" && tas.length) title += " · TA " + tas.join(", ");
+  const dt = docType(p), v = valid(p), r = rule(p);
+  const title = cardTitle(p);
+  let flds = "";
+  if (dt === "cmr") flds = `<div class="flds"><label>${T.ta_field} <input class="fld wide" data-f="ta" placeholder="12345678, 12345679" value="${esc(has(p, "ta") ? S.pages[p.n].ta : cmrTAs(p).join(", "))}"></label></div>`;
+  if (dt === "lieferschein") { const pg = lsPage(p); flds = `<div class="flds"><label>${T.ls_number} <input class="fld" data-f="ls" placeholder="12345678" value="${esc(has(p, "ls") ? S.pages[p.n].ls : lsNumber(p) || "")}"></label><label>${T.ls_page} <input class="fld" data-f="ls_page" placeholder="1/2" style="width:60px" value="${esc(has(p, "ls_page") ? S.pages[p.n].ls_page : pg ? pg.join("/") : "")}"></label></div>`; }
   let tags = "";
   if (dupOf(p) != null) tags += `<span class="tag">${fmt(T.dup_of, {n: dupOf(p)})}</span>`;
   const copies = D.pages.filter(q => dupOf(q) === p.n && !archive(q)).map(q => q.n);
@@ -396,11 +565,12 @@ function cardHtml(p) {
   }
   const vc = v === true ? "is-valid" : v === false ? "is-invalid" : "is-open";
   return `<div class="head"><b>${esc(title)}</b><span class="muted small">${fmt(T.page, {n: p.n})} · ${esc(p.source)}</span>${tags}</div>
-    ${viewHtml(p, p.view || [0, 0, 1, 1], OBJ)}
+    ${flds}${viewHtml(p, p.view || [0, 0, 1, 1], OBJ)}
     <div class="rule muted">${r.mode === "any" ? T.rule_any : T.rule_all}</div>${rows}
     <div class="foot"><label><input type="checkbox" class="arch"${archive(p) ? " checked" : ""}> ${T.archive}</label>
     <span class="pill ${vc}">${v === true ? T.valid : v === false ? T.invalid : T.open}</span>
-    <button class="conf">${confirmed(p) ? "✓ " + T.confirmed : T.confirm}</button></div>`;
+    <button class="conf">${confirmed(p) ? "✓ " + T.confirmed : T.confirm}</button></div>
+    ${v === false && archive(p) ? `<div class="small">${accHtml("page:" + p.n)}</div>` : ""}`;
 }
 function cardClass(p) {
   const v = valid(p);
@@ -415,7 +585,7 @@ function renderCards() {
 function update(p) {
   const el = document.querySelector(`#cards .card[data-n="${p.n}"]`);
   if (el) { el.className = cardClass(p); el.innerHTML = cardHtml(p); }
-  renderHeader(); renderStack(); renderFilters();
+  renderHeader(); renderStack(); renderFilters(); renderMissing();
 }
 function setVal(p, c, v) { const s = us(p); s.v = s.v || {}; s.v[c] = v; s.confirmed = false; persist(); update(p); }
 function confirmCard(p) {
@@ -429,12 +599,18 @@ function confirmCard(p) {
 $("cards").addEventListener("click", e => {
   const el = e.target.closest(".card"); if (!el) return;
   const p = byN[+el.dataset.n]; setCur(p.n);
+  if (e.target.closest(".flds,.accform")) return;
   const b = e.target.closest("button");
   if (b && b.dataset.c) setVal(p, b.dataset.c, b.dataset.v === "1");
   else if (b && b.classList.contains("conf")) confirmCard(p);
   else if (e.target.closest(".view")) openModal(p);
 });
 $("cards").addEventListener("change", e => {
+  if (e.target.classList.contains("fld")) {
+    const p = byN[+e.target.closest(".card").dataset.n], s = us(p), f = e.target.dataset.f, v = e.target.value.trim();
+    if (v === "") delete s[f]; else s[f] = v;
+    persist(); update(p); renderClear(); return;
+  }
   if (!e.target.classList.contains("arch")) return;
   const p = byN[+e.target.closest(".card").dataset.n];
   const s = us(p); s.archive = e.target.checked; s.confirmed = false; persist(); update(p);
@@ -512,6 +688,8 @@ $("save").onclick = async () => {
   if (!S.reviewer.trim()) { alert(T.save_need_name); $("reviewer").focus(); return; }
   const open = D.pages.filter(p => needsReview(p) && !confirmed(p)).length;
   if (open && !confirm(fmt(T.save_open, {n: open}))) return;
+  const items = missingItems(), mconf = missingConfirmed(items);
+  if (!mconf && !confirm(T.save_unconfirmed)) return;
   const out = {format: "docval-entscheidung", version: 1, name: D.name, tour: D.tour, ergebnis_created: D.created,
     reviewer: S.reviewer.trim(), saved: new Date().toISOString(), open, pages: {}};
   for (const p of D.pages) {
@@ -525,8 +703,12 @@ $("save").onclick = async () => {
       e.cmr_count = docType(p) === "cmr" ? cmrCount(p) : null;
       e.tour = has(p, "tour") ? S.pages[p.n].tour.trim() : null;
     }
+    if (docType(p) === "lieferschein") { e.ls_number = lsNumber(p); e.ls_page = lsPage(p); }
+    if (docType(p) === "cmr" && has(p, "ta")) e.ta = cmrTAs(p);
     out.pages[p.n] = e;
   }
+  Object.assign(out, {ta_struck: Object.keys(S.struck || {}).filter(k => S.struck[k]), ta_added: S.added || [],
+    ta_confirmed: !!S.ta_confirmed, accepted: S.accepted || {}, missing_keys: missingKeys(items), missing_confirmed: mconf});
   if (await saveText("entscheidung.json", JSON.stringify(out, null, 1))) notice(fmt(T.saved, {name: D.name}));
 };
 $("discard").onclick = () => {
@@ -536,7 +718,7 @@ $("discard").onclick = () => {
 $("reviewer").value = S.reviewer || "";
 $("reviewer").addEventListener("input", e => { S.reviewer = e.target.value; persist(); });
 
-function renderAll() { renderHeader(); renderChecks(); renderStack(); renderLoadingList(); renderClear(); renderFilters(); renderCards(); }
+function renderAll() { renderHeader(); renderChecks(); renderStack(); renderLoadingList(); renderClear(); renderFilters(); renderCards(); renderMissing(); }
 renderAll();
 </script>
 </body></html>

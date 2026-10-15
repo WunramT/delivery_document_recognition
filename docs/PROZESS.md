@@ -45,7 +45,7 @@ Fachbereich – Dokumentprüfung Vertrieb“.
 
 | Schritt im bisherigen Ablauf | Neu | Wer |
 |---|---|---|
-| 1. Ladeliste prüfen: wie viele TA verladen, „Nie jedzie“ gestrichen | TA-Nummern der Ladeliste lesen, Zeilen mit „nie jedzie“/„nicht verladen“ ausnehmen, mit CMR und Lieferscheinen abgleichen | Anwendung – **vorerst nur Hinweis** (siehe unten) |
+| 1. Ladeliste prüfen: wie viele TA verladen, „Nie jedzie“ gestrichen | TA-Nummern aus den `ta_nummer`-Boxen der Ladeliste lesen; die Person streicht nicht verladene TAs und bestätigt die Liste; Abgleich mit CMR und Lieferscheinen | Anwendung liest + gleicht ab, **Person streicht und bestätigt**; Abweichungen vorerst Hinweis (siehe unten) |
 | 2. Heftklammern entfernen | unverändert (vor dem Scannen) | Person |
 | 3. In CMR und Lieferscheine trennen | Dokumenttyp je Seite (OCR-Schlüsselwörter + Bildklassifikator) | Anwendung, automatisch |
 | 3.1.1 / 3.2.1 Duplikate entfernen | CMR: gleiche Nummer „CMR i/n“ zweimal → die Kopie mit Stempel/Unterschrift bleibt. Lieferschein: gleiche TA-Nummern → ebenso | Anwendung schlägt vor, Person kann umstellen („archivieren“) |
@@ -72,7 +72,11 @@ make process SCANS=scans/tour503/ TOUR=503_01.09.2026  # Tour angeben, wenn der 
 ```
 
 Voraussetzung: ein trainiertes und ausgewertetes Modell (`make train export eval` – daraus
-kommen `detector.onnx`, die Soll-Zonen und die Schwellen). Die Tournummer der Tour kommt aus
+kommen `detector.onnx`, die Soll-Zonen und die Schwellen). Für den Betrieb danach
+`make train-final`: dasselbe Modell, trainiert auf **allen** gelabelten Seiten (train + valid +
+test) → `artifacts/detector_final/`. `make process` nimmt es automatisch, solange es neuer ist
+als das ausgewertete Modell (`process.model: auto`); Schwellen und Zonen bleiben die aus
+`make eval`. Die Tournummer der Tour kommt aus
 `TOUR=`, sonst aus dem Datei-/Ordnernamen (`503_01.09.2026` → `503/01.09.2026/4000`), sonst
 aus der häufigsten gelesenen Tournummer.
 
@@ -84,17 +88,31 @@ Ergebnis in `artifacts/process/<Tour>/`:
 
 ### Prüfseite
 
+0. **Fehlt in dieser Tour** – oben, aktualisiert sich bei jeder Eingabe: fehlende CMR-Nummern,
+   fehlende Seiten eines Lieferscheins („Seite i/n“) oder der Ladeliste, der TA-Abgleich (TA
+   ohne CMR/Lieferschein, TA auf CMR/Lieferschein, die nicht auf der Ladeliste steht) und
+   Seiten ohne Stempel/Unterschrift. Jeder Punkt kann **„trotzdem akzeptieren“** – mit Grund
+   (nachgereicht / abgesprochen / storniert / Sonstiges mit Bemerkung); er hält die Tour dann
+   nicht mehr offen und steht mit Grund und Name im Protokoll. Danach **„Fehlliste
+   bestätigen“** (geht erst, wenn die Ladeliste bestätigt ist) – nur dann erzeugt
+   `make finalize` die Mail-Entwürfe. Ändert sich die Liste danach, muss neu bestätigt werden.
 1. **Organisatorisch** – das automatische Ergebnis (grün ✓ / rot ✗ / gelb ! Hinweis) und die
    CMR-Folge 1..n als Kacheln (fehlende Nummer rot, doppelte gelb; Klick springt zur Karte).
-2. **Klärfälle** – nur, wenn es welche gibt: Dokumenttyp wählen, CMR-Nummer `i/n` oder
-   Tournummer eintragen.
+   **Ladeliste:** alle TAs aus den `ta_nummer`-Boxen als Kacheln. Gestrichene/nicht verladene
+   TA anklicken (rot durchgestrichen, nochmal klicken = zurück), fehlende/falsch gelesene TA
+   über „TA hinzufügen“ eintragen, dann **„Ladeliste bestätigen“**. Nicht lesbare TA-Felder
+   werden mit Seite angezeigt.
+2. **Klärfälle** – nur, wenn es welche gibt: Dokumenttyp wählen, CMR-Nummer `i/n`,
+   Tournummer oder Lieferscheinnummer eintragen.
 3. **Unterschrift und Stempel** – eine Karte je CMR/Lieferschein mit dem Ausschnitt, in dem
    das Modell gesucht hat, und seinen Markierungen (durchgezogen = sicher, gestrichelt =
    unsicher, schraffiert = Vordruck Feld 22/23, wird ignoriert). Je Objekt „vorhanden“/„fehlt“
    – vorbelegt mit dem Modellvorschlag, bei „Modell unsicher“ leer – und **„Bestätigen“**.
    Klick aufs Bild zeigt die ganze Seite. Tasten: `J`/`K` Karte wechseln, `1` Unterschrift,
    `2` Stempel, `A` archivieren, `Enter` bestätigen + weiter, Leertaste ganze Seite.
-   Filter „offen“, „Modell unsicher“, „ungültig“.
+   Filter „offen“, „Modell unsicher“, „ungültig“. Auf der Karte stehen die gelesenen Nummern
+   und lassen sich korrigieren: beim CMR die TAs, beim Lieferschein Nummer und Seite `i/n`.
+   Ungültige Karte: „trotzdem akzeptieren“ wie oben.
 
 Name bei „Prüfer/in“ eintragen, **„Entscheidung speichern“** → Datei als
 `entscheidung.json` in den Ordner der Prüfseite legen. Der Zwischenstand bleibt im Browser
@@ -112,8 +130,10 @@ Korrekturen der Person neu und schreibt `freigabe/`:
 
 - `CMR_<Tour>.pdf` (1..n, ohne Duplikate), `LS_<Tour>.pdf`, `andere_touren/` (Zuladungen)
 - `CMR_<Tour>.eml`, `LS_<Tour>.eml` – Mail-Entwürfe mit Anhang an die Adressen aus
-  `process.mail` (in Outlook öffnen, senden)
-- `protokoll_de.txt` / `protokoll_pl.txt` – Ergebnis VOLLSTÄNDIG/OFFEN, ungültige Seiten,
+  `process.mail` (in Outlook öffnen, senden) – **nur, wenn die Fehlliste bestätigt ist** (oder
+  nichts fehlt); sonst steht im Protokoll unter „Zu tun“, dass sie zu bestätigen ist
+- `protokoll_de.txt` / `protokoll_pl.txt` – Ergebnis VOLLSTÄNDIG/OFFEN, **Fehlliste** (offen /
+  trotzdem akzeptiert mit Grund, bestätigt von), ungültige Seiten,
   **Zu tun** (Polilogistics, Ersatzdokument, andere Tour, Senden, Papierarchiv,
   ZCHECKLSARCHIV), Reihenfolge fürs Papier, Abweichungen vom Modellvorschlag
 - `protokoll.csv` – je Seite Modell und Entscheidung. Die Entscheidungen der Person sind
@@ -156,17 +176,21 @@ Dokumenttyp „Sammelbestätigung“ markieren.
 
 ## Geplante Änderungen an der Anwendung
 
-Aus den Antworten oben, noch nicht umgesetzt:
+Umgesetzt (Stand 15.10.2026):
 
-1. TA-Nummern nur aus `ta_nummer`-Boxen (8 Ziffern), nicht mehr per Ganzseiten-OCR.
-2. Prüfseite: Ladeliste mit allen gelesenen TAs; die Person streicht TAs (Klick auf die Box)
-   und bestätigt die Liste. Der Abgleich (CMR in beide Richtungen, Lieferschein über seine
-   Nummer = TA) ist in `process/organize.py` schon umgesetzt; es fehlt das Lesen der Boxen (1., 3.).
-3. Lieferschein-Nummer aus `ls_nummer` lesen (= TA), Seiten eines Lieferscheins über Nummer + `seitenzahl` gruppieren, Vollständigkeit über `seitenzahl`;
-   Ladeliste ebenso (alle Seiten 1..n).
-4. CMR: fehlt Stempel oder Unterschrift, bzw. fehlt ein CMR → „trotzdem akzeptieren“ mit Grund
-   (Auswahl + Freitext), im Protokoll.
-5. Fehlende Dokumente der Tour vorne anzeigen; Mail-Entwürfe erst nach aktiver Bestätigung.
+1. ✓ TA-Nummern nur aus `ta_nummer`-Boxen (8 Ziffern), nicht mehr per Ganzseiten-OCR.
+2. ✓ Prüfseite: Ladeliste mit allen gelesenen TAs; die Person streicht TAs und bestätigt die
+   Liste; der Abgleich (CMR in beide Richtungen, Lieferschein über seine Nummer = TA) läuft
+   live auf der Seite und beim Abschluss.
+3. ✓ Lieferschein-Nummer aus `ls_nummer` (= TA), Seite `i/n` aus `seitenzahl`; Seiten eines
+   Lieferscheins über die Nummer gruppiert, fehlende Seiten gemeldet; Ladeliste ebenso (1..n).
+4. ✓ „Trotzdem akzeptieren“ mit Grund (Auswahl + Freitext) für fehlende CMR/Seiten,
+   TA-Abweichungen und Seiten ohne Stempel/Unterschrift; im Protokoll.
+5. ✓ Fehlende Dokumente vorne; Mail-Entwürfe erst nach aktiver Bestätigung der Fehlliste.
+   Dazu `make train-final` (Produktionsmodell auf allen Seiten).
+
+Noch offen (nach dem PoC):
+
 6. Nachtrag: einzelnes Ersatz-CMR scannen, über die Tournummer der Tour zuordnen, bestätigen.
 7. Oberfläche und Protokoll zusätzlich auf Rumänisch und Englisch.
 8. Protokoll pro Tour als Datei: Die Person wählt den Protokoll-Ordner (Netzlaufwerk) einmal aus
@@ -176,13 +200,12 @@ Aus den Antworten oben, noch nicht umgesetzt:
 
 ## Was noch offen ist
 
-- **TA-Abgleich (Schritt 1, 3.1.2, 3.2.3) ist nicht validiert.** Die TA-Nummern werden per
-  Ganzseiten-OCR gelesen (`process.ta.regex`, z. B. `12283251`). Es gibt dafür noch keine
-  Labels, und handschriftliche Vermerke bzw. durchgestrichene Zeilen erkennt die OCR nicht
-  sicher. Deshalb erscheint das Ergebnis nur als Hinweis und blockiert nichts. Nach einer
-  Prüfung an echten Touren `process.ta.validated: true` setzen – dann werden Abweichungen zu
-  Fehlern. Bis dahin gleicht die Person die Anzahl der TA mit der Ladeliste ab.
-- Lieferschein-Duplikate werden nur über gleiche TA-Nummern erkannt (sonst bleibt beides
+- **TA-Abgleich (Schritt 1, 3.1.2, 3.2.3) ist noch nicht an echten Touren validiert.** Die TAs
+  kommen aus den `ta_nummer`-Boxen, die Lieferscheinnummer aus `ls_nummer`; handschriftliche
+  Streichungen erkennt die Anwendung nicht – die streicht die Person. Bis zur Prüfung an echten
+  Touren bleiben TA-Abweichungen Hinweise (halten die Tour nicht offen, stehen aber in der
+  Fehlliste). Danach `process.ta.validated: true` – dann werden sie zu Fehlern.
+- Lieferschein-Duplikate werden über gleiche Nummer und Seite erkannt (sonst bleibt beides
   stehen und die Person nimmt die Kopie per „archivieren“ heraus).
 - Mails werden nicht automatisch versendet (Entwürfe), ZCHECKLSARCHIV bleibt manuell.
 - Produktion im Browser: Die Logik (`process/organize.py`, Zonen, Nachverarbeitung) ist wie

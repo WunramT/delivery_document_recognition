@@ -12,8 +12,10 @@ number), runs the organisational checks again and writes freigabe/:
     protokoll_de.txt / protokoll_pl.txt / protokoll.csv
                           result, what is still to do, paper sort order, model vs. person
 
-Refuses to run while CMR/Lieferscheine are unconfirmed (FORCE=1 overrides). Copies the PDFs
-into process.deliver.* only when the tour is complete (or with FORCE=1).
+Refuses to run while CMR/Lieferscheine are unconfirmed (FORCE=1 overrides). The e-mail drafts
+are only written when the person confirmed the list of missing documents on the review page
+(or nothing is missing). Items accepted anyway (with a reason) do not keep the tour open.
+Copies the PDFs into process.deliver.* only when the tour is complete (or with FORCE=1).
 """
 
 from __future__ import annotations
@@ -31,7 +33,7 @@ from ..config import artifacts, resolve
 from ..zones.synthetic import to_rgb
 from .organize import ERROR, REVIEW_TYPES, organize, page_valid
 from .run import safe_name
-from .texts import MSG, pages_text, render_check
+from .texts import MSG, item_text, pages_text, reason_text, render_check
 
 OBJ = ("unterschrift", "stempel")
 
@@ -64,6 +66,14 @@ PROTO = {
         "paper_ls": "Lieferscheine: {pages}",
         "paper_drop": "Nicht archivieren (Duplikat/aussortiert): {pages}",
         "h_files": "Dateien",
+        "h_missing": "Fehlliste (fehlende Dokumente)",
+        "missing_none": "nichts fehlt",
+        "accepted_mark": "trotzdem akzeptiert",
+        "missing_acc": "trotzdem akzeptiert: {text} – Grund: {reason}",
+        "missing_confirmed": "Fehlliste bestätigt von {reviewer} – Mail-Entwürfe erzeugt",
+        "missing_unconfirmed": "Fehlliste nicht bestätigt – keine Mail-Entwürfe erzeugt",
+        "todo_confirm_missing": "Fehlliste auf der Prüfseite bestätigen, Entscheidung neu speichern, make finalize "
+                                "erneut – erst dann entstehen die Mail-Entwürfe",
         "archive_dir": "srem-svr-file01",
         "delivered": "kopiert nach {dir}",
         "not_delivered": "nicht ins Archiv kopiert (Tour nicht vollständig, FORCE=1 erzwingt es)",
@@ -97,6 +107,14 @@ PROTO = {
         "paper_ls": "Dowody dostawy: {pages}",
         "paper_drop": "Nie archiwizować (duplikat/odłożone): {pages}",
         "h_files": "Pliki",
+        "h_missing": "Lista braków (brakujące dokumenty)",
+        "missing_none": "niczego nie brakuje",
+        "accepted_mark": "zaakceptowano mimo to",
+        "missing_acc": "zaakceptowano mimo to: {text} – powód: {reason}",
+        "missing_confirmed": "Listę braków potwierdził(a) {reviewer} – utworzono szkice e-maili",
+        "missing_unconfirmed": "Lista braków niepotwierdzona – nie utworzono szkiców e-maili",
+        "todo_confirm_missing": "Potwierdzić listę braków na stronie kontroli, zapisać decyzję ponownie, ponownie "
+                                "make finalize – dopiero wtedy powstaną szkice e-maili",
         "archive_dir": "srem-svr-file01",
         "delivered": "skopiowano do {dir}",
         "not_delivered": "nie skopiowano do archiwum (trasa niekompletna, FORCE=1 wymusza)",
@@ -110,9 +128,13 @@ CLS_NAMES = {"de": {"unterschrift": "Unterschrift", "stempel": "Stempel"},
 
 
 def apply_decision(pages: list[dict], decision: dict) -> list[dict]:
-    """Page records with the person's decision applied (copies; ergebnis.json stays as is)."""
+    """Page records with the person's decision applied (copies; ergebnis.json stays as is):
+    signature/stamp, archive, doc type, CMR i/n, tour number, Lieferschein number and page,
+    TAs of a CMR, TAs struck out on / added to the loading list."""
     out = []
     dpages = decision.get("pages") or {}
+    struck = set(decision.get("ta_struck") or [])
+    added = [t for t in decision.get("ta_added") or [] if t]
     for p in pages:
         q = copy.deepcopy(p)
         d = dpages.get(str(p["n"])) or {}
@@ -127,15 +149,42 @@ def apply_decision(pages: list[dict], decision: dict) -> list[dict]:
             q["cmr_count"] = dict(q.get("cmr_count") or {}, parsed=[int(x) for x in d["cmr_count"]])
         if d.get("tour"):
             q["tour"] = dict(q.get("tour") or {}, text=d["tour"], accepted=True, manual=True)
+        if "ls_number" in d:
+            q["ls_number"] = d["ls_number"] or None
+        if "ls_page" in d:
+            q["ls_page"] = [int(x) for x in d["ls_page"]] if d["ls_page"] else None
+        if d.get("ta") is not None and q["doc_type"] == "cmr":
+            q["ta"] = [{"ta": t, "excluded": False, "manual": True} for t in d["ta"]]
+        if q["doc_type"] == "loading_list":
+            q["ta"] = [dict(t, excluded=t["ta"] in struck) for t in q.get("ta") or []]
         out.append(q)
+    lists = [q for q in out if q["doc_type"] == "loading_list"]
+    if lists and added:
+        have = {t["ta"] for q in lists for t in q.get("ta") or []}
+        lists[0]["ta"] = list(lists[0].get("ta") or []) + [
+            {"ta": t, "excluded": t in struck, "manual": True} for t in added if t not in have]
     return out
+
+
+def missing_list(org: dict, invalid: list[int], by_n: dict, rules: dict, accepted: dict, lang: str) -> list[dict]:
+    """organize's missing items + pages that fail the stamp/signature rule (key page:<n>)."""
+    items = [dict(it) for it in org["missing_items"]]
+    for n in invalid:
+        p = by_n[n]
+        items.append({"key": f"page:{n}", "code": "item_page", "level": ERROR, "accepted": f"page:{n}" in accepted,
+                      "params": {"title": card_title(p, lang), "page": MSG[lang]["page"].format(n=n),
+                                 "missing": missing_text(p, rules.get(p["doc_type"]) or {}, lang) or "?"}})
+    return items
 
 
 def card_title(p: dict, lang: str) -> str:
     if p["doc_type"] == "cmr":
         c = (p.get("cmr_count") or {}).get("parsed")
         return MSG[lang]["cmr_of"].format(i=c[0], n=c[1]) if c else "CMR ?"
-    return SINGULAR[lang].get(p["doc_type"], p["doc_type"])
+    t = SINGULAR[lang].get(p["doc_type"], p["doc_type"])
+    if p["doc_type"] == "lieferschein" and p.get("ls_number"):
+        t += f" {p['ls_number']}" + (f" ({p['ls_page'][0]}/{p['ls_page'][1]})" if p.get("ls_page") else "")
+    return t
 
 
 def missing_text(p: dict, rule: dict, lang: str) -> str:
@@ -183,14 +232,24 @@ def run_finalize(cfg, run: str, decision_path: str | None, force: bool, log) -> 
     by_n = {p["n"]: p for p in pages}
     rules = R["rules"]
     tour = R["tour"]
-    org = organize(pages, tour, rules, bool(R.get("ta_validated")))
+    accepted = {k: v for k, v in (dec.get("accepted") or {}).items() if v and v.get("reason")}
+    org = organize(pages, tour, rules, bool(R.get("ta_validated")), accepted)
     archived = org["cmr_order"] + org["ls_order"] + [n for n in org["other_tour"] if by_n[n].get("archive", True)]
     open_pages = sorted(n for n in archived if not by_n[n]["confirmed"])
     if open_pages and not force:
         log(f"FEHLER: {len(open_pages)} Seiten nicht bestätigt (S. {', '.join(map(str, open_pages))}) - "
             "auf der Prüfseite bestätigen und neu speichern (FORCE=1 schließt trotzdem ab)")
         return 2
-    invalid = [n for n in archived if page_valid(by_n[n], rules.get(by_n[n]["doc_type"]) or {}) is not True]
+    invalid_all = [n for n in archived if page_valid(by_n[n], rules.get(by_n[n]["doc_type"]) or {}) is not True]
+    invalid = [n for n in invalid_all if f"page:{n}" not in accepted]
+    # the person must have confirmed the missing list on the review page before mails are drafted
+    keys = {it["key"] for it in missing_list(org, invalid_all, by_n, rules, accepted, "de")}
+    missing_ok = not keys or bool(dec.get("missing_confirmed"))
+    unseen = sorted(keys - set(dec.get("missing_keys") or [])) if dec.get("missing_confirmed") else []
+    if keys and not missing_ok:
+        log("[finalize] HINWEIS: Fehlliste auf der Prüfseite nicht bestätigt - keine Mail-Entwürfe")
+    if unseen:
+        log(f"[finalize] WARNUNG: fehlt laut Abschluss, stand aber nicht in der bestätigten Fehlliste: {', '.join(unseen)}")
     # the person contradicts a definite model proposal (ja/nein; "unsicher" is no contradiction)
     differs = [p["n"] for p in pages if p["n"] in archived and any(
         c in p["decision"] and p["proposal"].get(c) in ("ja", "nein")
@@ -222,7 +281,7 @@ def run_finalize(cfg, run: str, decision_path: str | None, force: bool, log) -> 
     emls = {}
     for kind, f in files.items():
         to = mails.get(kind)
-        if to:
+        if to and missing_ok:
             label = "CMR" if kind == "cmr" else "Lieferscheine"
             emls[kind] = out / f.with_suffix(".eml").name
             write_eml(emls[kind], to, f"{label} Tour {tour or run}", f"Tour {tour or run}\n{f.name}\n", f)
@@ -252,23 +311,39 @@ def run_finalize(cfg, run: str, decision_path: str | None, force: bool, log) -> 
         L += ["", t["h_org"]]
         ic = {"ok": "✓", "fehler": "✗", "hinweis": "!"}
         L += [f"  {ic[c['level']]} {render_check(c, lang)}" for c in org["checks"]]
+        L += ["", t["h_missing"]]
+        mitems = missing_list(org, invalid_all, by_n, rules, accepted, lang)
+        for it in mitems:
+            if it["accepted"]:
+                L.append("  ✓ " + t["missing_acc"].format(text=item_text(it, lang),
+                                                         reason=reason_text(accepted[it["key"]], lang)))
+            else:
+                L.append(f"  {'✗' if it['level'] == ERROR else '!'} {item_text(it, lang)}")
+        if not mitems:
+            L.append("  " + t["missing_none"])
+        else:
+            L.append("  " + (t["missing_confirmed"].format(reviewer=dec.get("reviewer") or "?") if missing_ok
+                             else t["missing_unconfirmed"]))
         L += ["", t["h_sig"]]
         for kind, order in (("cmr", org["cmr_order"]), ("lieferschein", org["ls_order"])):
             if not order:
                 continue
-            bad = [n for n in order if n in invalid]
+            bad = [n for n in order if n in invalid_all]
             L.append("  " + t["sig_line"].format(type=TYPE_NAMES[lang][kind], valid=len(order) - len(bad),
                                                  invalid=len(bad)))
             for n in bad:
                 p = by_n[n]
                 L.append("    - " + t["invalid_item"].format(page=pg(n), title=card_title(p, lang),
-                                                             missing=missing_text(p, rules[p["doc_type"]], lang)))
+                                                             missing=missing_text(p, rules[p["doc_type"]], lang))
+                         + (f" ({t['accepted_mark']})" if f"page:{n}" in accepted else ""))
         L.append("  " + (t["differs"].format(pages=pgs(differs)) if differs else t["differs_none"]))
         L += ["", t["h_todo"]]
         todo = []
-        if org["missing_cmr"]:
-            todo.append(t["todo_cmr_missing"].format(missing=", ".join(map(str, org["missing_cmr"])),
-                                                     total=org["cmr_total"]))
+        open_cmr = [it["params"]["i"] for it in org["missing_items"] if it["code"] == "item_cmr" and not it["accepted"]]
+        if open_cmr:
+            todo.append(t["todo_cmr_missing"].format(missing=", ".join(map(str, open_cmr)), total=org["cmr_total"]))
+        if not missing_ok:
+            todo.append(t["todo_confirm_missing"])
         for n in invalid:
             p = by_n[n]
             todo.append(t["todo_invalid"].format(page=pg(n), title=card_title(p, lang),
@@ -302,9 +377,9 @@ def run_finalize(cfg, run: str, decision_path: str | None, force: bool, log) -> 
 
     with open(out / "protokoll.csv", "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.writer(fh, delimiter=";")
-        w.writerow(["seite", "quelle", "dokumenttyp", "dokumenttyp_modell", "cmr", "tour", "ta",
-                    "modell_unterschrift", "entscheidung_unterschrift", "modell_stempel", "entscheidung_stempel",
-                    "gueltig", "archiviert", "ziel", "bestaetigt"])
+        w.writerow(["seite", "quelle", "dokumenttyp", "dokumenttyp_modell", "cmr", "tour", "ta", "lieferschein",
+                    "seite_von", "modell_unterschrift", "entscheidung_unterschrift", "modell_stempel",
+                    "entscheidung_stempel", "gueltig", "trotzdem_akzeptiert", "archiviert", "ziel", "bestaetigt"])
         orig = {p["n"]: p for p in R["pages"]}
         for p in pages:
             n = p["n"]
@@ -313,12 +388,18 @@ def run_finalize(cfg, run: str, decision_path: str | None, force: bool, log) -> 
                       else "Duplikat" if n in org["duplicates"] else "")
             c = (p.get("cmr_count") or {}).get("parsed")
             v = page_valid(p, rules.get(p["doc_type"]) or {}) if p["doc_type"] in REVIEW_TYPES else None
+            po = p.get("ls_page") or p.get("page_of")
+            acc = accepted.get(f"page:{n}")
             w.writerow([n, p["source"], p["doc_type"], orig[n]["doc_type"], f"{c[0]}/{c[1]}" if c else "",
-                        (p.get("tour") or {}).get("text", ""), " ".join(x["ta"] for x in p.get("ta") or []),
+                        (p.get("tour") or {}).get("text", ""),
+                        " ".join(x["ta"] + ("(gestrichen)" if x.get("excluded") else "") for x in p.get("ta") or []),
+                        p.get("ls_number") or "", f"{po[0]}/{po[1]}" if po else "",
                         p["proposal"].get("unterschrift", ""), p["decision"].get("unterschrift", ""),
                         p["proposal"].get("stempel", ""), p["decision"].get("stempel", ""),
-                        "" if v is None else v, n in archived, target, p["confirmed"]])
-    log(f"[finalize] Tour {tour}: {'VOLLSTÄNDIG' if complete else 'OFFEN'} - "
+                        "" if v is None else v, reason_text(acc, "de") if acc else "", n in archived, target,
+                        p["confirmed"]])
+    log(f"[finalize] Tour {tour}: {'VOLLSTÄNDIG' if complete else 'OFFEN'}"
+        f"{'' if missing_ok else ' (Fehlliste nicht bestätigt, keine Mails)'} - "
         f"CMR {len(org['cmr_order'])}, Lieferscheine {len(org['ls_order'])}, ungültig {len(invalid)}, "
         f"Abweichung vom Modell {len(differs)}")
     for c in org["checks"]:

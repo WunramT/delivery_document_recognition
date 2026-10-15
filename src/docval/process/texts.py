@@ -33,6 +33,21 @@ MSG = {
         "ta_cmr_extra": "Auf CMR, aber nicht auf der Ladeliste: TA {tas}",
         "ta_ls_extra": "Lieferschein, dessen Nummer nicht auf der Ladeliste steht: {tas}",
         "ta_ok": "Jede verladene TA hat ein CMR und einen Lieferschein",
+        "cmr_missing_accepted": "CMR fehlt, trotzdem akzeptiert: Nr. {missing}",
+        "ls_unread": "Lieferscheinnummer nicht gelesen: {pages} – bitte auf der Karte eintragen",
+        "ls_incomplete": "Lieferschein {number}: Seite {missing} von {total} fehlt",
+        "ll_incomplete": "Ladeliste: Seite {missing} von {total} fehlt",
+        "ta_unread": "TA-Feld nicht lesbar: {pages} – TA bitte prüfen/ergänzen",
+        "ta_accepted": "TA-Abweichungen trotzdem akzeptiert: {n}",
+        "accepted": "Fehlende Seiten trotzdem akzeptiert: {n}",
+        "item_cmr": "CMR Nr. {i} von {total} fehlt",
+        "item_ls_page": "Lieferschein {number}: Seite {i} von {total} fehlt",
+        "item_ll_page": "Ladeliste: Seite {i} von {total} fehlt",
+        "item_ta_cmr": "TA {ta}: kein CMR",
+        "item_ta_cmr_extra": "TA {ta}: auf CMR, aber nicht auf der Ladeliste",
+        "item_ta_ls": "TA {ta}: kein Lieferschein",
+        "item_ta_ls_extra": "Lieferschein {ta}: nicht auf der Ladeliste",
+        "item_page": "{title} ({page}): {missing}",
         "ta_note": " (Hinweis: TA-Lesung noch nicht validiert)",
         "pages": "S. {list}",
         "page": "S. {n}",
@@ -66,6 +81,21 @@ MSG = {
         "ta_cmr_extra": "Na CMR, ale nie na liście załadunkowej: TA {tas}",
         "ta_ls_extra": "Dowód dostawy o numerze spoza listy załadunkowej: {tas}",
         "ta_ok": "Każdy załadowany TA ma CMR i dowód dostawy",
+        "cmr_missing_accepted": "Brak CMR, mimo to zaakceptowano: nr {missing}",
+        "ls_unread": "Nie odczytano numeru dowodu dostawy: {pages} – wpisać na karcie",
+        "ls_incomplete": "Dowód dostawy {number}: brak strony {missing} z {total}",
+        "ll_incomplete": "Lista załadunkowa: brak strony {missing} z {total}",
+        "ta_unread": "Nieczytelne pole TA: {pages} – sprawdzić/uzupełnić TA",
+        "ta_accepted": "Rozbieżności TA zaakceptowane mimo to: {n}",
+        "accepted": "Brakujące strony zaakceptowane mimo to: {n}",
+        "item_cmr": "Brak CMR nr {i} z {total}",
+        "item_ls_page": "Dowód dostawy {number}: brak strony {i} z {total}",
+        "item_ll_page": "Lista załadunkowa: brak strony {i} z {total}",
+        "item_ta_cmr": "TA {ta}: brak CMR",
+        "item_ta_cmr_extra": "TA {ta}: na CMR, ale nie na liście załadunkowej",
+        "item_ta_ls": "TA {ta}: brak dowodu dostawy",
+        "item_ta_ls_extra": "Dowód dostawy {ta}: nie ma na liście załadunkowej",
+        "item_page": "{title} ({page}): {missing}",
         "ta_note": " (wskazówka: odczyt TA jeszcze niezweryfikowany)",
         "pages": "str. {list}",
         "page": "str. {n}",
@@ -73,6 +103,25 @@ MSG = {
         "dup_of": "{dup} (zostaje: {keep})",
     },
 }
+
+
+# reasons for "trotzdem akzeptieren" (review page + protocol)
+REASONS = {
+    "de": {"nachgereicht": "Dokument wird nachgereicht", "abgesprochen": "Mit Fachbereich/Kunde abgesprochen",
+           "storniert": "Auftrag storniert / nicht geliefert", "sonstiges": "Sonstiges"},
+    "pl": {"nachgereicht": "Dokument zostanie dosłany", "abgesprochen": "Uzgodnione z działem/klientem",
+           "storniert": "Zlecenie anulowane / niedostarczone", "sonstiges": "Inne"},
+}
+
+
+def item_text(it: dict, lang: str) -> str:
+    """One entry of the missing list (organize missing_items, or a page item from finalize)."""
+    return MSG[lang][it["code"]].format(**it["params"])
+
+
+def reason_text(acc: dict, lang: str) -> str:
+    r = REASONS[lang].get(acc.get("reason") or "", acc.get("reason") or "")
+    return r + (f" – {acc['note']}" if acc.get("note") else "")
 
 
 def pages_text(nums: list[int], lang: str) -> str:

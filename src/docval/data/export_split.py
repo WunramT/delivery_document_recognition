@@ -91,3 +91,41 @@ def write_rfdetr_dataset(pages, assign: dict[str, str], classes: list[str], out:
     info["link_methods"] = methods
     info["form_mask"] = mask_info
     return info
+
+
+def write_final_dataset(src: Path, dst: Path) -> dict:
+    """Dataset for the production model (make train-final): train = train + valid + test of the
+    split in src (every labeled page), valid/test stay as they are (RF-DETR needs a valid split to
+    pick its checkpoint; the numbers on it are no longer independent). Images are linked."""
+    if dst.exists():
+        shutil.rmtree(dst)
+    dst.mkdir(parents=True)
+    shutil.copy2(src / "classes.json", dst / "classes.json")
+    merged = {"images": [], "annotations": [], "categories": None}
+    counts = {}
+    for s in ("train", "valid", "test"):
+        sd = src / s
+        if not (sd / "_annotations.coco.json").is_file():
+            continue
+        coco = json.loads((sd / "_annotations.coco.json").read_text(encoding="utf-8"))
+        merged["categories"] = merged["categories"] or coco["categories"]
+        counts[s] = len(coco["images"])
+        if s != "train":   # valid/test unchanged
+            (dst / s).mkdir()
+            for img in coco["images"]:
+                link(sd / img["file_name"], dst / s / img["file_name"])
+            (dst / s / "_annotations.coco.json").write_text(json.dumps(coco), encoding="utf-8")
+        id_map = {}
+        for img in coco["images"]:   # file names carry a unique page id, ids are renumbered
+            id_map[img["id"]] = len(merged["images"]) + 1
+            merged["images"].append(dict(img, id=id_map[img["id"]]))
+        for a in coco["annotations"]:
+            merged["annotations"].append(dict(a, id=len(merged["annotations"]) + 1, image_id=id_map[a["image_id"]]))
+    (dst / "train").mkdir()
+    for img in merged["images"]:
+        for s in ("train", "valid", "test"):
+            if (src / s / img["file_name"]).exists():
+                link(src / s / img["file_name"], dst / "train" / img["file_name"])
+                break
+    (dst / "train" / "_annotations.coco.json").write_text(json.dumps(merged), encoding="utf-8")
+    return {"pages": counts, "train_pages": len(merged["images"]), "train_boxes": len(merged["annotations"])}

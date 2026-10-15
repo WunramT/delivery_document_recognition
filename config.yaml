@@ -323,17 +323,18 @@ process:
   view:
     cmr: [0.0, 0.55, 1.0, 1.0]
     lieferschein: [0.0, 0.40, 1.0, 1.0]
-  # TA numbers: full-page OCR of loading list, CMR and Lieferschein. Loading list -> loaded TA,
-  # a row with a "not shipped" note is excluded; every loaded TA needs a CMR and a Lieferschein,
-  # Lieferscheine with the same TA are duplicates. Not validated on real data yet ->
-  # validated: false shows the results as hints only (no error). Handwritten notes and
-  # crossed-out rows are not recognized reliably.
+  # TA numbers from the ta_nummer boxes (loading list: one box per row, CMR: one box with all
+  # its TAs; 8 digits, other numbers on the page are never read). The person strikes the TAs
+  # that were not loaded on the review page and confirms the list. Lieferschein number
+  # (ls_nummer, = TA) and page "i/n" (seitenzahl) come from their boxes too. The TA comparison
+  # stays a hint (does not keep the tour open) until it was checked on real tours:
+  # validated: true makes its differences errors.
   ta:
-    enabled: true
-    regex: '(?<!\d)12\d{6}(?!\d)'   # e.g. 12283251
-    not_shipped: [nie jedzie, niejedzie, nicht verladen, not shipped]
-    det_limit_side_len: 1600
     validated: false
+  # detector for make process: auto = the final model (make train-final, all labeled pages) when
+  # it is newer than the evaluated one, else the evaluated one; final | eval force one of them.
+  # The thresholds always come from the last make eval.
+  model: auto
   # e-mail drafts (.eml, open in Outlook and send) created by make finalize
   # collective confirmations: which carrier a "bestaetigung" page belongs to (keywords in its
   # header text, same matching as the doc type keywords)

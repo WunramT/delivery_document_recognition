@@ -114,13 +114,22 @@ make process SCANS=skany/trasa503/ TOUR=503_01.09.2026  # numer trasy, jeśli ni
 
 Wynik: `artifacts/process/<trasa>/pruefung_pl.html` – otworzyć podwójnym kliknięciem (Chrome/Edge).
 
+0. **Braki w tej trasie** – na górze, aktualizuje się na bieżąco: brakujące CMR, brakujące strony
+   dowodu dostawy („Seite i/n”) lub listy załadunkowej, porównanie TA oraz strony bez pieczątki /
+   podpisu. Każdy punkt można **„mimo to zaakceptować”** z powodem (dosłany / uzgodniony /
+   anulowany / inne z uwagą). Potem **„Potwierdź listę braków”** (dopiero po potwierdzeniu listy
+   załadunkowej) – tylko wtedy `make finalize` tworzy szkice e-maili.
 1. **Organizacja** – wynik automatyczny (✓ / ✗ / ! wskazówka) i kolejność CMR 1..n
-   (brakujący numer na czerwono, duplikat na żółto).
-2. **Do wyjaśnienia** – tylko jeśli są: wybrać typ dokumentu, wpisać nr CMR `i/n` lub numer trasy.
+   (brakujący numer na czerwono, duplikat na żółto). **Lista załadunkowa:** wszystkie TA z ramek
+   `ta_nummer`; kliknąć TA skreślone / nie jedzie (ponowne kliknięcie = cofnij), brakujące dodać
+   („dodaj TA”), potem **„Potwierdź listę załadunkową”**.
+2. **Do wyjaśnienia** – tylko jeśli są: wybrać typ dokumentu, wpisać nr CMR `i/n`, numer trasy lub
+   numer dowodu dostawy.
 3. **Podpis i pieczątka** – karta dla każdego CMR / dowodu dostawy. Dla każdego obiektu
    „jest” / „brak” (wstępnie ustawione według modelu, przy „model niepewny” puste), potem
    **„Potwierdź”**. Kliknięcie obrazu = cała strona. Klawisze: `J`/`K` zmiana karty, `1` podpis,
-   `2` pieczątka, `A` archiwizować, `Enter` potwierdź + dalej, spacja = cała strona.
+   `2` pieczątka, `A` archiwizować, `Enter` potwierdź + dalej, spacja = cała strona. Na karcie
+   można poprawić odczytane numery: TA na CMR, numer i stronę `i/n` dowodu dostawy.
 
 Wpisać imię i nazwisko w polu „Sprawdzający”, **„Zapisz decyzję”** → plik `entscheidung.json`
 umieścić w folderze strony kontrolnej. Następnie:
@@ -134,8 +143,9 @@ e-maili `.eml` do `leopol-cmr@polipol.de` / `leopol-ls@polipol.de` (otworzyć w 
 oraz `protokoll_pl.txt` z wynikiem KOMPLETNE/OTWARTE, listą „Do zrobienia” (Polilogistics,
 dokument zastępczy, inna trasa, ZCHECKLSARCHIV następnego dnia) i kolejnością papieru do archiwum.
 
-Odczyt numerów TA z listy załadunkowej nie jest jeszcze zweryfikowany – pojawia się tylko jako
-wskazówka. Liczbę TA na liście załadunkowej nadal sprawdza osoba.
+Porównanie TA nie jest jeszcze zweryfikowane na prawdziwych trasach – rozbieżności są
+wskazówkami (nie blokują trasy), ale stoją na liście braków. Model do produkcji: po `make eval`
+uruchomić `make train-final` (trenuje na wszystkich oznaczonych stronach).
 
 ## 8. Etykietowanie nowych skanów (`make label-scans`)
 

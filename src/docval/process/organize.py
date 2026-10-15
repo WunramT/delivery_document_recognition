@@ -7,8 +7,9 @@ in finalize.py). Only the fields used here matter:
      "doc_type": "cmr" | "lieferschein" | "loading_list" | "unsicher",
      "tour": {"text": "503/01.09.2026/4000", "accepted": True} | None,
      "cmr_count": {"parsed": [3, 13]} | None,
-     "ta": [{"ta": "12283251", "excluded": False}, ...],  # loading list / CMR
-     "ls_number": "12283251", "ls_page": [1, 2],          # Lieferschein (number = TA)
+     "ta": [{"ta": "12283251", "excluded": False}, ...],  # loading list / CMR (ta_nummer boxes)
+     "ls_number": "12283251", "ls_page": [1, 2],          # Lieferschein (number = TA, "Seite 1/2")
+     "page_of": [2, 6],                                   # loading list page "2/6"
      "proposal": {"unterschrift": "ja" | "nein" | "unsicher", ...}, "scores": {cls: float},
      "decision": {"unterschrift": bool, ...},  # optional, from the person
      "archive": bool}                          # optional, set by the person (duplicates)
@@ -21,9 +22,14 @@ What it does (process steps 1 and 3 of the sales department):
 - Lieferscheine: one Lieferschein per TA, its number IS the TA number ("ls_number"); a
   multi-page Lieferschein shares the number ("ls_page": [i, n]). Same number and page twice
   -> duplicate (keep the copy with stamp/signature)
+- Lieferschein complete: pages 1..n of every number ("Seite i/n"); loading list: pages 1..n
 - TA numbers: loaded TAs = loading list minus the ones the person struck out (excluded);
   CMR: missing TAs and TAs that are not on the loading list; Lieferschein per loaded TA by its
   number, and Lieferscheine whose number is not on the loading list. A hint until validated.
+
+Everything that is missing is also returned as a list of items with a stable key
+(missing_items), e.g. "cmr:3" or "ta_ls:12283251". The person can accept an item anyway
+(with a reason, `accepted` = set of keys): it no longer counts as an error.
 
 Plain dicts and loops (portable to JS like the rest of the pipeline).
 """
@@ -102,14 +108,32 @@ def ta_numbers(p: dict, excluded: bool = False) -> list[str]:
     return [t["ta"] for t in p.get("ta") or [] if bool(t.get("excluded")) == excluded]
 
 
-def organize(pages: list[dict], tour: str | None, rules: dict, ta_validated: bool = False) -> dict:
+def missing_pages(pages_of: list[list[int] | None]) -> list[int]:
+    """Pages i of "i/n" that are not there (n = the largest total read); [] if no total read."""
+    got = [x for x in pages_of if x]
+    if not got:
+        return []
+    n = max(x[1] for x in got)
+    seen = {x[0] for x in got}
+    return [i for i in range(1, n + 1) if i not in seen]
+
+
+def organize(pages: list[dict], tour: str | None, rules: dict, ta_validated: bool = False,
+             accepted=()) -> dict:
     """Run all organisational checks. Returns checks (code, level, params) and the result:
     cmr_order / ls_order (page numbers to archive, in archive order), duplicates
-    {page: kept page}, other_tour {page: tour}, missing_cmr, unclear pages per kind."""
+    {page: kept page}, other_tour {page: tour}, missing_cmr, unclear pages per kind and
+    missing_items [{key, code, params, level, accepted}]."""
     checks: list[dict] = []
+    items: list[dict] = []
+    accepted = set(accepted or ())
 
     def add(code, level, hint=False, **params):
         checks.append({"code": code, "level": level, "params": params, "hint": hint})
+
+    def item(key, code, level, **params):
+        items.append({"key": key, "code": code, "level": level, "params": params, "accepted": key in accepted})
+        return key not in accepted
 
     by_type: dict[str, list[dict]] = {}
     for p in pages:
@@ -187,9 +211,12 @@ def organize(pages: list[dict], tour: str | None, rules: dict, ta_validated: boo
                 total = totals[0]
                 seen = {x for x, _ in counts}
                 missing_cmr = [i for i in range(1, total + 1) if i not in seen]
-                if missing_cmr:
-                    add("cmr_missing", ERROR, missing=missing_cmr, total=total)
-                elif st["complete"] and not unread_count:
+                open_cmr = [i for i in missing_cmr if item(f"cmr:{i}", "item_cmr", ERROR, i=i, total=total)]
+                if open_cmr:
+                    add("cmr_missing", ERROR, missing=open_cmr, total=total)
+                if len(open_cmr) < len(missing_cmr):
+                    add("cmr_missing_accepted", HINT, missing=[i for i in missing_cmr if i not in open_cmr])
+                if not missing_cmr and st["complete"] and not unread_count:
                     add("cmr_complete", OK, n=total)
         if cmr_dups:
             add("cmr_dup", HINT, items=cmr_dups)
@@ -214,20 +241,47 @@ def organize(pages: list[dict], tour: str | None, rules: dict, ta_validated: boo
                 ls_dups.append({"dup": d["n"], "keep": kept[0]["n"]})
             else:
                 not_archived.append(d["n"])
-    ls_order = sorted(p["n"] for p in kept_ls)
+    # archive order: Lieferscheine in scan order of their first page, pages of one number 1..n
+    first: dict[str, int] = {}
+    for p in sorted(kept_ls, key=lambda p: p["n"]):
+        if p.get("ls_number"):
+            first.setdefault(p["ls_number"], p["n"])
+    ls_order = [p["n"] for p in sorted(kept_ls, key=lambda p: (
+        first.get(p.get("ls_number"), p["n"]), (p.get("ls_page") or [0])[0] if p.get("ls_number") else 0, p["n"]))]
     ls_numbers = sorted({p["ls_number"] for p in kept_ls if p.get("ls_number")})
+    ls_unread = [p["n"] for p in kept_ls if not p.get("ls_number")]
     if lss:
         add("ls_count", OK, n=len(ls_numbers) or len(ls_order))
     else:
         add("ls_none", HINT)
+    if ls_unread:
+        add("ls_unread", HINT, pages=ls_unread)
     if ls_dups:
         add("ls_dup", HINT, items=ls_dups)
+    ls_incomplete = []
+    for num in ls_numbers:
+        miss = missing_pages([p.get("ls_page") for p in kept_ls if p.get("ls_number") == num])
+        n_of = max((p.get("ls_page") or [0, 0])[1] for p in kept_ls if p.get("ls_number") == num)
+        open_ = [i for i in miss if item(f"ls:{num}:{i}", "item_ls_page", ERROR, number=num, i=i, total=n_of)]
+        if open_:
+            ls_incomplete.append({"number": num, "missing": open_, "total": n_of})
+    for x in ls_incomplete:
+        add("ls_incomplete", ERROR, number=x["number"], missing=x["missing"], total=x["total"])
 
     # ---------------------------------------------------------------- TA numbers
     ta = None
     lists = by_type.get("loading_list", [])
     ta_level = ERROR if ta_validated else HINT
     hint = not ta_validated
+    if lists:
+        ll_total = max([(p.get("page_of") or [0, 0])[1] for p in lists])
+        ll_open = [i for i in missing_pages([p.get("page_of") for p in lists])
+                   if item(f"ll:{i}", "item_ll_page", ERROR, i=i, total=ll_total)]
+        if ll_open:
+            add("ll_incomplete", ERROR, missing=ll_open, total=ll_total)
+    ta_unread = [p["n"] for p in lists + kept_cmr + unread_count if p.get("ta_unread")]
+    if ta_unread:
+        add("ta_unread", HINT, hint=hint, pages=sorted(ta_unread))
     if not lists:
         add("ta_no_list", HINT)
     else:
@@ -246,10 +300,14 @@ def organize(pages: list[dict], tour: str | None, rules: dict, ta_validated: boo
             cmr_tas = []
             for p in kept_cmr + unread_count:
                 cmr_tas += [t for t in ta_numbers(p) if t not in cmr_tas]
-            cmr_missing = [t for t in loaded if t not in cmr_tas]
-            cmr_extra = [t for t in cmr_tas if t not in loaded]
-            ls_missing = [t for t in loaded if t not in ls_numbers]
-            ls_extra = [t for t in ls_numbers if t not in loaded]
+            cmr_missing = [t for t in loaded if t not in cmr_tas
+                           and item(f"ta_cmr:{t}", "item_ta_cmr", ta_level, ta=t)]
+            cmr_extra = [t for t in cmr_tas if t not in loaded and t not in excluded
+                         and item(f"ta_cmr_extra:{t}", "item_ta_cmr_extra", ta_level, ta=t)]
+            ls_missing = [t for t in loaded if t not in ls_numbers
+                          and item(f"ta_ls:{t}", "item_ta_ls", ta_level, ta=t)]
+            ls_extra = [t for t in ls_numbers if t not in loaded and t not in excluded
+                        and item(f"ta_ls_extra:{t}", "item_ta_ls_extra", ta_level, ta=t)]
             add("ta_list", OK, hint=hint, n=len(loaded), excluded=excluded)
             if cmr_missing:
                 add("ta_cmr_missing", ta_level, hint=hint, tas=cmr_missing)
@@ -261,12 +319,20 @@ def organize(pages: list[dict], tour: str | None, rules: dict, ta_validated: boo
                 add("ta_ls_extra", ta_level, hint=hint, tas=ls_extra)
             if not (cmr_missing or cmr_extra or ls_missing or ls_extra):
                 add("ta_ok", OK, hint=hint)
+            n_acc = sum(1 for x in items if x["accepted"] and x["code"].startswith("item_ta"))
+            if n_acc:
+                add("ta_accepted", HINT, n=n_acc)
             ta = {"loaded": loaded, "excluded": excluded, "cmr_missing": cmr_missing, "cmr_extra": cmr_extra,
                   "ls_missing": ls_missing, "ls_extra": ls_extra}
 
+    n_acc = sum(1 for x in items if x["accepted"] and x["code"] in ("item_ls_page", "item_ll_page"))
+    if n_acc:
+        add("accepted", HINT, n=n_acc)
     return {
         "tour": tour, "checks": checks, "complete": not any(c["level"] == ERROR for c in checks),
+        "missing_items": items, "ls_incomplete": ls_incomplete,
         "cmr_order": cmr_order, "ls_order": ls_order, "cmr_total": total, "missing_cmr": missing_cmr,
         "duplicates": duplicates, "not_archived": sorted(not_archived), "discarded": sorted(discarded), "other_tour": other_tour, "ta": ta,
-        "unclear": {"doc_type": unclear_dt, "tour": unread_tour, "cmr_count": [p["n"] for p in unread_count]},
+        "unclear": {"doc_type": unclear_dt, "tour": unread_tour, "cmr_count": [p["n"] for p in unread_count],
+                    "ls_number": ls_unread, "ta": sorted(ta_unread)},
     }

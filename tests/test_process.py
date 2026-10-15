@@ -7,7 +7,7 @@ from PIL import Image
 from docval.process.finalize import apply_decision, run_finalize
 from docval.process.organize import organize, page_valid
 from docval.process.review import write_review
-from docval.process.run import find_ta, normalize_tour, tour_from_name
+from docval.process.run import normalize_tour, numbers8, parse_page_of, tour_from_name
 from docval.process.texts import render_check
 
 TOUR = "503/01.09.2026/4000"
@@ -77,7 +77,7 @@ def test_other_tour_unread_and_unclear():
              page(3, "lieferschein", accepted=False), page(4, "unsicher"), page(5, "cmr")]
     org = organize(pages, TOUR, RULES)
     assert org["other_tour"] == {2: "504/01.09.2026/4000"}
-    assert org["unclear"] == {"doc_type": [4], "tour": [3], "cmr_count": [5]}
+    assert org["unclear"] == {"doc_type": [4], "tour": [3], "cmr_count": [5], "ls_number": [3], "ta": []}
     assert org["ls_order"] == [3]
     c = codes(org)
     assert {"doctype_unclear", "tour_other", "tour_unread", "cmr_unread"} <= set(c)
@@ -113,12 +113,46 @@ def test_ta_check_loading_list_cmr_and_lieferschein():
     assert organize(pages, TOUR, RULES, ta_validated=True)["complete"] is False
 
 
-def test_find_ta_rows_and_not_shipped():
-    lines = [{"text": "1", "y1": 100, "y2": 120, "x": 10}, {"text": "12283251", "y1": 102, "y2": 121, "x": 50},
-             {"text": "2", "y1": 140, "y2": 160, "x": 10}, {"text": "1228 8834", "y1": 141, "y2": 159, "x": 50},
-             {"text": "Nie jedzie", "y1": 139, "y2": 161, "x": 300}, {"text": "PLZ 63500", "y1": 180, "y2": 200, "x": 50}]
-    out = find_ta(lines, r"(?<!\d)12\d{6}(?!\d)", ["nie jedzie"])
-    assert [(t["ta"], t["excluded"]) for t in out] == [("12283251", False), ("12288834", True)]
+def test_numbers_and_page_of_from_box_text():
+    assert numbers8("Zlecenie 12283251") == ["12283251"]
+    assert numbers8("12283251, 1228 8834 12283251") == ["12283251", "12288834"]   # CMR: several TAs, each once
+    assert numbers8("PLZ 63500 Tel 0049123456789") == []                         # not 8 digits
+    assert numbers8("Lieferschein (33258864)") == ["33258864"]
+    assert parse_page_of("Seite 1/2") == [1, 2] and parse_page_of("2 / 6") == [2, 6]
+    assert parse_page_of("Seite 3/2") is None and parse_page_of("") is None
+
+
+def test_lieferschein_and_loading_list_pages_missing_and_accepted():
+    ll1, ll3 = page(1, "loading_list", tour=None), page(2, "loading_list", tour=None)
+    ll1["page_of"], ll3["page_of"] = [1, 3], [3, 3]
+    ll1["ta"] = [{"ta": "12283251", "excluded": False}]
+    pages = [ll1, ll3, page(3, "cmr", (1, 1), ta=["12283251"]), ls(4, "12283251", 1, 3), ls(5, "12283251", 3, 3)]
+    org = organize(pages, TOUR, RULES)
+    c = codes(org)
+    assert not org["complete"]
+    assert c["ll_incomplete"]["params"]["missing"] == [2] and c["ls_incomplete"]["params"]["missing"] == [2]
+    assert {it["key"] for it in org["missing_items"]} == {"ll:2", "ls:12283251:2"}
+    assert "Seite 2 von 3" in render_check(c["ls_incomplete"], "de")
+    org = organize(pages, TOUR, RULES, accepted={"ll:2", "ls:12283251:2"})
+    assert org["complete"] and codes(org)["accepted"]["params"]["n"] == 2
+    assert all(it["accepted"] for it in org["missing_items"])
+    assert org["ls_order"] == [4, 5]
+
+
+def test_apply_decision_ta_and_lieferschein():
+    ll = page(1, "loading_list", tour=None)
+    ll["ta"] = [{"ta": "12283251", "excluded": False}, {"ta": "12288834", "excluded": False}]
+    pages = apply_decision([ll, page(2, "cmr", (1, 1), ta=["12283251"]), ls(3, None)], {
+        "ta_struck": ["12288834"], "ta_added": ["12299999"],
+        "pages": {"2": {"doc_type": "cmr", "ta": ["12283251", "12299999"]},
+                  "3": {"doc_type": "lieferschein", "ls_number": "12283251", "ls_page": [1, 1]}}})
+    assert [(t["ta"], t["excluded"]) for t in pages[0]["ta"]] == [
+        ("12283251", False), ("12288834", True), ("12299999", False)]
+    assert [t["ta"] for t in pages[1]["ta"]] == ["12283251", "12299999"]
+    assert pages[2]["ls_number"] == "12283251" and pages[2]["ls_page"] == [1, 1]
+    org = organize(pages, TOUR, RULES)
+    assert org["ta"]["loaded"] == ["12283251", "12299999"] and org["ta"]["excluded"] == ["12288834"]
+    assert org["ta"]["cmr_missing"] == [] and org["ta"]["ls_missing"] == ["12299999"]
 
 
 def test_tour_names():
@@ -247,3 +281,33 @@ def test_miss_hint_tells_threshold_from_offset():
     assert miss_hint(g, [{"box": [0.1, 0.1, 0.3, 0.2], "score": 0.28}], 0.35, 0.5).startswith("Score 0.28")
     assert miss_hint(g, [{"box": [0.25, 0.1, 0.45, 0.2], "score": 0.9}], 0.35, 0.5).startswith("Box verschoben")
     assert miss_hint(g, [], 0.35, 0.5) == "kein Kandidat"
+
+
+def test_finalize_accept_and_mail_only_after_confirmation(tmp_path):
+    pages = [page(1, "cmr", (1, 3)), page(2, "cmr", (3, 3), s="nein")]   # CMR 2 missing, CMR 3 without stamp
+    R = result_with_images(tmp_path, pages)
+    run = tmp_path / "artifacts" / "process" / "t"
+    run.mkdir(parents=True)
+    (tmp_path / "seiten").rename(run / "seiten")
+    (run / "ergebnis.json").write_text(json.dumps(R), encoding="utf-8")
+    dec = {"format": "docval-entscheidung", "ergebnis_created": R["created"], "reviewer": "A. B.", "pages": {
+        "1": {"doc_type": "cmr", "confirmed": True, "unterschrift": True, "stempel": True, "archive": True},
+        "2": {"doc_type": "cmr", "confirmed": True, "unterschrift": True, "stempel": False, "archive": True}},
+        "accepted": {"page:2": {"reason": "abgesprochen", "note": "Kunde stempelt nicht"}}}
+    (run / "entscheidung.json").write_text(json.dumps(dec), encoding="utf-8")
+    cfg = {"paths": {"artifacts": str(tmp_path / "artifacts")}, "ui_languages": ["de"],
+           "process": {"mail": {"cmr": "cmr@example.org"}}}
+    assert run_finalize(cfg, "t", None, False, lambda m: None) == 0
+    out = run / "freigabe"
+    proto = (out / "protokoll_de.txt").read_text(encoding="utf-8")
+    assert not (out / "CMR_503_01.09.2026_4000.eml").exists()             # missing list not confirmed
+    assert "OFFEN" in proto and "Fehlliste nicht bestätigt" in proto and "CMR Nr. 2 von 3 fehlt" in proto
+    assert "trotzdem akzeptiert: CMR 3/3 (S. 2): Stempel fehlt – Grund: Mit Fachbereich/Kunde abgesprochen – " \
+           "Kunde stempelt nicht" in proto
+    dec["accepted"]["cmr:2"] = {"reason": "nachgereicht", "note": ""}
+    dec.update(missing_confirmed=True, missing_keys=["cmr:2", "page:2"])
+    (run / "entscheidung.json").write_text(json.dumps(dec), encoding="utf-8")
+    assert run_finalize(cfg, "t", None, False, lambda m: None) == 0
+    proto = (out / "protokoll_de.txt").read_text(encoding="utf-8")
+    assert (out / "CMR_503_01.09.2026_4000.eml").is_file()
+    assert "VOLLSTÄNDIG" in proto and "Fehlliste bestätigt von A. B." in proto

@@ -5,13 +5,14 @@ SMOKE_CONFIG := configs/smoke.yaml
 export PYTHONPATH := $(CURDIR)/src
 DOCVAL := $(PY) -m docval --config
 
-.PHONY: process finalize label-scans relabel-model create_pdf help inspect split train export eval report review-labels relabel compare compare-labels vlm-compare test smoke fetch-models all clean-smoke gpu-check
+.PHONY: train-final process finalize label-scans relabel-model create_pdf help inspect split train export eval report review-labels relabel compare compare-labels vlm-compare test smoke fetch-models all clean-smoke gpu-check
 
 help:
 	@echo "inspect  Schritt 0: Datensatz analysieren, Label-Vorlagen + Review-Seite"
 	@echo "split    train/valid/test (gruppiert, stratifiziert) im RF-DETR-Format"
 	@echo "train    RF-DETR + Dokumenttyp-Klassifikator trainieren"
 	@echo "export   Detektor nach ONNX + Paritätstest PyTorch vs. ONNX Runtime"
+	@echo "train-final  Produktionsmodell auf allen gelabelten Seiten (nach make eval), make process nutzt es"
 	@echo "eval     alle Stufen mit ONNX auswerten, Report; Exit != 0 bei verfehltem Kriterium"
 	@echo "report   Report aus letzter results.json neu rendern"
 	@echo "create_pdf  Präsentation (PDF) zum aktuellen Stand aus dem letzten make eval"
@@ -40,6 +41,9 @@ train:
 
 export:
 	$(DOCVAL) $(CONFIG) export
+
+train-final:
+	$(DOCVAL) $(CONFIG) train-final
 
 SPLIT ?= test
 eval:

@@ -24,16 +24,19 @@ from PIL import Image, ImageSequence
 
 from ..config import artifacts, resolve
 from ..detect.onnx_detector import OnnxDetector
-from ..doctype.rules import UNCERTAIN, combine, fold, fuzzy_contains, keyword_decision, keyword_scores
+from ..doctype.rules import UNCERTAIN, combine, keyword_decision, keyword_scores
 from ..jsonutil import dumps
-from ..models import ocr_model_dir, offline, setup_cache
-from ..ocr.onnx_ocr import Detector, crop_quad, pad_crop, pil_to_bgr
+from ..models import offline, setup_cache
+from ..ocr.onnx_ocr import pad_crop, pil_to_bgr
 from ..ocr.postprocess import parse_cmr_count
 from ..zones import MISSING, OK, UNCERTAIN as ZONE_UNCERTAIN, WRONG_POSITION, apply_overrides, check_page
 from ..zones.synthetic import to_rgb
 from .organize import REVIEW_TYPES, majority_tour, organize
 
 IMAGE_EXT = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp")
+# 8 digits, a single space inside allowed ("1228 8834"), not part of a longer number
+NUMBER8 = r"(?<!\d)(?:\d ?){7}\d(?!\d)"
+PAGE_OF = r"(?<!\d)(\d{1,2})\s*/\s*(\d{1,2})(?!\d)"
 
 
 # ------------------------------------------------------------------ input
@@ -121,6 +124,22 @@ def load_thresholds(cfg, classes, log) -> tuple[dict, dict, str]:
     return {c: t for c in classes}, {c: round(t * factor, 3) for c in classes}, "fest (keine Evaluation)"
 
 
+def detector_dir(cfg, log=None) -> Path:
+    """process.model: auto = the final model (make train-final, trained on all labeled pages) if it
+    is newer than the evaluated one, else the evaluated one; final | eval force one of them."""
+    ev, fin = artifacts(cfg, "detector"), artifacts(cfg, "detector_final")
+    want = (cfg["process"].get("model") or "auto")
+    has_fin = (fin / "detector.onnx").is_file()
+    if want == "final" or (want == "auto" and has_fin and (
+            not (ev / "detector.onnx").is_file()
+            or (fin / "detector.onnx").stat().st_mtime >= (ev / "detector.onnx").stat().st_mtime)):
+        return fin
+    if want == "auto" and has_fin and log:
+        log("[process] HINWEIS: detector_final ist älter als das ausgewertete Modell - nach make train export "
+            "eval auch make train-final ausführen; verwendet wird das ausgewertete Modell")
+    return ev
+
+
 def load_zones(cfg) -> dict:
     path = artifacts(cfg, "zones.yaml")
     if not path.is_file():
@@ -143,10 +162,12 @@ class Pipeline:
         from ..eval.run import load_engines
 
         self.cfg, self.log = cfg, log
-        det_dir = artifacts(cfg, "detector")
+        det_dir = detector_dir(cfg, log)
         if not (det_dir / "detector.onnx").is_file():
             raise FileNotFoundError(f"{det_dir / 'detector.onnx'} fehlt - zuerst `make train export eval`")
         self.detector = OnnxDetector(det_dir, min_score=0.01)
+        self.model_name = det_dir.name
+        log(f"[process] Detektor: {det_dir}")
         self.classes = self.detector.classes
         self.thr, self.unc, self.thr_source = load_thresholds(cfg, self.classes, log)
         self.zones = load_zones(cfg)
@@ -160,11 +181,6 @@ class Pipeline:
         if ccfg.get("enabled") and artifacts(cfg, "doctype", "doctype.onnx").is_file():
             from ..doctype.classifier import OnnxDocTypeClassifier
             self.clf = OnnxDocTypeClassifier(artifacts(cfg, "doctype"))
-        tcfg = cfg["process"].get("ta") or {}
-        self.ta_det = None
-        if tcfg.get("enabled"):
-            e = cfg["ocr"]["engines"][name]
-            self.ta_det = Detector(ocr_model_dir(cfg, e["det"]), limit_side_len=tcfg.get("det_limit_side_len", 1600))
 
     # ---------------------------------------------------------- stages
     def doc_type(self, im: Image.Image) -> dict:
@@ -249,20 +265,51 @@ class Pipeline:
             parsed = parse_cmr_count(t)
         return {"text": t, "parsed": list(parsed) if parsed else None, "box": b}
 
-    def ta(self, im) -> list[dict]:
-        """TA numbers on the page (full-page OCR), grouped into text rows. A row with a
-        'not shipped' keyword (e.g. 'Nie jedzie') marks its TA numbers as excluded."""
-        if self.ta_det is None:
-            return []
-        tcfg = self.cfg["process"]["ta"]
-        bgr = pil_to_bgr(im)
-        quads = self.ta_det(bgr)
-        if not quads:
-            return []
-        texts = self.ocr.rec([crop_quad(bgr, q) for q in quads])
-        lines = [{"text": t, "y1": float(q[:, 1].min()), "y2": float(q[:, 1].max()), "x": float(q[:, 0].min())}
-                 for q, (t, _) in zip(quads, texts)]
-        return find_ta(lines, tcfg["regex"], tcfg.get("not_shipped") or [])
+    def box_lines(self, im, box) -> list[str]:
+        """OCR lines inside a detected box (detection + recognition: a box can hold several
+        lines, e.g. "Zlecenie" above the TA, or several TAs on a CMR)."""
+        crop = pil_to_bgr(pad_crop(im, [box[0] * im.width, box[1] * im.height, box[2] * im.width,
+                                        box[3] * im.height], self.cfg["ocr"]["crop_padding"]))
+        lines = [d["text"] for d in self.ocr.detect_recognize(crop)]
+        if not lines:  # very small box: recognition only
+            t, _ = self.ocr.recognize(crop)
+            lines = [t] if t else []
+        return lines
+
+    def ta(self, im, dets) -> tuple[list[dict], list[dict]]:
+        """TA numbers from the ta_nummer boxes (loading list: one per row, CMR: one box with all
+        TAs). Only boxes are read - other 8-digit numbers on the page are ignored. Returns
+        (TAs in reading order, each once, with their box; boxes without a readable number)."""
+        out, unread = {}, []
+        boxes = sorted((d for d in dets if d["cls"] == "ta_nummer"), key=lambda d: (d["box"][1], d["box"][0]))
+        for d in boxes:
+            lines = self.box_lines(im, d["box"])
+            nums = numbers8(" ".join(lines))
+            if not nums:
+                unread.append({"box": d["box"], "text": " ".join(lines)[:80], "score": d["score"]})
+            for t in nums:
+                out.setdefault(t, {"ta": t, "excluded": False, "box": d["box"], "score": d["score"]})
+        return list(out.values()), unread
+
+    def ls_number(self, im, dets) -> dict | None:
+        """Lieferschein number (= TA) from the ls_nummer box: "Lieferschein 12283251" on the front
+        page, "Lieferschein (12283251)" on the following pages."""
+        d = self.best(dets, "ls_nummer") or max((x for x in dets if x["cls"] == "ls_nummer"),
+                                                 key=lambda x: x["score"], default=None)
+        if d is None:
+            return None
+        text = " ".join(self.box_lines(im, d["box"]))
+        nums = numbers8(text)
+        return {"number": nums[0] if nums else None, "text": text[:80], "box": d["box"]}
+
+    def page_of(self, im, dets) -> dict | None:
+        """"Seite 1/2" (Lieferschein, bottom right) / "2/6" (loading list, top right) -> [i, n]."""
+        d = self.best(dets, "seitenzahl") or max((x for x in dets if x["cls"] == "seitenzahl"),
+                                                  key=lambda x: x["score"], default=None)
+        if d is None:
+            return None
+        text = " ".join(self.box_lines(im, d["box"]))
+        return {"parsed": parse_page_of(text), "text": text[:40], "box": d["box"]}
 
     def view(self, doc_type, dets) -> list[float]:
         """Part of the page the review card shows: the configured area of the doc type
@@ -286,11 +333,19 @@ class Pipeline:
                           for c in ("unterschrift", "stempel")},
                "tour": self.tour(im, dets) if reviewable else None,
                "cmr_count": self.cmr_count(im, dets) if dt_["doc_type"] in ("cmr", UNCERTAIN) else None,
-               "ta": self.ta(im), "view": self.view(dt_["doc_type"], dets), "mask_found": self.mask_found,
+               "view": self.view(dt_["doc_type"], dets), "mask_found": self.mask_found,
                "carrier": (carrier(dt_["header"], self.cfg) if dt_["doc_type"] == "bestaetigung" else
                            carrier(dt_["header"], self.cfg, "customers") if dt_["doc_type"] == "lieferschein"
                            else None)}
         rec["proposal"] = props.get(dt_["doc_type"], {}).get("classes", {})
+        t = dt_["doc_type"]
+        rec["ta"], rec["ta_unread"] = self.ta(im, dets) if t in ("loading_list", "cmr", UNCERTAIN) else ([], [])
+        ls = self.ls_number(im, dets) if t in ("lieferschein", UNCERTAIN) else None
+        po = self.page_of(im, dets) if t in ("lieferschein", "loading_list", UNCERTAIN) else None
+        rec["ls_read"], rec["page_read"] = ls, po
+        rec["ls_number"] = (ls or {}).get("number")
+        rec["page_of"] = (po or {}).get("parsed")
+        rec["ls_page"] = rec["page_of"] if t == "lieferschein" else None
         return rec
 
 
@@ -303,31 +358,24 @@ def carrier(header: str, cfg: dict, key: str = "confirmations") -> str | None:
     return next(iter(hits)) if len(hits) == 1 else None
 
 
-def find_ta(lines: list[dict], regex: str, not_shipped: list[str]) -> list[dict]:
-    """lines: [{"text", "y1", "y2", "x"}] (pixels). Lines whose vertical centers lie within
-    half a line height form a row (one entry of the loading list). Returns
-    [{"ta", "excluded", "row"}] in reading order, each TA once (excluded wins)."""
-    rows: list[dict] = []
-    for ln in sorted(lines, key=lambda l: (l["y1"] + l["y2"]) / 2):
-        yc, h = (ln["y1"] + ln["y2"]) / 2, max(1.0, ln["y2"] - ln["y1"])
-        if rows and abs(yc - rows[-1]["yc"]) <= 0.5 * max(h, rows[-1]["h"]):
-            rows[-1]["lines"].append(ln)
-        else:
-            rows.append({"yc": yc, "h": h, "lines": [ln]})
-    keys = [fold(k) for k in not_shipped if fold(k)]
-    out: dict[str, dict] = {}
-    for r in rows:
-        text = " ".join(l["text"] for l in sorted(r["lines"], key=lambda l: l["x"]))
-        hay = fold(text)
-        excluded = any(fuzzy_contains(hay, k, 1 if len(k) >= 7 else 0) for k in keys)
-        # per OCR line (columns are separate lines), spaces removed: "1228 8834" -> 12288834,
-        # without gluing the row number of the neighbouring column to the TA
-        for ln in r["lines"]:
-            for m in re.finditer(regex, ln["text"].replace(" ", "")):
-                ta = m.group(0)
-                if ta not in out or excluded:
-                    out[ta] = {"ta": ta, "excluded": excluded, "row": text[:120]}
-    return list(out.values())
+def numbers8(text: str) -> list[str]:
+    """8-digit numbers (TA / Lieferschein number) in OCR text, in order, each once:
+    "Zlecenie 12283251" -> [12283251]; "12283251, 1228 8834" -> [12283251, 12288834]."""
+    out = []
+    for m in re.finditer(NUMBER8, text or ""):
+        n = m.group(0).replace(" ", "")
+        if n not in out:
+            out.append(n)
+    return out
+
+
+def parse_page_of(text: str) -> list[int] | None:
+    """"Seite 1/2", "1 / 2", "2/6" -> [i, n] with 1 <= i <= n; else None."""
+    for m in re.finditer(PAGE_OF, text or ""):
+        i, n = int(m.group(1)), int(m.group(2))
+        if 1 <= i <= n:
+            return [i, n]
+    return None
 
 
 # ------------------------------------------------------------------ main
@@ -383,7 +431,7 @@ def run_process(cfg, src: str, tour_arg: str | None, out_name: str | None, log) 
         "rules": {t: {"require": (pipe.rules.get(t) or {}).get("require") or [],
                       "mode": (pipe.rules.get(t) or {}).get("mode", "all")} for t in REVIEW_TYPES},
         "classes": pipe.classes, "doc_types": cfg["doc_types"], "pages": pages, "organize": org,
-        "ta_validated": bool((pcfg.get("ta") or {}).get("validated")),
+        "ta_validated": bool((pcfg.get("ta") or {}).get("validated")), "model": pipe.model_name,
     }
     (out / "ergebnis.json").write_text(dumps(result, indent=1), encoding="utf-8")
     for lang in cfg.get("ui_languages") or ["de"]:

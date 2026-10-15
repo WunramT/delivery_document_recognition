@@ -85,23 +85,46 @@ def cmd_train_doctype(cfg) -> int:
     return 0
 
 
-def cmd_export(cfg) -> int:
+def cmd_export(cfg, name: str = "detector") -> int:
+    """name: detector (evaluated model) or detector_final (make train-final)."""
     from .detect.train import export, parity
 
-    run = artifacts(cfg, "detector", "run")
-    out = artifacts(cfg, "detector")
-    classes = json.loads((artifacts(cfg, "splits", "detector") / "classes.json").read_text())
+    run = artifacts(cfg, name, "run")
+    out = artifacts(cfg, name)
+    split_dir = artifacts(cfg, "splits", name)
+    classes = json.loads((split_dir / "classes.json").read_text())
     export(cfg, run, out, classes, log)
-    test_dir = artifacts(cfg, "splits", "detector", "test")
-    imgs = sorted(p for p in test_dir.iterdir() if p.suffix.lower() in (".png", ".jpg", ".jpeg"))
+    imgs = sorted(p for p in (split_dir / "test").iterdir() if p.suffix.lower() in (".png", ".jpg", ".jpeg"))
     n = cfg["detector"]["parity"]["n_images"]
     if len(imgs) < n:  # fewer test images than requested: fill up from valid/train
         for s in ("valid", "train"):
-            d = artifacts(cfg, "splits", "detector", s)
-            imgs += sorted(p for p in d.iterdir() if p.suffix.lower() in (".png", ".jpg", ".jpeg"))
+            imgs += sorted(p for p in (split_dir / s).iterdir() if p.suffix.lower() in (".png", ".jpg", ".jpeg"))
     res = parity(cfg, run, out, imgs[:n], log)
     (out / "parity.json").write_text(dumps(res), encoding="utf-8")
     return 0 if res["passed"] else 3
+
+
+def cmd_train_final(cfg) -> int:
+    """Production model: same settings, trained on every labeled page (train + valid + test of the
+    last make split) -> artifacts/detector_final/detector.onnx, used by make process. Its quality is
+    the one make eval measured on the evaluated model; thresholds and zones stay from make eval."""
+    from .data.export_split import write_final_dataset
+    from .detect.train import train
+
+    src = artifacts(cfg, "splits", "detector")
+    if not (src / "classes.json").is_file():
+        log("FEHLER: kein Split - zuerst make split train export eval")
+        return 2
+    if not artifacts(cfg, "report", "results.json").is_file():
+        log("WARNUNG: noch kein make eval - make process braucht dessen Schwellen und Zonen")
+    info = write_final_dataset(src, artifacts(cfg, "splits", "detector_final"))
+    log(f"[train-final] Trainingsseiten {info['train_pages']} (train+valid+test: {info['pages']}), "
+        f"Boxen {info['train_boxes']}")
+    train(cfg, artifacts(cfg, "splits", "detector_final"), artifacts(cfg, "detector_final", "run"), log)
+    rc = cmd_export(cfg, "detector_final")
+    log(f"[train-final] -> {artifacts(cfg, 'detector_final', 'detector.onnx')} - make process verwendet es "
+        "(process.model: auto)")
+    return rc
 
 
 def cmd_eval(cfg) -> int:
@@ -204,7 +227,7 @@ def cmd_fetch(cfg) -> int:
     return 0
 
 
-COMMANDS = {"split": cmd_split, "train": cmd_train, "train-doctype": cmd_train_doctype,
+COMMANDS = {"split": cmd_split, "train": cmd_train, "train-final": cmd_train_final, "train-doctype": cmd_train_doctype,
             "export": cmd_export, "eval": cmd_eval, "report": cmd_report, "review-labels": cmd_review_labels, "relabel": cmd_relabel, "relabel-model": cmd_relabel_model, "compare-labels": cmd_compare_labels, "presentation": cmd_presentation, "vlm-compare": cmd_vlm_compare,
             "process": cmd_process, "finalize": cmd_finalize, "label-scans": cmd_label_scans, "fetch-models": cmd_fetch}
 
