@@ -95,3 +95,21 @@ def test_same_images_in_two_exports_are_reported(tmp_path):
     dups = apply_exports(load_config(cfg_path))["_exports"]["image_duplicates"]
     assert {tuple(sorted(d[2:])) for d in dups} == {("652_15.09.2026", "FT")}
     assert len(dups) == 3
+
+
+def test_unknown_doc_type_reported(tmp_path):
+    import json
+
+    from docval.data.exports import merge_exports
+
+    d = tmp_path / "609_17.09.2026"
+    (d / "images").mkdir(parents=True)
+    json.dump({"images": [{"id": 1, "file_name": "images/a.png", "width": 10, "height": 10},
+                          {"id": 2, "file_name": "images/b.png", "width": 10, "height": 10}],
+               "annotations": [], "categories": [{"id": 1, "name": "stempel"}]},
+              open(d / "_annotations.coco.json", "w"))
+    (d / "page_types.csv").write_text("file_name;doc_type\na.png;cmr\nb.png;entladebericht\n", encoding="utf-8")
+    cfg = {"classes": ["stempel"], "doc_types": ["cmr", "bestaetigung"],
+           "labels": {"tour_number": {}}, "inspect": {"compute_image_hashes": False}}
+    info = merge_exports(cfg, [d], tmp_path / "out", tmp_path)
+    assert info["exports"][0]["unknown_doc_types"] == {"entladebericht": ["b.png"]}

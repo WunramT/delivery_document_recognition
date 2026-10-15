@@ -139,11 +139,19 @@ def merge_exports(cfg: dict, exports: list[Path], out: Path, root: Path | None =
                     tm[img["file_name"]] = from_name
                     n_from_name += 1
         tour_rows += [[fn_map[k], v] for k, v in tm.items()]
+        # doc type values outside config doc_types (typos, own names): the classifier skips those
+        # pages silently and the evaluation counts them as wrong -> reported
+        known = set(cfg.get("doc_types") or [])
+        unknown = {}
+        for coco_fn in fn_map:
+            v = matched.get(coco_fn, "")
+            if v and v not in known:
+                unknown.setdefault(v, []).append(coco_fn.split("/")[-1])
         info["exports"].append({"name": name, "images": n_img, "annotations": n_ann,
                                 # classes this export is labeled for (editor saves every class)
                                 "categories": sorted(set(cat_name.values())),
                                 "doc_types": len(matched), "doc_types_missing": len(stats["unmatched_coco"]),
-                                "tour_numbers": len(tm), "tour_from_name": from_name,
+                                "tour_numbers": len(tm), "tour_from_name": from_name, "unknown_doc_types": unknown,
                                 "tour_from_name_pages": n_from_name})
     # the same scan in two exports (e.g. one batch exported twice under different names)
     # -> labels may contradict each other and the page leaks across splits
@@ -203,6 +211,10 @@ def apply_exports(cfg: dict, log=None) -> dict:
             for a, b, *_ in dups:
                 log(f"[exports]   {a}  =  {b}")
         for e in info["exports"]:
+            for v, fns in (e.get("unknown_doc_types") or {}).items():
+                log(f"[exports] WARNUNG {e['name']}: Dokumenttyp '{v}' steht nicht in doc_types "
+                    f"({', '.join(cfg.get('doc_types') or [])}) - {len(fns)} Seite(n): {', '.join(fns[:6])}"
+                    + (" …" if len(fns) > 6 else ""))
             if e["doc_types_missing"]:
                 log(f"[exports] WARNUNG {e['name']}: {e['doc_types_missing']} von {e['images']} Seiten ohne "
                     "Dokumenttyp - page_types.csv fehlt oder gehört zu einem anderen Export")

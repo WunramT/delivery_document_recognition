@@ -215,3 +215,14 @@ def test_abholschein_discarded():
     assert org["discarded"] == [2] and org["complete"]
     assert 2 not in org["cmr_order"] + org["ls_order"]
     assert "Abholschein" in render_check(codes(org)["discarded"], "de")
+
+
+def test_editor_ignores_broken_page_types(tmp_path):
+    from docval.eval.label_editor import editor_data
+
+    broken = tmp_path / "page_types.csv"
+    broken.write_bytes(b"\r\n" * 53)            # what an earlier save left behind
+    coco = {"images": [{"id": 1, "file_name": "images/a.png", "width": 10, "height": 10}],
+            "annotations": [], "categories": []}
+    d = editor_data("x", coco, "_annotations.coco.json", {}, ["stempel"], ["cmr"], broken)
+    assert d["csv"] is None                     # editor writes a fresh file_name;doc_type CSV

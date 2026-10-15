@@ -34,9 +34,12 @@ def editor_data(export: str, coco: dict, coco_name: str, meta: dict, classes: li
              "score": (a.get("attributes") or {}).get("score")})
     csv = None
     csv_key = {}
+    info = {}
     if csv_path is not None and csv_path.is_file():
         values, info = read_label_table(csv_path)
         records = info.pop("records")
+    # an unreadable/empty CSV (no columns) is ignored - the editor then writes a fresh one
+    if info.get("file_col") and info.get("value_col"):
         fns = [img["file_name"] for img in coco["images"]]
         for fn_csv in records:
             m, _ = match_to_coco({fn_csv: "x"}, fns)
@@ -475,7 +478,7 @@ function buildCoco() {
 }
 function buildCsv() {
   const c = D.csv;
-  const cols = c ? c.columns : ["file_name", "doc_type"];
+  const cols = c && c.columns && c.columns.length ? c.columns : ["file_name", "doc_type"];
   const fc = c ? c.file_col : "file_name", vc = c ? c.value_col : "doc_type", dl = c ? c.delimiter : ";";
   const rows = c ? JSON.parse(JSON.stringify(c.rows)) : [];
   const byKey = {};
