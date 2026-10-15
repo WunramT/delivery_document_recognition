@@ -113,3 +113,25 @@ def test_unknown_doc_type_reported(tmp_path):
            "labels": {"tour_number": {}}, "inspect": {"compute_image_hashes": False}}
     info = merge_exports(cfg, [d], tmp_path / "out", tmp_path)
     assert info["exports"][0]["unknown_doc_types"] == {"entladebericht": ["b.png"]}
+
+
+def test_copied_page_types_reported(tmp_path):
+    import json
+
+    from docval.data.exports import apply_exports
+
+    for name in ("652_15.09.2026", "606_16.09.2026"):
+        d = tmp_path / "labels" / name
+        (d / "images").mkdir(parents=True)
+        json.dump({"images": [{"id": i, "file_name": f"images/p{i}.png", "width": 10, "height": 10} for i in (1, 2)],
+                   "annotations": [], "categories": [{"id": 1, "name": "stempel"}]},
+                  open(d / "_annotations.coco.json", "w"))
+        # 606 got 652's page_types.csv (same source PDF)
+        (d / "page_types.csv").write_text("file_name;doc_type;source_pdf;source_page\n"
+                                          "p1.png;cmr;scan652.pdf;1\np2.png;cmr;scan652.pdf;2\n", encoding="utf-8")
+    cfg = {"classes": ["stempel"], "doc_types": ["cmr"], "paths": {"exports": str(tmp_path / "labels"),
+           "artifacts": str(tmp_path / "artifacts")},
+           "labels": {"doc_type": {}, "tour_number": {}}, "inspect": {"compute_image_hashes": False}}
+    logs = []
+    apply_exports(cfg, logs.append)
+    assert any("stammt sie aus 606_16.09.2026" in m or "stammt sie aus 652_15.09.2026" in m for m in logs)

@@ -122,9 +122,12 @@ def merge_exports(cfg: dict, exports: list[Path], out: Path, root: Path | None =
             page = r.get("source_page") or ""
             key = (pdf, page)
             if pdf and key in seen_pages:
-                info["duplicates"].append(f"{rel} = {seen_pages[key]} ({pdf} Seite {page})")
+                first_rel, first_exp = seen_pages[key]
+                info["duplicates"].append(f"{rel} = {first_rel} ({pdf} Seite {page})")
+                pair = f"{first_exp} ↔ {name}"
+                info.setdefault("duplicate_pairs", {})[pair] = info.get("duplicate_pairs", {}).get(pair, 0) + 1
             elif pdf:
-                seen_pages[key] = rel
+                seen_pages[key] = (rel, name)
             type_rows.append([rel, matched.get(coco_fn, ""), f"{name}:{pdf}" if pdf else name, page])
         # tour numbers: tour_numbers.csv of this export wins; otherwise the folder name
         # (e.g. 425_21.09.2026 -> 425/21.09.2026/4000) for every page with a tour_nummer box
@@ -200,6 +203,14 @@ def apply_exports(cfg: dict, log=None) -> dict:
             f"{e['name']} ({e['images']} Seiten" + (f", Tour {e['tour_from_name']}" if e.get("tour_from_name") else "")
             + ")" for e in info["exports"])
             + (f"; WARNUNG doppelte Seiten: {len(info['duplicates'])}" if info["duplicates"] else ""))
+        sizes = {e["name"]: e["images"] for e in info["exports"]}
+        for pair, n in (info.get("duplicate_pairs") or {}).items():
+            a, b = pair.split(" ↔ ")
+            # (source_pdf, page) of export B repeats A's - but the images differ (else image_duplicates):
+            # B's page_types.csv was most likely copied from A, its doc types are then wrong
+            if n >= 0.8 * min(sizes.get(a, n), sizes.get(b, n)):
+                log(f"[exports] WARNUNG {b}: page_types.csv nennt dieselbe Quell-PDF und Seiten wie {a} "
+                    f"({n} Seiten) - stammt sie aus {a}? Dann sind die Dokumenttypen von {b} falsch")
         dups = info["image_duplicates"]
         if dups:
             pairs: dict = {}
