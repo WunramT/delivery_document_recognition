@@ -43,14 +43,18 @@ EDITOR = {
             ["<kbd>O</kbd>", "(Buchstabe) alte Labels ein/aus, grau gestrichelt"],
             ["<kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd>", "Zoom, <kbd>0</kbd> = Breite"],
         ],
-        "note": "Gestrichelt = Vorschlag des Modells (noch nicht angefasst). Der Zwischenstand bleibt im Browser "
+        "note": "Gestrichelt = Vorschlag des Modells. Vorschläge werden beim Speichern als Label übernommen – "
+                "passende einfach stehen lassen, falsche löschen (<kbd>Entf</kbd>), ungenaue an den Ecken "
+                "korrigieren. <kbd>Enter</kbd> = Seite geprüft, verbliebene Vorschläge werden durchgezogen. "
+                "Der Zwischenstand bleibt im Browser "
                 "gespeichert. Zum Schluss „COCO speichern“ und die Datei nach <code>labels/{export}/</code> legen "
                 "(alte vorher sichern).",
         "loaded": "Zwischenstand aus dem Browser geladen ({n} Seiten geprüft). ",
         "discard": "verwerfen und neu beginnen", "confirm_discard": "Alle Änderungen in diesem Editor verwerfen?",
         "progress": "{done} / {total} geprüft", "img_missing": "Bild nicht gefunden: ", "short_prop": "Vorschl.",
         "confirm_open": "{n} Seiten sind noch nicht als geprüft markiert. Trotzdem speichern?",
-        "src": {"modell": "Modell-Vorschlag", "manuell": "manuell", "label": "Label"},
+        "src": {"modell": "Modell-Vorschlag", "manuell": "manuell", "label": "Label",
+                "bestätigt": "Vorschlag übernommen"},
         "actions": {"ersetzt": "Box ersetzt durch Modellbox:", "hinzugefügt": "vom Modell ergänzt:",
                     "hinzugefügt_alternative": "Modellbox zusätzlich:",
                     "hinzugefügt_andere_klasse": "ergänzt (andere Klasse):",
@@ -75,14 +79,17 @@ EDITOR = {
             ["<kbd>O</kbd>", "(litera) stare etykiety wł./wył., szara przerywana linia"],
             ["<kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd>", "powiększenie, <kbd>0</kbd> = do szerokości"],
         ],
-        "note": "Linia przerywana = propozycja modelu (jeszcze nieedytowana). Stan pracy zapisuje się w przeglądarce. "
+        "note": "Linia przerywana = propozycja modelu. Przy zapisie propozycje stają się etykietami – pasujące "
+                "zostawić, błędne usunąć (<kbd>Delete</kbd>), niedokładne poprawić za rogi. <kbd>Enter</kbd> = "
+                "strona sprawdzona, pozostałe propozycje stają się linią ciągłą. Stan pracy zapisuje się w przeglądarce. "
                 "Na koniec „Zapisz COCO” i umieść plik w <code>labels/{export}/</code> (wcześniej zrób kopię "
                 "starego pliku).",
         "loaded": "Wczytano zapisany stan z przeglądarki (sprawdzone strony: {n}). ",
         "discard": "odrzuć i zacznij od nowa", "confirm_discard": "Odrzucić wszystkie zmiany w tym edytorze?",
         "progress": "sprawdzono {done} / {total}", "img_missing": "Nie znaleziono obrazu: ", "short_prop": "prop.",
         "confirm_open": "Stron nieoznaczonych jako sprawdzone: {n}. Zapisać mimo to?",
-        "src": {"modell": "propozycja modelu", "manuell": "ręcznie", "label": "etykieta"},
+        "src": {"modell": "propozycja modelu", "manuell": "ręcznie", "label": "etykieta",
+                "bestätigt": "propozycja przyjęta"},
         "actions": {"ersetzt": "ramka zastąpiona ramką modelu:", "hinzugefügt": "dodane przez model:",
                     "hinzugefügt_alternative": "dodatkowa ramka modelu:",
                     "hinzugefügt_andere_klasse": "dodane (inna klasa):",

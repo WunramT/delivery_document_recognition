@@ -237,6 +237,11 @@ class PagePrep:
         self.info: dict[str, dict] = {}
         self.dropped = 0
 
+    def suppress(self, p, dets: list[dict]) -> list[dict]:
+        """Pre-printed fields 22/23 on a CMR page whose field row was not found."""
+        from ..zones.form_mask import suppress_unmasked
+        return suppress_unmasked(dets, self.info.get(p.file_name), self.mask_cfg)
+
     def __call__(self, p) -> tuple[Image.Image, Image.Image]:
         from ..zones.form_mask import applies, center_in_any, mask_fields
 
@@ -314,7 +319,8 @@ def working_thresholds(cfg, detector, pages, split, classes, iou_thr, log, prep=
     calib = None
     if fixed == "auto":
         valid = [p for p in pages if split.get(p.file_name) == "valid" and p.path is not None]
-        vpreds = {p.file_name: detector(prep(p)[1] if prep else Image.open(p.path)) for p in valid}
+        vpreds = {p.file_name: prep.suppress(p, detector(prep(p)[1])) if prep else detector(Image.open(p.path))
+                  for p in valid}
         thr, calib = {}, {"split": "valid", "n_pages": len(valid), "per_class": {}}
         fallback = d.get("score_threshold_fallback", 0.5)
         b2 = float(d.get("calibration_beta", 1.0)) ** 2
@@ -442,7 +448,7 @@ def run_eval(cfg, log) -> int:
             timer.add("vordruck_maske", time.perf_counter() - t0)
         images[p.file_name] = im
         t0 = time.perf_counter()
-        preds[p.file_name] = detector(im)
+        preds[p.file_name] = prep.suppress(p, detector(im))
         timer.add("detektor", time.perf_counter() - t0)
     det_res = detector_stats(test, preds, classes, thr, iou_thr)
     det_res["thresholds"] = thr

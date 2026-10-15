@@ -185,13 +185,20 @@ class Pipeline:
         unknown type whose CMR field row is found) with pre-printed fields 22/23 masked."""
         from ..zones.form_mask import applies, mask_fields
 
-        masked = []
+        from ..zones.form_mask import suppress_unmasked
+
+        masked, info = [], None
         inp = im
         mcfg = self.cfg.get("form_mask") or {}
         if applies(self.cfg, doc_type) or (doc_type == UNCERTAIN and applies(self.cfg, "cmr")):
             inp, info = mask_fields(im, mcfg)
             masked = info["masked"]
-        dets = [d for d in self.detector(inp) if d["score"] >= self.unc.get(d["cls"], 0.0)]
+        # CMR whose field row was not found: pre-printed 22/23 must not count as signed
+        if info is not None and not info["found"] and doc_type == UNCERTAIN:
+            info = None   # unknown type without a field row: probably no CMR at all
+        self.mask_found = None if info is None else info["found"]
+        dets = [d for d in suppress_unmasked(self.detector(inp), info, mcfg)
+                if d["score"] >= self.unc.get(d["cls"], 0.0)]
         return [{"cls": d["cls"], "box": [round(v, 4) for v in d["box"]], "score": round(d["score"], 3)}
                 for d in dets], masked
 
@@ -279,7 +286,7 @@ class Pipeline:
                           for c in ("unterschrift", "stempel")},
                "tour": self.tour(im, dets) if reviewable else None,
                "cmr_count": self.cmr_count(im, dets) if dt_["doc_type"] in ("cmr", UNCERTAIN) else None,
-               "ta": self.ta(im), "view": self.view(dt_["doc_type"], dets),
+               "ta": self.ta(im), "view": self.view(dt_["doc_type"], dets), "mask_found": self.mask_found,
                "carrier": (carrier(dt_["header"], self.cfg) if dt_["doc_type"] == "bestaetigung" else
                            carrier(dt_["header"], self.cfg, "customers") if dt_["doc_type"] == "lieferschein"
                            else None)}

@@ -437,6 +437,11 @@ function step(d) {
 }
 function markDone() {
   const s = ps();
+  // checked page: the suggestions still on it are accepted (saved anyway, now drawn solid)
+  if (s.boxes.some(b => b.source === "modell")) {
+    pushUndo();
+    s.boxes.forEach(b => { if (b.source === "modell") b.source = "bestätigt"; });
+  }
   s.reviewed = true;
   persist();
   const f = filtered();                      // in "ungeprüft" the current page just left the list

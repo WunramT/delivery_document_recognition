@@ -92,3 +92,15 @@ def applies(cfg: dict, doc_type: str | None) -> bool:
 def center_in_any(box: list[float], areas: list[list[float]]) -> bool:
     cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
     return any(a[0] <= cx <= a[2] and a[1] <= cy <= a[3] for a in areas)
+
+
+def suppress_unmasked(dets: list[dict], info: dict | None, cfg: dict) -> list[dict]:
+    """The field row was not found on a CMR page (info["found"] false), so the page was not
+    masked: drop signature/stamp detections centered in the approximate fields 22/23
+    (form_mask.fallback_fields) - they are the pre-printed originals. info None = page not
+    subject to the mask (other doc type) -> unchanged."""
+    if info is None or info.get("found"):
+        return dets
+    areas = cfg.get("fallback_fields") or []
+    classes = cfg.get("fallback_classes") or ["unterschrift", "stempel"]
+    return [d for d in dets if d["cls"] not in classes or not center_in_any(d["box"], areas)]

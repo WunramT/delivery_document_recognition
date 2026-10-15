@@ -39,3 +39,16 @@ def test_no_row_found_leaves_page_unchanged():
     im = Image.new("RGB", (620, 877), "white")
     out, info = mask_fields(im, CFG)
     assert not info["found"] and list(out.getdata()) == list(im.getdata())
+
+
+def test_suppress_unmasked_preprinted_fields():
+    from docval.zones.form_mask import suppress_unmasked
+
+    cfg = {"fallback_fields": [[0.0, 0.72, 0.34, 1.0], [0.34, 0.72, 0.67, 1.0]],
+           "fallback_classes": ["unterschrift", "stempel"]}
+    dets = [{"cls": "unterschrift", "box": [0.05, 0.85, 0.25, 0.92], "score": 0.9},   # field 22
+            {"cls": "stempel", "box": [0.75, 0.80, 0.95, 0.92], "score": 0.9},        # field 24 stays
+            {"cls": "tour_nummer", "box": [0.05, 0.80, 0.25, 0.83], "score": 0.9}]    # other class stays
+    assert suppress_unmasked(dets, {"found": False}, cfg) == dets[1:]
+    assert suppress_unmasked(dets, {"found": True}, cfg) == dets      # masked page: nothing to drop
+    assert suppress_unmasked(dets, None, cfg) == dets                 # not a CMR page

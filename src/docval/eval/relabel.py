@@ -171,7 +171,8 @@ def run_relabel(cfg, log) -> int:
                                       (ref_cls, ref, ref.thresholds if ref else {}, ref_pol if is_ref else pol)):
             if not cls_:
                 continue
-            pr = [d for d in (model(im) if model is detector else model(p.file_name, im)) if d["cls"] in cls_]
+            pr = [d for d in prep.suppress(p, model(im) if model is detector else model(p.file_name, im))
+                  if d["cls"] in cls_]
             b, ch = propose({c: [x.norm(W, H) for x in p.boxes_of(c)] for c in cls_}, pr, t, iou_m, policy)
             for x in ch:
                 x["model"] = "vorlage" if model is ref else "haupt"

@@ -58,6 +58,7 @@ UI = {
                   "Feld 22/23 (wird ignoriert). Bild anklicken = ganze Seite.",
         "no_review": "Keine CMR/Lieferscheine zu prüfen.", "img_missing": "Bild fehlt: ",
         "pages_of": "Seiten", "tour_label": "Tour",
+        "no_mask": "Vordruckfelder 22/23 nicht erkannt – Unterschrift/Stempel dort selbst prüfen",
     },
     "pl": {
         "html_lang": "pl", "title": "Kontrola trasy", "reviewer": "Sprawdzający", "save": "Zapisz decyzję",
@@ -93,12 +94,13 @@ UI = {
                   "(pomijany). Kliknij obraz = cała strona.",
         "no_review": "Brak CMR/dowodów dostawy do sprawdzenia.", "img_missing": "Brak obrazu: ",
         "pages_of": "stron", "tour_label": "Trasa",
+        "no_mask": "Nie rozpoznano pól 22/23 z nadrukiem – podpis/pieczątkę tam sprawdzić samodzielnie",
     },
 }
 
 # what the page needs of a page record (OCR texts of the header etc. stay in ergebnis.json)
 PAGE_KEYS = ("n", "id", "image", "source", "w", "h", "doc_type", "doc_reason", "dets", "masked", "proposals",
-             "scores", "tour", "cmr_count", "ta", "view")
+             "scores", "tour", "cmr_count", "ta", "view", "mask_found")
 
 
 def page_data(result: dict, lang: str) -> dict:
@@ -380,6 +382,7 @@ function cardHtml(p) {
   if (dupOf(p) != null) tags += `<span class="tag">${fmt(T.dup_of, {n: dupOf(p)})}</span>`;
   const copies = D.pages.filter(q => dupOf(q) === p.n && !archive(q)).map(q => q.n);
   if (copies.length && valid(p) === false) tags += `<span class="tag">${fmt(T.dup_alt, {n: copies.join(", ")})}</span>`;
+  if (dt === "cmr" && p.mask_found === false) tags += `<span class="tag">${T.no_mask}</span>`;
   if (otherTour(p)) tags += `<span class="tag">${esc(fmt(T.other_tour, {tour: otherTour(p)}))}</span>`;
   let rows = "";
   for (const c of r.require) {

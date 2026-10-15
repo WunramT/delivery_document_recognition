@@ -40,7 +40,7 @@ stron (filtr „z propozycjami modelu” / „niesprawdzone”), pośrodku stron
 | Typ dokumentu | lista rozwijana u góry, osobno dla każdej strony |
 
 Klasy: `1` podpis, `2` pieczątka, `3` numer trasy, `4` licznik CMR, `5` numer TA, `6` nr dowodu dostawy, `7` numer strony. Instrukcja dla wybranej klasy jest wyświetlana pod listą klas.
-Linia przerywana = propozycja modelu, której jeszcze nikt nie poprawiał.
+Linia przerywana = propozycja modelu. **Przy zapisie propozycje stają się etykietami**: pasujące zostawić, błędne usunąć (`Delete`), niedokładne poprawić. `Enter` (sprawdzone) zamienia pozostałe propozycje na linię ciągłą.
 
 Stan pracy zapisuje się w przeglądarce – można zamknąć stronę i kontynuować później.
 

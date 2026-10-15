@@ -234,7 +234,7 @@ Befehlen auf Polnisch: [`docs/INSTRUKCJA_PL.md`](docs/INSTRUKCJA_PL.md). Sprache
 - `1`–`7` Klasse wählen bzw. die markierte Box umstellen (die Label-Anleitung zur gewählten Klasse steht darunter), `Entf` löschen, `Strg+Z` rückgängig
 - Pfeiltasten verschieben (Shift = 10 px, Alt = Größe), `A`/`D` Seite zurück/vor, `Enter` = geprüft + weiter
 - `O` blendet die alten Labels grau ein, `+`/`-`/`0` Zoom; Dokumenttyp oben pro Seite änderbar
-- gestrichelt = Vorschlag des Modells, noch nicht angefasst
+- gestrichelt = Vorschlag des Modells. **Vorschläge werden beim Speichern als Label übernommen**: passende stehen lassen, falsche mit `Entf` löschen, ungenaue an den Ecken korrigieren. `Enter` (geprüft) zieht die verbliebenen Vorschläge der Seite durch, damit man sieht, dass sie bestätigt sind
 
 Der Zwischenstand bleibt im Browser erhalten (Seite schließen ist kein Problem). Zum Schluss
 **„COCO speichern“** → `_annotations.coco.json` nach `labels/<Tour>_<Datum>/` (alte Datei vorher
