@@ -509,6 +509,14 @@ def run_eval(cfg, log) -> int:
     R["detector"] = det_res
     log("[eval] Detektor: " + ", ".join(
         f"{c} R={v['recall']['value'] if v['recall']['value'] is not None else '-'}" for c, v in det_res["per_class"].items()))
+    # text boxes are only ~6-11 px high at the model resolution: a 3 px vertical offset already
+    # drops IoU below 0.5 although the crop still holds the number -> info at a looser IoU
+    loose = cfg["detector"].get("iou_match_info")
+    if loose:
+        info = {c: detector_stats(acc_pages, preds, [c], thr, loose)["per_class"][c]["recall"]["value"] for c in classes}
+        det_res["recall_iou_info"] = {"iou": loose, "per_class": info}
+        log(f"[eval] Detektor nur zur Info bei IoU {loose} (Abnahme-Seiten): " + ", ".join(
+            f"{c} R={v:.3f}" if v is not None else f"{c} R=-" for c, v in info.items()))
 
     stage_clock.lap('Detektor (inkl. Laden, Maske)')
     # ---------------------------------------------------------- 2. doc type

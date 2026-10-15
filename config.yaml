@@ -90,6 +90,9 @@ detector:
   score_threshold_fallback: 0.5   # if a class has no GT in valid
   score_uncertain_factor: 0.6     # [factor x threshold, threshold) -> "unsicher"
   iou_match: 0.5
+  # eval prints recall at this looser IoU as well (info only, criteria stay at iou_match):
+  # text boxes (tour/LS/TA number) are only ~6-11 px high at 640 px, a few px offset = IoU < 0.5
+  iou_match_info: 0.3
   parity:                     # PyTorch vs. ONNX Runtime (CPU)
     n_images: 20
     max_box_diff: 0.005       # normalized coords (0.005 = ~3 px at 640 px input)
