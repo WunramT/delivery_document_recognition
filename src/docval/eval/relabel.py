@@ -200,8 +200,10 @@ def run_relabel(cfg, log) -> int:
     editors = []
     for exp, E in per_export.items():
         coco, coco_name = write_export(E["dir"], E["pages"], out / exp, pol, log, cfg["classes"])
+        from ..data.exports import copied_page_types
         data = editor_data(exp, coco, coco_name, E["meta"], cfg["classes"], cfg["doc_types"],
-                           E["dir"] / "page_types.csv")
+                           E["dir"] / "page_types.csv",
+                           reset_source=exp in copied_page_types(cfg.get("_exports") or {}))
         for lang in languages(cfg):
             editors.append(write_editor(out / exp, data, lang, guide(cfg, lang)))
         if pol["zip"]:

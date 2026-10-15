@@ -17,7 +17,7 @@ CLASS_COLORS = ["#1f6feb", "#d6336c", "#e8590c", "#0ca678", "#7048e8", "#a61e4d"
 
 
 def editor_data(export: str, coco: dict, coco_name: str, meta: dict, classes: list[str], doc_types: list[str],
-                csv_path: Path | None) -> dict:
+                csv_path: Path | None, reset_source: bool = False) -> dict:
     """meta: {image id: {split, doc_type, changes: [str], orig: [[cls, x1, y1, x2, y2] px]}}"""
     name_of = {c["id"]: c["name"] for c in coco["categories"]}
     boxes: dict = {}
@@ -46,7 +46,9 @@ def editor_data(export: str, coco: dict, coco_name: str, meta: dict, classes: li
             for coco_fn in m:
                 csv_key[coco_fn] = fn_csv
         csv = {"name": csv_path.name, "delimiter": info["delimiter"], "columns": info["columns"],
-               "file_col": info["file_col"], "value_col": info["value_col"], "rows": list(records.values())}
+               "file_col": info["file_col"], "value_col": info["value_col"], "rows": list(records.values()),
+               # copied from another export: its source PDF is not this export's -> cleared on save
+               "reset": [c for c in ("source_pdf",) if reset_source and c in info["columns"]]}
     pages = []
     for img in coco["images"]:
         m = meta.get(img["id"], {})
@@ -480,15 +482,18 @@ function buildCsv() {
   const c = D.csv;
   const cols = c && c.columns && c.columns.length ? c.columns : ["file_name", "doc_type"];
   const fc = c ? c.file_col : "file_name", vc = c ? c.value_col : "doc_type", dl = c ? c.delimiter : ";";
-  const rows = c ? JSON.parse(JSON.stringify(c.rows)) : [];
   const byKey = {};
-  rows.forEach(r => byKey[r[fc]] = r);
-  for (const p of D.pages) {
-    const t = ps(p).doc_type || "";
+  (c ? c.rows : []).forEach(r => byKey[r[fc]] = r);
+  // one row per page of THIS export, in page order (rows of other files are not carried over)
+  const rows = D.pages.map(p => {
     const key = p.csv_key || p.file_name;
-    if (!byKey[key]) { const r = {}; cols.forEach(x => r[x] = ""); r[fc] = key; rows.push(r); byKey[key] = r; }
-    byKey[key][vc] = t;
-  }
+    const r = byKey[key] ? JSON.parse(JSON.stringify(byKey[key])) : {};
+    cols.forEach(x => { if (r[x] === undefined) r[x] = ""; });
+    r[fc] = key;
+    r[vc] = ps(p).doc_type || "";
+    ((c && c.reset) || []).forEach(x => r[x] = "");
+    return r;
+  });
   const q = v => { v = v == null ? "" : String(v); return /["\n\r]/.test(v) || v.includes(dl) ? '"' + v.replace(/"/g, '""') + '"' : v; };
   return [cols.map(q).join(dl)].concat(rows.map(r => cols.map(x => q(r[x])).join(dl))).join("\r\n") + "\r\n";
 }

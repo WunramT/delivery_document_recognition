@@ -180,6 +180,18 @@ def merge_exports(cfg: dict, exports: list[Path], out: Path, root: Path | None =
     return info
 
 
+def copied_page_types(info: dict) -> dict[str, str]:
+    """{export: other export} for exports whose page_types.csv repeats nearly all (source_pdf,
+    page) pairs of another export although the images differ - most likely a copied file."""
+    sizes = {e["name"]: e["images"] for e in info.get("exports") or []}
+    out = {}
+    for pair, n in (info.get("duplicate_pairs") or {}).items():
+        a, b = pair.split(" ↔ ")
+        if n >= 0.8 * min(sizes.get(a, n), sizes.get(b, n)):
+            out[b] = a
+    return out
+
+
 def apply_exports(cfg: dict, log=None) -> dict:
     """If paths.exports contains export folders: merge them and point the config at
     the merged dataset. Otherwise the config is returned unchanged (single export)."""
@@ -203,14 +215,12 @@ def apply_exports(cfg: dict, log=None) -> dict:
             f"{e['name']} ({e['images']} Seiten" + (f", Tour {e['tour_from_name']}" if e.get("tour_from_name") else "")
             + ")" for e in info["exports"])
             + (f"; WARNUNG doppelte Seiten: {len(info['duplicates'])}" if info["duplicates"] else ""))
-        sizes = {e["name"]: e["images"] for e in info["exports"]}
-        for pair, n in (info.get("duplicate_pairs") or {}).items():
-            a, b = pair.split(" ↔ ")
-            # (source_pdf, page) of export B repeats A's - but the images differ (else image_duplicates):
-            # B's page_types.csv was most likely copied from A, its doc types are then wrong
-            if n >= 0.8 * min(sizes.get(a, n), sizes.get(b, n)):
-                log(f"[exports] WARNUNG {b}: page_types.csv nennt dieselbe Quell-PDF und Seiten wie {a} "
-                    f"({n} Seiten) - stammt sie aus {a}? Dann sind die Dokumenttypen von {b} falsch")
+        # (source_pdf, page) of export B repeats A's - but the images differ (else image_duplicates):
+        # B's page_types.csv was most likely copied from A
+        for b, a in copied_page_types(info).items():
+            log(f"[exports] WARNUNG {b}: page_types.csv nennt dieselbe Quell-PDF und Seiten wie {a} - stammt "
+                f"sie aus {a}? Dokumenttypen im Editor prüfen; beim Speichern dort wird die fremde Quell-PDF "
+                f"geleert (make relabel)")
         dups = info["image_duplicates"]
         if dups:
             pairs: dict = {}

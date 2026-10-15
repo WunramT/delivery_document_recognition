@@ -135,3 +135,7 @@ def test_copied_page_types_reported(tmp_path):
     logs = []
     apply_exports(cfg, logs.append)
     assert any("stammt sie aus 606_16.09.2026" in m or "stammt sie aus 652_15.09.2026" in m for m in logs)
+    from docval.data.exports import copied_page_types
+    info = cfg["_exports"]
+    assert len(copied_page_types(info)) == 1
+
