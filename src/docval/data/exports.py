@@ -227,8 +227,9 @@ def apply_exports(cfg: dict, log=None) -> dict:
             for _a, _b, ea, eb in dups:
                 k = tuple(sorted((ea, eb)))
                 pairs[k] = pairs.get(k, 0) + 1
-            log("[exports] WARNUNG gleiche Bilder in mehreren Exporten (Leck zwischen den Splits, "
-                "Labels können sich widersprechen): " + ", ".join(f"{a} ↔ {b}: {n}" for (a, b), n in pairs.items()))
+            log("[exports] HINWEIS gleiche oder fast gleiche Bilder in mehreren Exporten (Bild-Hash; derselbe "
+                "Scan doppelt exportiert ODER dasselbe Formular mit anderen Nummern - bitte ansehen, nur echte "
+                "Doppel löschen): " + ", ".join(f"{a} ↔ {b}: {n}" for (a, b), n in pairs.items()))
             for a, b, *_ in dups:
                 log(f"[exports]   {a}  =  {b}")
         for e in info["exports"]:

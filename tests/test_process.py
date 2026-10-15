@@ -239,3 +239,11 @@ def test_editor_ignores_broken_page_types(tmp_path):
             "annotations": [], "categories": []}
     d = editor_data("x", coco, "_annotations.coco.json", {}, ["stempel"], ["cmr"], broken)
     assert d["csv"] is None                     # editor writes a fresh file_name;doc_type CSV
+
+
+def test_miss_hint_tells_threshold_from_offset():
+    from docval.eval.run import miss_hint
+    g = [0.1, 0.1, 0.3, 0.2]
+    assert miss_hint(g, [{"box": [0.1, 0.1, 0.3, 0.2], "score": 0.28}], 0.35, 0.5).startswith("Score 0.28")
+    assert miss_hint(g, [{"box": [0.25, 0.1, 0.45, 0.2], "score": 0.9}], 0.35, 0.5).startswith("Box verschoben")
+    assert miss_hint(g, [], 0.35, 0.5) == "kein Kandidat"

@@ -57,6 +57,21 @@ class Timer:
                     "max_ms": max(v)} for k, v in self.t.items() if v}
 
 
+def miss_hint(gt: list[float], cands: list[dict], thr: float, iou_thr: float) -> str:
+    """Why a GT box was missed: the best candidate of its class at any score - below the threshold
+    (threshold question), offset/differently sized (IoU too low: often label convention) or none."""
+    best = max(cands, key=lambda d: iou(d["box"], gt), default=None)
+    v = iou(best["box"], gt) if best else 0.0
+    if v >= iou_thr:
+        cand = max((d for d in cands if iou(d["box"], gt) >= iou_thr), key=lambda d: d["score"])
+        if cand["score"] >= thr:  # above threshold but taken by a neighbouring GT box
+            return f"Kandidat Score {cand['score']:.2f} schon anderer Box zugeordnet"
+        return f"Score {cand['score']:.2f} < Schwelle {thr:.2f}"
+    if v >= 0.1:
+        return f"Box verschoben/anders gezogen: IoU {v:.2f}, Score {best['score']:.2f}"
+    return "kein Kandidat"
+
+
 def gt_dets(page) -> list[dict]:
     return [{"cls": b.cls, "box": b.norm(page.width, page.height), "score": 1.0} for b in page.boxes]
 
@@ -477,10 +492,13 @@ def run_eval(cfg, log) -> int:
         for c in classes:
             g = [b.norm(p.width, p.height) for b in p.boxes_of(c)]
             pr = [d for d in pr_all if d["cls"] == c]
-            tp, _ = match(g, pr, iou_thr)
+            tp, idx = match(g, pr, iou_thr)
             fn, fp = len(g) - sum(tp), len(pr) - sum(tp)
             if fn:
-                reasons.append(f"{fn}× {c} nicht gefunden")
+                hit = {j for j in idx if j >= 0}
+                why = [miss_hint(gb, [d for d in preds[p.file_name] if d["cls"] == c], thr[c], iou_thr)
+                       for j, gb in enumerate(g) if j not in hit]
+                reasons.append(f"{fn}× {c} nicht gefunden ({', '.join(why)})")
             if fp:
                 reasons.append(f"{fp}× {c} falsch-positiv")
             errs += fn + fp
