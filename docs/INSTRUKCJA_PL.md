@@ -114,22 +114,22 @@ make process SCANS=skany/trasa503/ TOUR=503_01.09.2026  # numer trasy, jeśli ni
 
 Wynik: `artifacts/process/<trasa>/pruefung_pl.html` – otworzyć podwójnym kliknięciem (Chrome/Edge).
 
-0. **Braki w tej trasie** – na górze, aktualizuje się na bieżąco: brakujące CMR, brakujące strony
-   dowodu dostawy („Seite i/n”) lub listy załadunkowej, porównanie TA oraz strony bez pieczątki /
-   podpisu. Każdy punkt można **„mimo to zaakceptować”** z powodem (dosłany / uzgodniony /
-   anulowany / inne z uwagą). Potem **„Potwierdź listę braków”** (dopiero po potwierdzeniu listy
-   załadunkowej) – tylko wtedy `make finalize` tworzy szkice e-maili.
-1. **Organizacja** – wynik automatyczny (✓ / ✗ / ! wskazówka) i kolejność CMR 1..n
-   (brakujący numer na czerwono, duplikat na żółto). **Lista załadunkowa:** wszystkie TA z ramek
-   `ta_nummer`; kliknąć TA skreślone / nie jedzie (ponowne kliknięcie = cofnij), brakujące dodać
-   („dodaj TA”), potem **„Potwierdź listę załadunkową”**.
-2. **Do wyjaśnienia** – tylko jeśli są: wybrać typ dokumentu, wpisać nr CMR `i/n`, numer trasy lub
-   numer dowodu dostawy.
-3. **Podpis i pieczątka** – karta dla każdego CMR / dowodu dostawy. Dla każdego obiektu
-   „jest” / „brak” (wstępnie ustawione według modelu, przy „model niepewny” puste), potem
-   **„Potwierdź”**. Kliknięcie obrazu = cała strona. Klawisze: `J`/`K` zmiana karty, `1` podpis,
-   `2` pieczątka, `A` archiwizować, `Enter` potwierdź + dalej, spacja = cała strona. Na karcie
-   można poprawić odczytane numery: TA na CMR, numer i stronę `i/n` dowodu dostawy.
+Asystent w pięciu krokach; kolejny krok otwiera się po potwierdzeniu poprzedniego, powrót jest
+zawsze możliwy:
+
+0. **Przypisanie stron** (tylko jeśli coś jest niejasne): typ dokumentu, numer trasy, inna trasa.
+1. **Lista załadunkowa**: kliknięcie ramki TA = skreślone (nie jedzie); nieczytelne TA wpisać;
+   brakujące TA: narysować ramkę i wpisać numer.
+2. **Dowody dostawy**: najpierw te bez odczytanego numeru, potem wiersz na każde TA: strony od
+   lewej do prawej, kopie pod spodem, brakująca strona jako czerwone pole. Ważny z pieczątką lub
+   podpisem na jednej z jego stron.
+3. **CMR**: 1..n od lewej do prawej, kopie pod spodem, numery TA zielone/czerwone wg listy.
+4. **Zamknięcie**: lista braków („mimo to zaakceptuj” z powodem), „Potwierdź listę braków”, imię,
+   „Zapisz decyzję”.
+
+Kliknięcie kafelka otwiera **duży widok** (kółko myszy = zoom, przeciąganie przesuwa) z polami
+po prawej. Klawisze: `1` podpis, `2` pieczątka, `B` narysuj ramkę, `Enter` następna otwarta,
+`Esc` zamknij. Gdy osoba mówi „jest”, a model nie ma ramki – narysować ramkę (dane do treningu).
 
 Wpisać imię i nazwisko w polu „Sprawdzający”, **„Zapisz decyzję”** → plik `entscheidung.json`
 umieścić w folderze strony kontrolnej. Następnie:

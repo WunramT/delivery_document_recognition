@@ -88,35 +88,52 @@ Ergebnis in `artifacts/process/<Tour>/`:
 
 ### Prüfseite
 
-0. **Fehlt in dieser Tour** – oben, aktualisiert sich bei jeder Eingabe: fehlende CMR-Nummern,
-   fehlende Seiten eines Lieferscheins („Seite i/n“) oder der Ladeliste, der TA-Abgleich (TA
-   ohne CMR/Lieferschein, TA auf CMR/Lieferschein, die nicht auf der Ladeliste steht) und
-   Seiten ohne Stempel/Unterschrift. Jeder Punkt kann **„trotzdem akzeptieren“** – mit Grund
-   (nachgereicht / abgesprochen / storniert / Sonstiges mit Bemerkung); er hält die Tour dann
-   nicht mehr offen und steht mit Grund und Name im Protokoll. Danach **„Fehlliste
-   bestätigen“** (geht erst, wenn die Ladeliste bestätigt ist) – nur dann erzeugt
-   `make finalize` die Mail-Entwürfe. Ändert sich die Liste danach, muss neu bestätigt werden.
-1. **Organisatorisch** – das automatische Ergebnis (grün ✓ / rot ✗ / gelb ! Hinweis) und die
-   CMR-Folge 1..n als Kacheln (fehlende Nummer rot, doppelte gelb; Klick springt zur Karte).
-   **Ladeliste:** alle TAs aus den `ta_nummer`-Boxen als Kacheln. Gestrichene/nicht verladene
-   TA anklicken (rot durchgestrichen, nochmal klicken = zurück), fehlende/falsch gelesene TA
-   über „TA hinzufügen“ eintragen, dann **„Ladeliste bestätigen“**. Nicht lesbare TA-Felder
-   werden mit Seite angezeigt.
-2. **Klärfälle** – nur, wenn es welche gibt: Dokumenttyp wählen, CMR-Nummer `i/n`,
-   Tournummer oder Lieferscheinnummer eintragen.
-3. **Unterschrift und Stempel** – eine Karte je CMR/Lieferschein mit dem Ausschnitt, in dem
-   das Modell gesucht hat, und seinen Markierungen (durchgezogen = sicher, gestrichelt =
-   unsicher, schraffiert = Vordruck Feld 22/23, wird ignoriert). Je Objekt „vorhanden“/„fehlt“
-   – vorbelegt mit dem Modellvorschlag, bei „Modell unsicher“ leer – und **„Bestätigen“**.
-   Klick aufs Bild zeigt die ganze Seite. Tasten: `J`/`K` Karte wechseln, `1` Unterschrift,
-   `2` Stempel, `A` archivieren, `Enter` bestätigen + weiter, Leertaste ganze Seite.
-   Filter „offen“, „Modell unsicher“, „ungültig“. Auf der Karte stehen die gelesenen Nummern
-   und lassen sich korrigieren: beim CMR die TAs, beim Lieferschein Nummer und Seite `i/n`.
-   Ungültige Karte: „trotzdem akzeptieren“ wie oben.
+Ein Assistent in fünf Schritten. Ein Schritt öffnet sich erst, wenn der vorige bestätigt ist;
+zurück geht immer. Eine spätere Änderung setzt die Bestätigung der folgenden Schritte zurück,
+die Einzelentscheidungen bleiben. „Bestätigen“ heißt „angesehen“, nicht „alles ok“ – Offenes
+lässt sich mit Grund „trotzdem akzeptieren“.
 
-Name bei „Prüfer/in“ eintragen, **„Entscheidung speichern“** → Datei als
-`entscheidung.json` in den Ordner der Prüfseite legen. Der Zwischenstand bleibt im Browser
-erhalten.
+0. **Seiten zuordnen** (entfällt, wenn nichts unklar ist): Dokumenttyp unsicher, Tournummer
+   nicht gelesen, andere Tour (Zuladung), Abholschein, Sammelbestätigung. Darunter, eingeklappt,
+   alle Seiten nach Typ – der Typ jeder Seite ist dort änderbar.
+1. **Ladeliste**: jede Seite groß mit ihren TA-Boxen. Klick auf eine Box streicht die TA
+   (nicht verladen), nochmal = zurück. Unlesbare TA eintippen. Fehlt eine TA ganz: „TA-Box
+   zeichnen“, Box um die Zeile ziehen, Nummer eintragen. Fehlende Ladelisten-Seite: Platzhalter
+   mit „trotzdem akzeptieren“. Alles Weitere beruht auf dieser Liste.
+2. **Lieferscheine**: zuerst die, deren Nummer nicht gelesen wurde (Nummer eintragen). Dann je
+   TA der Ladeliste eine Zeile: Seiten 1..n von links nach rechts, Kopien darunter (die beste
+   oben, „diese archivieren“ tauscht), fehlende Seite als roter Platzhalter, „kein
+   Lieferschein“, wenn es zur TA keinen gibt. Lieferscheine, deren Nummer nicht auf der
+   Ladeliste steht, am Ende; die zu gestrichenen TAs eingeklappt. **Regel je Lieferschein:**
+   Stempel oder Unterschrift auf einer seiner Seiten genügt. Hermes/DHL in der Lieferanschrift:
+   Schild „Sammelbestätigung prüfen“ – die Person entscheidet (ggf. trotzdem akzeptieren).
+3. **CMR**: zuerst die mit unlesbarer Zählung, dann CMR 1..n von links nach rechts, Kopien
+   darunter, fehlende Nummer als Platzhalter. Auf jeder Kachel die TAs des CMR (grün = auf der
+   Ladeliste, rot = nicht); darunter „TA ohne CMR“ und „TA auf CMR, nicht auf der Ladeliste“.
+4. **Abschluss**: Zusammenfassung, Fehlliste mit „trotzdem akzeptieren“, **„Fehlliste
+   bestätigen“** (erst dann erzeugt `make finalize` die Mail-Entwürfe), Name, **„Entscheidung
+   speichern“** → `entscheidung.json` in den Ordner der Prüfseite.
+
+**Kacheln** zeigen den Prüfbereich (Stempel/Unterschrift) mit Nummer und Status (U✓ S✗ …);
+gestrichelter Rahmen = hier ist noch etwas zu tun. Klick (oder Pfeiltasten + `Enter`) öffnet
+die **große Ansicht**: links die Seite – Mausrad zoomt, Ziehen verschiebt, beim Öffnen schon auf
+die Nummer bzw. den Prüfbereich gezoomt –, rechts Typ, Tournummer, Nummern und „vorhanden“ /
+„fehlt“. Fehlt eine Nummer, steht der Cursor schon im Feld; `Enter` = weiter zur nächsten offenen
+Seite. Tasten: `1` Unterschrift, `2` Stempel, `B` Box zeichnen, `←`/`→`, `Esc`.
+
+**Schritt bestätigen**: Seiten, auf denen das Modell sicher war, gelten mit dem Schritt als
+bestätigt (das Protokoll vermerkt „gesammelt bestätigt“). Unsichere Seiten müssen einzeln
+entschieden sein, sonst bleibt der Knopf grau.
+
+**Boxen für das nächste Training**:
+- „vorhanden“, aber das Modell hat dort keine Box → Box ziehen (oder eine Modellbox anklicken).
+  Eine unsichere (gestrichelte) Modellbox gilt mit „vorhanden“ als bestätigt.
+- „fehlt“ → die Modellboxen dieser Klasse gelten als Fehlalarm (Anklicken behält eine).
+- Nummer selbst eingetragen (Lieferschein, Seite, CMR i/n, TA, Tournummer) und das Modell
+  hatte dort keine Box → Box ziehen. Hat es die Box gefunden und nur falsch gelesen, reicht
+  die Nummer.
+
+Der Zwischenstand bleibt im Browser erhalten.
 
 ### Abschluss
 
@@ -136,8 +153,12 @@ Korrekturen der Person neu und schreibt `freigabe/`:
   trotzdem akzeptiert mit Grund, bestätigt von), ungültige Seiten,
   **Zu tun** (Polilogistics, Ersatzdokument, andere Tour, Senden, Papierarchiv,
   ZCHECKLSARCHIV), Reihenfolge fürs Papier, Abweichungen vom Modellvorschlag
-- `protokoll.csv` – je Seite Modell und Entscheidung. Die Entscheidungen der Person sind
-  zugleich **neue Labels**: Seiten mit Abweichung sind die wertvollsten fürs nächste Training.
+- `protokoll.csv` – je Seite Modell und Entscheidung.
+- `labels/<Tour>_<Datum>/` – **Label-Export für das nächste Training** (COCO, Bilder,
+  `page_types.csv`, Editor): die Boxen, die die Person bestätigt, behalten oder gezeichnet hat;
+  verworfene Modellboxen fehlen. Spalte `geprueft`: `korrigiert` = die Person hat auf der Seite
+  etwas geändert (verlässlich), `vorschlag` = Modellvorschlag unverändert durchgewunken (nur
+  wahrscheinlich richtig). Vor dem Training im Editor durchsehen, dann nach `labels/` kopieren.
 
 Ist `process.deliver.cmr` / `.lieferschein` gesetzt (z. B. ein Ordner auf `srem-svr-file01`),
 werden die PDFs bei vollständiger Tour dorthin kopiert.

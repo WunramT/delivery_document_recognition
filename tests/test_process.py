@@ -233,7 +233,7 @@ def test_label_scans_export(tmp_path):
     assert len(coco["annotations"]) == 1 and coco["annotations"][0]["attributes"]["quelle"] == "modell"
     assert (tmp_path / "out" / "images" / "s001.png").is_file()
     rows = (tmp_path / "out" / "page_types.csv").read_text(encoding="utf-8-sig").splitlines()
-    assert rows[2] == "images/s002.png;lieferschein;scan.pdf;2"
+    assert rows[2] == "images/s002.png;lieferschein;scan.pdf;2;vorschlag"
     assert meta[1]["changes"][0]["action"] == "hinzugefügt"
 
 
@@ -311,3 +311,31 @@ def test_finalize_accept_and_mail_only_after_confirmation(tmp_path):
     proto = (out / "protokoll_de.txt").read_text(encoding="utf-8")
     assert (out / "CMR_503_01.09.2026_4000.eml").is_file()
     assert "VOLLSTÄNDIG" in proto and "Fehlliste bestätigt von A. B." in proto
+
+
+def test_lieferschein_rule_per_document():
+    from docval.process.organize import check_units
+
+    # Lieferschein 12283251: page 1 without stamp/signature, page 2 stamped -> valid as a whole
+    pages = [ls(1, "12283251", 1, 2, u="nein", s="nein"), ls(2, "12283251", 2, 2, u="nein", s="ja"),
+             ls(3, "12288834", u="nein", s="nein"), page(4, "cmr", (1, 1), s="nein")]
+    units = {u["key"]: u for u in check_units(pages, [1, 2, 3, 4], RULES)}
+    assert units["ls_doc:12283251"]["valid"] is True and units["ls_doc:12283251"]["pages"] == [1, 2]
+    assert units["ls_doc:12288834"]["valid"] is False and units["ls_doc:12288834"]["missing"] == ["unterschrift", "stempel"]
+    assert units["page:4"]["valid"] is False and units["page:4"]["missing"] == ["stempel"]
+
+
+def test_label_export_uses_the_persons_boxes(tmp_path):
+    from docval.process.labels import build_export
+
+    p = page(1, "cmr", (1, 1))
+    p["dets"] = [{"cls": "stempel", "box": [0.1, 0.8, 0.3, 0.9], "score": 0.9}]   # rejected by the person
+    R = result_with_images(tmp_path, [p, page(2, "cmr", (2, 2))])
+    dec = {"pages": {"1": {"doc_type": "cmr", "corrected": True,
+                           "boxes": [{"cls": "stempel", "box": [0.5, 0.8, 0.7, 0.9], "src": "person"}],
+                           "rejected": [{"cls": "stempel", "box": [0.1, 0.8, 0.3, 0.9]}]},
+                     "2": {"doc_type": "cmr", "boxes": []}}}
+    coco, _ = build_export(R, dec, ["unterschrift", "stempel"], tmp_path, tmp_path / "out")
+    assert [(a["image_id"], a["attributes"]["quelle"], a["bbox"][0]) for a in coco["annotations"]] == [(1, "person", 50.0)]
+    rows = (tmp_path / "out" / "page_types.csv").read_text(encoding="utf-8-sig").splitlines()
+    assert rows[1].endswith(";korrigiert") and rows[2].endswith(";vorschlag")

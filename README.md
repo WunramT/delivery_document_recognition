@@ -326,11 +326,13 @@ Report zeigt beide Betriebspunkte in Abschnitt 3.
 
 Der Soll-Prozess im Vertrieb steht in [`docs/PROZESS.md`](docs/PROZESS.md): Den unsortierten
 Stapel einmal scannen, `make process SCANS=...` erkennt Dokumenttyp, Tournummer, CMR-Zählung,
-Duplikate und Vollständigkeit automatisch und schreibt eine Prüfseite (Deutsch/Polnisch), auf
-der eine Person je CMR/Lieferschein Stempel und Unterschrift bestätigt oder korrigiert – ihre
-Entscheidung gilt. `make finalize RUN=<Tour>` erzeugt daraus die sortierten PDFs, Mail-Entwürfe
-an `leopol-cmr@`/`leopol-ls@` und das Protokoll. Einstellungen: `process:` in `config.yaml`.
-Der TA-Abgleich mit der Ladeliste ist noch nicht validiert und erscheint nur als Hinweis.
+Duplikate und Vollständigkeit automatisch und schreibt eine Prüfseite (Deutsch/Polnisch): ein
+Assistent Seiten zuordnen → Ladeliste (TAs streichen) → Lieferscheine je TA → CMR 1..n →
+Abschluss, in dem eine Person Nummern, Stempel und Unterschrift bestätigt oder korrigiert – ihre
+Entscheidung gilt; Korrekturen markiert sie mit einer Box (Trainingsdaten). `make finalize
+RUN=<Tour>` erzeugt daraus die sortierten PDFs, Mail-Entwürfe an `leopol-cmr@`/`leopol-ls@`, das
+Protokoll und einen Label-Export für das nächste Training. Einstellungen: `process:` in
+`config.yaml`. Der TA-Abgleich mit der Ladeliste ist noch nicht validiert und erscheint nur als Hinweis.
 
 ## Report lesen (`artifacts/report/report.html`)
 

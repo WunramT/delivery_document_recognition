@@ -84,6 +84,32 @@ def page_valid(p: dict, rule: dict) -> bool | None:
     return None if any(v is None for v in vals) else True
 
 
+def check_units(pages: list[dict], numbers: list[int], rules: dict) -> list[dict]:
+    """What the stamp/signature rule is checked on: a CMR (or any other page) on its own; a
+    Lieferschein as a whole - all its pages in `numbers` with the same number, stamp or
+    signature on any of them is enough. Returns [{key, kind, number, pages, valid, missing}]
+    in the order of `numbers`; missing = required classes present on none of its pages."""
+    by_n = {p["n"]: p for p in pages}
+    units, by_num = [], {}
+    for n in numbers:
+        p = by_n[n]
+        num = p.get("ls_number") if p.get("doc_type") == "lieferschein" else None
+        if num and num in by_num:
+            by_num[num]["pages"].append(n)
+            continue
+        u = {"key": f"ls_doc:{num}" if num else f"page:{n}", "kind": p.get("doc_type"), "number": num, "pages": [n]}
+        if num:
+            by_num[num] = u
+        units.append(u)
+    for u in units:
+        rule = rules.get(u["kind"]) or {}
+        vals = [page_valid(by_n[n], rule) for n in u["pages"]]
+        u["valid"] = (True if any(v is True for v in vals) else None if any(v is None for v in vals) else False)
+        u["missing"] = [c for c in rule.get("require") or []
+                        if not any(class_value(by_n[n], c) is True for n in u["pages"])]
+    return units
+
+
 def rank(p: dict, rule: dict) -> tuple:
     """Which copy of a duplicate to keep: valid first, then more objects found, then score."""
     v = page_valid(p, rule)

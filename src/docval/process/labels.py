@@ -32,7 +32,13 @@ def export_name(tour: str | None, run: str) -> str:
 
 
 def build_export(R: dict, decision: dict | None, classes: list[str], src: Path, out: Path) -> tuple[dict, dict]:
-    """Write images/, page_types.csv and the COCO file; returns (coco, editor meta)."""
+    """Write images/, page_types.csv and the COCO file; returns (coco, editor meta).
+
+    Boxes: from the review decision where the page has them (the boxes the person confirmed,
+    kept or drew; rejected model boxes are left out), else the model's detections at the working
+    threshold. page_types.csv gets a column geprueft: korrigiert (the person changed something on
+    the page - reliable) | vorschlag (model proposal passed unchanged - only probably right) |
+    empty (no decision)."""
     if out.exists():
         shutil.rmtree(out)
     (out / "images").mkdir(parents=True)
@@ -50,24 +56,35 @@ def build_export(R: dict, decision: dict | None, classes: list[str], src: Path, 
         doc_type = (dpages.get(str(p["n"])) or {}).get("doc_type") or p["doc_type"]
         doc_type = doc_type if doc_type in KNOWN_TYPES else ""
         changes = []
-        for d in p["dets"]:
-            if d["cls"] not in cat or d["score"] < thr.get(d["cls"], 0.5):
+        dp = dpages.get(str(p["n"])) or {}
+        if dp.get("boxes") is not None:
+            boxes = [{"cls": b["cls"], "box": b["box"], "src": b.get("src", "modell"), "score": b.get("score")}
+                     for b in dp["boxes"]]
+        else:
+            boxes = [{"cls": d["cls"], "box": d["box"], "src": "modell", "score": d["score"]} for d in p["dets"]
+                     if d["score"] >= thr.get(d["cls"], 0.5)]
+        for b in boxes:
+            if b["cls"] not in cat:
                 continue
-            x1, y1, x2, y2 = d["box"][0] * p["w"], d["box"][1] * p["h"], d["box"][2] * p["w"], d["box"][3] * p["h"]
+            x1, y1, x2, y2 = b["box"][0] * p["w"], b["box"][1] * p["h"], b["box"][2] * p["w"], b["box"][3] * p["h"]
+            attrs = {"quelle": "person" if b["src"] == "person" else "modell"}
+            if b.get("score") is not None:
+                attrs["score"] = b["score"]
             coco["annotations"].append({
-                "id": aid, "image_id": p["n"], "category_id": cat[d["cls"]],
+                "id": aid, "image_id": p["n"], "category_id": cat[b["cls"]],
                 "bbox": [round(x1, 1), round(y1, 1), round(x2 - x1, 1), round(y2 - y1, 1)],
                 "area": round((x2 - x1) * (y2 - y1), 1), "iscrowd": 0, "segmentation": [],
-                "attributes": {"quelle": "modell", "score": d["score"]}})
-            changes.append({"action": "hinzugefügt", "cls": d["cls"], "score": d["score"]})
+                "attributes": attrs})
+            changes.append({"action": "hinzugefügt", "cls": b["cls"], "score": b.get("score")})
             aid += 1
         src_pdf, _, src_page = p["source"].partition("#")
-        rows.append([fn, doc_type, src_pdf, src_page or "1"])
+        checked = "" if not dp else "korrigiert" if dp.get("corrected") else "vorschlag"
+        rows.append([fn, doc_type, src_pdf, src_page or "1", checked])
         meta[p["n"]] = {"split": "-", "doc_type": doc_type, "changes": changes, "orig": []}
     (out / COCO_NAME).write_text(json.dumps(coco, indent=1, ensure_ascii=False), encoding="utf-8")
     with open(out / "page_types.csv", "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.writer(fh, delimiter=";")
-        w.writerow(["file_name", "doc_type", "source_pdf", "source_page"])
+        w.writerow(["file_name", "doc_type", "source_pdf", "source_page", "geprueft"])
         w.writerows(rows)
     return coco, meta
 

@@ -23,6 +23,7 @@ from __future__ import annotations
 import copy
 import csv
 import json
+import re
 import shutil
 from email.message import EmailMessage
 from pathlib import Path
@@ -31,7 +32,8 @@ from PIL import Image
 
 from ..config import artifacts, resolve
 from ..zones.synthetic import to_rgb
-from .organize import ERROR, REVIEW_TYPES, organize, page_valid
+from .organize import ERROR, check_units, organize
+from .labels import build_export, export_name
 from .run import safe_name
 from .texts import MSG, item_text, pages_text, reason_text, render_check
 
@@ -69,6 +71,9 @@ PROTO = {
         "h_missing": "Fehlliste (fehlende Dokumente)",
         "missing_none": "nichts fehlt",
         "accepted_mark": "trotzdem akzeptiert",
+        "bulk": "Gesammelt bestätigt (Modell sicher, Schritt bestätigt): {n} von {total} Seiten; die übrigen einzeln entschieden",
+        "labels": "Label-Export für das nächste Training: {dir} ({n} Seiten korrigiert, {boxes} Boxen von der Person) – "
+                  "vor dem Training im Editor durchsehen",
         "missing_acc": "trotzdem akzeptiert: {text} – Grund: {reason}",
         "missing_confirmed": "Fehlliste bestätigt von {reviewer} – Mail-Entwürfe erzeugt",
         "missing_unconfirmed": "Fehlliste nicht bestätigt – keine Mail-Entwürfe erzeugt",
@@ -110,6 +115,9 @@ PROTO = {
         "h_missing": "Lista braków (brakujące dokumenty)",
         "missing_none": "niczego nie brakuje",
         "accepted_mark": "zaakceptowano mimo to",
+        "bulk": "Potwierdzone zbiorczo (model pewny, krok potwierdzony): {n} z {total} stron; pozostałe rozstrzygnięte pojedynczo",
+        "labels": "Eksport etykiet do następnego treningu: {dir} (poprawionych stron: {n}, ramek od osoby: {boxes}) – "
+                  "przed treningiem przejrzeć w edytorze",
         "missing_acc": "zaakceptowano mimo to: {text} – powód: {reason}",
         "missing_confirmed": "Listę braków potwierdził(a) {reviewer} – utworzono szkice e-maili",
         "missing_unconfirmed": "Lista braków niepotwierdzona – nie utworzono szkiców e-maili",
@@ -156,7 +164,14 @@ def apply_decision(pages: list[dict], decision: dict) -> list[dict]:
         if d.get("ta") is not None and q["doc_type"] == "cmr":
             q["ta"] = [{"ta": t, "excluded": False, "manual": True} for t in d["ta"]]
         if q["doc_type"] == "loading_list":
-            q["ta"] = [dict(t, excluded=t["ta"] in struck) for t in q.get("ta") or []]
+            if d.get("ta_list") is not None:   # the person's list: read, corrected, drawn, struck
+                q["ta"] = [{"ta": t["ta"], "excluded": bool(t.get("struck")), "box": t.get("box"),
+                            "manual": t.get("src") == "person"} for t in d["ta_list"]
+                           if re.fullmatch(r"\d{8}", t.get("ta") or "")]
+            q["ta"] = [dict(t, excluded=t.get("excluded") or t["ta"] in struck) for t in q.get("ta") or []]
+        q["bulk"] = bool(d.get("bulk"))
+        if d.get("boxes") is not None:
+            q["boxes_final"], q["boxes_rejected"] = d["boxes"], d.get("rejected") or []
         out.append(q)
     lists = [q for q in out if q["doc_type"] == "loading_list"]
     if lists and added:
@@ -166,14 +181,24 @@ def apply_decision(pages: list[dict], decision: dict) -> list[dict]:
     return out
 
 
-def missing_list(org: dict, invalid: list[int], by_n: dict, rules: dict, accepted: dict, lang: str) -> list[dict]:
-    """organize's missing items + pages that fail the stamp/signature rule (key page:<n>)."""
+def unit_title(u: dict, by_n: dict, lang: str) -> str:
+    if u["number"]:
+        return f"{SINGULAR[lang]['lieferschein']} {u['number']}"
+    return card_title(by_n[u["pages"][0]], lang)
+
+
+def unit_missing(u: dict, lang: str) -> str:
+    return ", ".join(PROTO[lang]["missing_cls"].format(cls=CLS_NAMES[lang].get(c, c)) for c in u["missing"]) or "?"
+
+
+def missing_list(org: dict, invalid_units: list[dict], by_n: dict, accepted: dict, lang: str) -> list[dict]:
+    """organize's missing items + CMR pages / Lieferscheine that fail the stamp/signature rule
+    (key page:<n> resp. ls_doc:<number>)."""
     items = [dict(it) for it in org["missing_items"]]
-    for n in invalid:
-        p = by_n[n]
-        items.append({"key": f"page:{n}", "code": "item_page", "level": ERROR, "accepted": f"page:{n}" in accepted,
-                      "params": {"title": card_title(p, lang), "page": MSG[lang]["page"].format(n=n),
-                                 "missing": missing_text(p, rules.get(p["doc_type"]) or {}, lang) or "?"}})
+    for u in invalid_units:
+        items.append({"key": u["key"], "code": "item_page", "level": ERROR, "accepted": u["key"] in accepted,
+                      "params": {"title": unit_title(u, by_n, lang), "page": pages_text(u["pages"], lang),
+                                 "missing": unit_missing(u, lang)}})
     return items
 
 
@@ -185,11 +210,6 @@ def card_title(p: dict, lang: str) -> str:
     if p["doc_type"] == "lieferschein" and p.get("ls_number"):
         t += f" {p['ls_number']}" + (f" ({p['ls_page'][0]}/{p['ls_page'][1]})" if p.get("ls_page") else "")
     return t
-
-
-def missing_text(p: dict, rule: dict, lang: str) -> str:
-    miss = [c for c in rule.get("require") or [] if (p.get("decision") or {}).get(c) is False]
-    return ", ".join(PROTO[lang]["missing_cls"].format(cls=CLS_NAMES[lang].get(c, c)) for c in miss)
 
 
 def write_pdf(images: list[Path], path: Path, dpi: int) -> None:
@@ -240,10 +260,13 @@ def run_finalize(cfg, run: str, decision_path: str | None, force: bool, log) -> 
         log(f"FEHLER: {len(open_pages)} Seiten nicht bestätigt (S. {', '.join(map(str, open_pages))}) - "
             "auf der Prüfseite bestätigen und neu speichern (FORCE=1 schließt trotzdem ab)")
         return 2
-    invalid_all = [n for n in archived if page_valid(by_n[n], rules.get(by_n[n]["doc_type"]) or {}) is not True]
-    invalid = [n for n in invalid_all if f"page:{n}" not in accepted]
+    # stamp/signature rule: per CMR page, per Lieferschein (all its pages together)
+    units = check_units(pages, org["cmr_order"] + org["ls_order"], rules)   # pages of other tours: their tour
+    unit_of = {n: u for u in units for n in u["pages"]}
+    invalid_all = [u for u in units if u["valid"] is not True]
+    invalid = [u for u in invalid_all if u["key"] not in accepted]
     # the person must have confirmed the missing list on the review page before mails are drafted
-    keys = {it["key"] for it in missing_list(org, invalid_all, by_n, rules, accepted, "de")}
+    keys = {it["key"] for it in missing_list(org, invalid_all, by_n, accepted, "de")}
     missing_ok = not keys or bool(dec.get("missing_confirmed"))
     unseen = sorted(keys - set(dec.get("missing_keys") or [])) if dec.get("missing_confirmed") else []
     if keys and not missing_ok:
@@ -296,6 +319,21 @@ def run_finalize(cfg, run: str, decision_path: str | None, force: bool, log) -> 
                 shutil.copy2(f, dd / f.name)
                 delivered[kind] = str(dd)
 
+    # ---------------------------------------------------------------- labels for the next training
+    lab_dir = out / "labels" / export_name(tour, run)
+    lab_coco, lab_meta = build_export(R, dec, list(R.get("classes") or cfg.get("classes") or []), base, lab_dir)
+    n_corr = sum(1 for d in (dec.get("pages") or {}).values() if d.get("corrected"))
+    n_person = sum(1 for a in lab_coco["annotations"] if a["attributes"]["quelle"] == "person")
+    try:
+        from ..eval.i18n import guide, languages
+        from ..eval.label_editor import editor_data, write_editor
+        data = editor_data(lab_dir.name, lab_coco, "_annotations.coco.json", lab_meta, list(R.get("classes") or []),
+                           list(R.get("doc_types") or []), lab_dir / "page_types.csv")
+        for lang in languages(cfg):
+            write_editor(lab_dir, data, lang, guide(cfg, lang))
+    except (KeyError, TypeError) as e:   # minimal configs (tests): export without editor
+        log(f"[finalize] Label-Editor nicht erzeugt: {e}")
+
     # ---------------------------------------------------------------- protocol
     ta_list = (org.get("ta") or {}).get("loaded") or []
     for lang in cfg.get("ui_languages") or ["de"]:
@@ -312,7 +350,7 @@ def run_finalize(cfg, run: str, decision_path: str | None, force: bool, log) -> 
         ic = {"ok": "✓", "fehler": "✗", "hinweis": "!"}
         L += [f"  {ic[c['level']]} {render_check(c, lang)}" for c in org["checks"]]
         L += ["", t["h_missing"]]
-        mitems = missing_list(org, invalid_all, by_n, rules, accepted, lang)
+        mitems = missing_list(org, invalid_all, by_n, accepted, lang)
         for it in mitems:
             if it["accepted"]:
                 L.append("  ✓ " + t["missing_acc"].format(text=item_text(it, lang),
@@ -325,17 +363,20 @@ def run_finalize(cfg, run: str, decision_path: str | None, force: bool, log) -> 
             L.append("  " + (t["missing_confirmed"].format(reviewer=dec.get("reviewer") or "?") if missing_ok
                              else t["missing_unconfirmed"]))
         L += ["", t["h_sig"]]
-        for kind, order in (("cmr", org["cmr_order"]), ("lieferschein", org["ls_order"])):
-            if not order:
+        for kind in ("cmr", "lieferschein"):
+            ku = [u for u in units if u["kind"] == kind]
+            if not ku:
                 continue
-            bad = [n for n in order if n in invalid_all]
-            L.append("  " + t["sig_line"].format(type=TYPE_NAMES[lang][kind], valid=len(order) - len(bad),
+            bad = [u for u in ku if u in invalid_all]
+            L.append("  " + t["sig_line"].format(type=TYPE_NAMES[lang][kind], valid=len(ku) - len(bad),
                                                  invalid=len(bad)))
-            for n in bad:
-                p = by_n[n]
-                L.append("    - " + t["invalid_item"].format(page=pg(n), title=card_title(p, lang),
-                                                             missing=missing_text(p, rules[p["doc_type"]], lang))
-                         + (f" ({t['accepted_mark']})" if f"page:{n}" in accepted else ""))
+            for u in bad:
+                L.append("    - " + t["invalid_item"].format(page=pgs(u["pages"]), title=unit_title(u, by_n, lang),
+                                                             missing=unit_missing(u, lang))
+                         + (f" ({t['accepted_mark']})" if u["key"] in accepted else ""))
+        n_bulk = sum(1 for n in archived if by_n[n].get("bulk"))
+        if n_bulk:
+            L.append("  " + t["bulk"].format(n=n_bulk, total=len(archived)))
         L.append("  " + (t["differs"].format(pages=pgs(differs)) if differs else t["differs_none"]))
         L += ["", t["h_todo"]]
         todo = []
@@ -344,10 +385,9 @@ def run_finalize(cfg, run: str, decision_path: str | None, force: bool, log) -> 
             todo.append(t["todo_cmr_missing"].format(missing=", ".join(map(str, open_cmr)), total=org["cmr_total"]))
         if not missing_ok:
             todo.append(t["todo_confirm_missing"])
-        for n in invalid:
-            p = by_n[n]
-            todo.append(t["todo_invalid"].format(page=pg(n), title=card_title(p, lang),
-                                                 missing=missing_text(p, rules[p["doc_type"]], lang)))
+        for u in invalid:
+            todo.append(t["todo_invalid"].format(page=pgs(u["pages"]), title=unit_title(u, by_n, lang),
+                                                 missing=unit_missing(u, lang)))
         for n, tr in org["other_tour"].items():
             todo.append(t["todo_other"].format(page=pg(n), tour=tr))
         todo += [render_check(c, lang) for c in org["checks"]
@@ -373,6 +413,7 @@ def run_finalize(cfg, run: str, decision_path: str | None, force: bool, log) -> 
                 L.append(f"  {emls[kind].name}")
         for f in sorted((out / "andere_touren").glob("*.pdf")) if (out / "andere_touren").is_dir() else []:
             L.append(f"  andere_touren/{f.name}")
+        L.append("  " + t["labels"].format(dir=f"labels/{lab_dir.name}/", n=n_corr, boxes=n_person))
         (out / f"protokoll_{lang}.txt").write_text("\n".join(L).rstrip() + "\n", encoding="utf-8")
 
     with open(out / "protokoll.csv", "w", newline="", encoding="utf-8-sig") as fh:
@@ -387,9 +428,10 @@ def run_finalize(cfg, run: str, decision_path: str | None, force: bool, log) -> 
                       else f"Tour {org['other_tour'][n]}" if n in org["other_tour"]
                       else "Duplikat" if n in org["duplicates"] else "")
             c = (p.get("cmr_count") or {}).get("parsed")
-            v = page_valid(p, rules.get(p["doc_type"]) or {}) if p["doc_type"] in REVIEW_TYPES else None
+            u = unit_of.get(n)
+            v = u["valid"] if u else None
             po = p.get("ls_page") or p.get("page_of")
-            acc = accepted.get(f"page:{n}")
+            acc = accepted.get(u["key"]) if u else None
             w.writerow([n, p["source"], p["doc_type"], orig[n]["doc_type"], f"{c[0]}/{c[1]}" if c else "",
                         (p.get("tour") or {}).get("text", ""),
                         " ".join(x["ta"] + ("(gestrichen)" if x.get("excluded") else "") for x in p.get("ta") or []),
