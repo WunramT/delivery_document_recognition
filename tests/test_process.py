@@ -351,3 +351,11 @@ def test_following_lieferschein_page_takes_tour_of_front_page():
     assert org["unclear"]["tour"] == []
     assert org["other_tour"] == {3: "504/01.09.2026/4000", 4: "504/01.09.2026/4000"}
     assert sorted(org["ls_order"]) == [1, 2, 5]
+
+
+def test_loading_list_page_number_entered_by_the_person():
+    ll1, ll2 = page(1, "loading_list", tour=None), page(2, "loading_list", tour=None)
+    ll1["page_of"], ll2["page_of"] = [1, 2], None                 # "2/2" not readable
+    pages = apply_decision([ll1, ll2], {"pages": {"2": {"doc_type": "loading_list", "page_of": [2, 2]}}})
+    assert pages[1]["page_of"] == [2, 2]
+    assert not any(it["code"] == "item_ll_page" for it in organize(pages, TOUR, RULES)["missing_items"])

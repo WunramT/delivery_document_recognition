@@ -98,27 +98,36 @@ lässt sich mit Grund „trotzdem akzeptieren“.
    alle Seiten nach Typ – der Typ jeder Seite ist dort änderbar.
 1. **Ladeliste**: jede Seite groß mit ihren TA-Boxen. Klick auf eine Box streicht die TA
    (nicht verladen), nochmal = zurück. Unlesbare TA eintippen. Fehlt eine TA ganz: „TA-Box
-   zeichnen“, Box um die Zeile ziehen, Nummer eintragen. Fehlende Ladelisten-Seite: Platzhalter
-   mit „trotzdem akzeptieren“. Alles Weitere beruht auf dieser Liste.
+   zeichnen“, Box um die Zeile ziehen, Nummer eintragen (eine in Schritt 0 gezogene TA-Box steht
+   hier schon in der Liste). Seitenzahl „i/n“ je Seite eintragbar, wenn sie nicht gelesen wurde
+   (bei mehreren Seiten Pflicht). Fehlende Ladelisten-Seite: Platzhalter mit „trotzdem
+   akzeptieren“. Alles Weitere beruht auf dieser Liste.
 2. **Lieferscheine**: zuerst die, deren Nummer nicht gelesen wurde (Nummer eintragen). Dann je
    TA der Ladeliste eine Zeile: Seiten 1..n von links nach rechts, Kopien darunter (die beste
    oben, „diese archivieren“ tauscht), fehlende Seite als roter Platzhalter, „kein
    Lieferschein“, wenn es zur TA keinen gibt. Lieferscheine, deren Nummer nicht auf der
-   Ladeliste steht, am Ende; die zu gestrichenen TAs eingeklappt. Die Tournummer steht nur auf der Vorderseite: Folgeseiten übernehmen die Tour der Seite mit derselben Lieferscheinnummer (sonst zählen sie zur Tour). **Regel je Lieferschein:**
+   Ladeliste steht, am Ende; die zu gestrichenen TAs eingeklappt. Neben jeder TA der Ausschnitt
+   ihrer Zeile auf der Ladeliste (Klick zeigt die Ladeliste). Die Tournummer steht nur auf der Vorderseite: Folgeseiten übernehmen die Tour der Seite mit derselben Lieferscheinnummer (sonst zählen sie zur Tour). **Regel je Lieferschein:**
    Stempel oder Unterschrift auf einer seiner Seiten genügt. Hermes/DHL in der Lieferanschrift:
    Schild „Sammelbestätigung prüfen“ – die Person entscheidet (ggf. trotzdem akzeptieren).
 3. **CMR**: zuerst die mit unlesbarer Zählung, dann CMR 1..n von links nach rechts, Kopien
    darunter, fehlende Nummer als Platzhalter. Auf jeder Kachel die TAs des CMR (grün = auf der
-   Ladeliste, rot = nicht); darunter „TA ohne CMR“ und „TA auf CMR, nicht auf der Ladeliste“.
+   Ladeliste, rot = nicht); darunter „TA ohne CMR“ und „TA auf CMR, nicht auf der Ladeliste“ –
+   jeweils mit dem Ausschnitt der Ladelisten-Zeile bzw. des CMR, rechts daneben die Ladeliste
+   zum Nachsehen („auf der Ladeliste zeigen“ zoomt hin).
 4. **Abschluss**: Zusammenfassung, Fehlliste mit „trotzdem akzeptieren“, **„Fehlliste
    bestätigen“** (erst dann erzeugt `make finalize` die Mail-Entwürfe), **„Entscheidung
    speichern“** → `entscheidung.json` in den Ordner der Prüfseite.
 
-**Kacheln** zeigen den Prüfbereich (Stempel/Unterschrift) mit Nummer und Status (U✓ S✗ …);
-gestrichelter Rahmen = hier ist noch etwas zu tun. Klick (oder Pfeiltasten + `Enter`) öffnet
+**Kacheln** zeigen nur die entscheidenden Ausschnitte, jeweils neben dem gelesenen Wert:
+Lieferschein – Nummer, Tournummer (Vorderseite), Unterschrift, Stempel; CMR – CMR-Zählung, TAs,
+Tournummer, Unterschrift, Stempel. So sieht man auf einen Blick, ob das Modell recht hat;
+gestrichelter Rahmen = hier ist noch etwas zu tun. Kopien: „Kopien nebeneinander vergleichen“
+öffnet sie groß nebeneinander (zoombar), dort „diese archivieren“. Klick (oder Pfeiltasten + `Enter`) öffnet
 die **große Ansicht**: links die Seite – Mausrad zoomt, Ziehen verschiebt, beim Öffnen schon auf
 die Nummer bzw. den Prüfbereich gezoomt –, rechts Typ, Tournummer, Nummern und „vorhanden“ /
-„fehlt“. Fehlt eine Nummer, steht der Cursor schon im Feld; `Enter` = weiter zur nächsten offenen
+„fehlt“, darunter „Normalerweise auf dieser Seite“: die Objekte, die der Dokumenttyp hat, mit
+Status (✓ gefunden / – fehlt) und je einem Knopf „Box zeichnen“. Fehlt eine Nummer, steht der Cursor schon im Feld; `Enter` = weiter zur nächsten offenen
 Seite. Tasten: `1` Unterschrift, `2` Stempel, `B` Box zeichnen, `←`/`→`, `Esc`.
 
 **Schritt bestätigen**: Seiten, auf denen das Modell sicher war, gelten mit dem Schritt als

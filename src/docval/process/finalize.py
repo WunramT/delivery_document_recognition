@@ -163,6 +163,8 @@ def apply_decision(pages: list[dict], decision: dict) -> list[dict]:
             q["ls_page"] = [int(x) for x in d["ls_page"]] if d["ls_page"] else None
         if d.get("ta") is not None and q["doc_type"] == "cmr":
             q["ta"] = [{"ta": t, "excluded": False, "manual": True} for t in d["ta"]]
+        if q["doc_type"] == "loading_list" and "page_of" in d:
+            q["page_of"] = [int(x) for x in d["page_of"]] if d["page_of"] else None
         if q["doc_type"] == "loading_list":
             if d.get("ta_list") is not None:   # the person's list: read, corrected, drawn, struck
                 q["ta"] = [{"ta": t["ta"], "excluded": bool(t.get("struck")), "box": t.get("box"),

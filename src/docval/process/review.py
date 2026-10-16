@@ -98,6 +98,11 @@ UI = {
         "keys": "Tasten: 1 Unterschrift · 2 Stempel · B Box zeichnen · Enter weiter zur nächsten offenen · ←/→ · "
                 "Esc schließen · Mausrad zoomen, ziehen verschiebt",
         "img_missing": "Bild fehlt: ", "none": "keine", "bad_number": "Bitte eine 8-stellige Nummer eintragen.",
+        "expected": "Normalerweise auf dieser Seite", "other_cls": "andere Objekte", "compare": "Kopien nebeneinander vergleichen",
+        "archived": "wird archiviert", "iss_page": "Seitenzahl i/n eintragen", "ll_page": "Seite (i/n)",
+        "page_draw": "Seitenzahl-Box zeichnen", "show_on_list": "auf der Ladeliste zeigen",
+        "ta_no_cmr_s": "auf der Ladeliste, aber auf keinem CMR", "ta_extra_s": "auf CMR {page}, nicht auf der Ladeliste",
+        "tav_hint": "Ladeliste zum Nachsehen – Mausrad zoomt, ziehen verschiebt",
     },
     "pl": {
         "html_lang": "pl", "title": "Kontrola trasy", "save": "Zapisz decyzję", "discard": "odrzuć wszystko",
@@ -161,12 +166,17 @@ UI = {
         "keys": "Klawisze: 1 podpis · 2 pieczątka · B ramka · Enter następna otwarta · ←/→ · Esc zamknij · "
                 "kółko myszy = zoom, przeciąganie przesuwa",
         "img_missing": "Brak obrazu: ", "none": "brak", "bad_number": "Proszę wpisać numer 8-cyfrowy.",
+        "expected": "Zwykle na tej stronie", "other_cls": "inne obiekty", "compare": "porównaj kopie obok siebie",
+        "archived": "będzie archiwizowana", "iss_page": "wpisz numer strony i/n", "ll_page": "strona (i/n)",
+        "page_draw": "narysuj ramkę numeru strony", "show_on_list": "pokaż na liście załadunkowej",
+        "ta_no_cmr_s": "na liście załadunkowej, ale na żadnym CMR", "ta_extra_s": "na CMR {page}, nie ma na liście załadunkowej",
+        "tav_hint": "Lista załadunkowa do sprawdzenia – kółko myszy = zoom, przeciąganie przesuwa",
     },
 }
 
 # what the page needs of a page record (OCR texts of the header etc. stay in ergebnis.json)
 PAGE_KEYS = ("n", "id", "image", "source", "w", "h", "doc_type", "doc_reason", "dets", "masked", "proposals",
-             "scores", "tour", "cmr_count", "ta", "ta_unread", "ls_number", "ls_page", "ls_read", "page_of",
+             "scores", "tour", "cmr_count", "ta", "ta_unread", "ls_number", "ls_page", "ls_read", "page_of", "page_read",
              "view", "mask_found", "carrier")
 
 
@@ -208,7 +218,8 @@ TEMPLATE = r"""<!doctype html>
 body{margin:0;font:14px/1.45 system-ui,sans-serif;color:var(--fg);background:var(--bg)}
 header{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;padding:8px 16px;
   border-bottom:1px solid var(--line);background:var(--bg);flex-wrap:wrap}
-header h1{font-size:16px;margin:0 8px 0 0}
+header h1{font-size:16px;margin:0 8px 0 0;white-space:nowrap}
+#stepper button{padding:4px 8px}
 button,select,input{font:inherit;padding:4px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--fg)}
 button{cursor:pointer} button:disabled{opacity:.45;cursor:default}
 button.primary{background:var(--sel);color:#fff;border-color:var(--sel)}
@@ -288,6 +299,19 @@ ul.items li.fehler{background:var(--errbg)} ul.items li.hinweis{background:var(-
 .vbtns{display:flex;gap:4px;margin:6px 0;flex-wrap:wrap}
 .vbtns button{font-size:12px;padding:2px 8px}
 details summary{cursor:pointer;margin:10px 0}
+.tile.t2{width:250px}
+.cr{padding:2px 6px} .cl{display:flex;justify-content:space-between;gap:6px;font-size:11px;color:var(--muted)} .cl b{color:var(--fg);font-size:12px}
+.crop{position:relative;overflow:hidden;border:1px solid var(--line);background:var(--panel)} .crop img{position:absolute;max-width:none;pointer-events:none}
+.nocrop{height:22px;border:1px dashed var(--line);color:var(--muted);text-align:center;font-size:12px;line-height:20px}
+.objs{display:flex;gap:6px;padding:2px 6px 4px} .objs .oc{flex:1;min-width:0}
+.exp .ex{display:flex;gap:6px;align-items:center;margin:3px 0} .exp .nm{width:130px} .exp .sw{width:10px;height:10px;border-radius:2px;flex:none}
+.exp button{font-size:12px;padding:1px 8px} .exp button.on{background:var(--sel);color:#fff;border-color:var(--sel)}
+#cmp{display:none;position:fixed;inset:0;z-index:30;background:#fff;flex-direction:column} #cmp.on{display:flex}
+.cmph{display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);align-items:center}
+#cmpb{flex:1;display:flex;gap:8px;padding:8px;min-height:0} .cpane{flex:1;display:flex;flex-direction:column;min-width:0}
+.cv{flex:1;min-height:0} .cf{padding:6px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tacheck{display:flex;gap:14px;align-items:flex-start} .tacheck .tal{width:470px;flex:none}
+.tav{flex:1;height:75vh;position:sticky;top:60px;min-width:300px} .tai{padding:8px 0;border-bottom:1px solid var(--line)}
 .sum{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0}
 .sum div{padding:8px 12px;border:1px solid var(--line);border-radius:8px} .sum b{font-size:20px;display:block}
 </style></head><body>
@@ -295,13 +319,14 @@ details summary{cursor:pointer;margin:10px 0}
   <h1 id="title"></h1>
   <div id="stepper"></div>
   <span style="flex:1"></span>
-  <label>{{reviewer}} <input id="reviewer" autocomplete="name" style="width:180px"></label>
+  <label>{{reviewer}} <input id="reviewer" autocomplete="name" style="width:140px"></label>
   <button id="discard">{{discard}}</button>
   <button id="save" class="primary">{{save}}</button>
 </header>
 <div id="notice"></div>
 <main id="main"></main>
 <div id="ov"><div id="ovimg"></div><div id="ovside"></div></div>
+<div id="cmp"><div class="cmph"><b id="cmpt"></b><span style="flex:1"></span><button data-cmpfit="full"></button><button data-cmpfit="area"></button><button data-cmpclose="1"></button></div><div id="cmpb"></div></div>
 <script>
 const D = __DATA__;
 const T = __I18N__;
@@ -401,8 +426,11 @@ function llEntries(p) {
   const s = us(p);
   if (!s.tl) s.tl = [...(p.ta || []).map(t => ({ta: t.ta, box: t.box || null, src: "model"})),
                      ...(p.ta_unread || []).map(u => ({ta: "", box: u.box, src: "model", unread: true}))];
+  // a TA box drawn anywhere (also in the large view of step 0) is a row of the list
+  for (const b of s.pb || []) if (b.cls === "ta_nummer" && !s.tl.some(e => sameBox(e.box, b.box))) s.tl.push({ta: "", box: b.box, src: "person"});
   return s.tl;
 }
+const llPageOf = p => has(p, "page_of") ? parsePageOf(S.pages[p.n].page_of) : p.page_of || null;
 const llPages = () => D.pages.filter(p => docType(p) === "loading_list");
 function loaded() { const out = []; for (const p of llPages()) for (const e of llEntries(p)) if (!e.struck && okTA(e.ta) && !out.includes(e.ta)) out.push(e.ta); return out; }
 function struckTAs() { const L = loaded(), out = []; for (const p of llPages()) for (const e of llEntries(p)) if (e.struck && okTA(e.ta) && !L.includes(e.ta) && !out.includes(e.ta)) out.push(e.ta); return out; }
@@ -454,6 +482,10 @@ function pageIssues(p) {   // [{step, text, box}]
     if (has(p, "tour") && !hasPos(p, "tour_nummer")) needBox(0, "tour_nummer");
   }
   if (otherTour(p)) return out;
+  if (t === "loading_list") {
+    if (!llPageOf(p) && llPages().length > 1) add(1, T.iss_page);
+    if (has(p, "page_of") && !hasPos(p, "seitenzahl")) needBox(1, "seitenzahl");
+  }
   if (t === "lieferschein") {
     if (!lsNumber(p)) add(2, T.iss_ls);
     else if (has(p, "ls") && !hasPos(p, "ls_nummer")) needBox(2, "ls_nummer");
@@ -516,7 +548,7 @@ function missingItems() {
   }
   const ll = llPages();
   if (ll.length) {
-    const pos = ll.map(p => p.page_of), total = Math.max(0, ...pos.filter(Boolean).map(x => x[1]));
+    const pos = ll.map(llPageOf), total = Math.max(0, ...pos.filter(Boolean).map(x => x[1]));
     for (const i of missingPages(pos)) add("ll:" + i, "item_ll_page", "fehler", {i, total});
     const L = loaded();
     if (L.length) {
@@ -564,6 +596,36 @@ function thumbHtml(p, v) {
   for (const b of finalBoxes(p).pos) if (OBJ.includes(b.cls)) h += `<div class="b" style="${pos(b.box)};border-color:${D.colors[b.cls] || "#000"}"></div>`;
   return `<div class="thumb" style="aspect-ratio:${rw * p.w} / ${rh * p.h}">${h}</div>`;
 }
+function bestBox(p, cls) {
+  const fb = finalBoxes(p).pos.filter(b => b.cls === cls);
+  return fb.length ? (fb.find(b => b.src === "person") || fb.reduce((a, b) => (b.score || 0) > (a.score || 0) ? b : a)) : null;
+}
+function cropHtml(p, box, w, maxH, pad) {   // one part of the page, w px wide (narrower if it would be too high)
+  const x1 = Math.max(0, box[0] - pad), y1 = Math.max(0, box[1] - pad * 1.5), x2 = Math.min(1, box[2] + pad), y2 = Math.min(1, box[3] + pad * 1.5);
+  const rw = x2 - x1, rh = y2 - y1, ar = (rh * p.h) / (rw * p.w);
+  if (w * ar > maxH) w = maxH / ar;
+  const sc = w / rw, ih = sc * p.h / p.w;
+  return `<div class="crop" style="width:${w.toFixed(1)}px;height:${(w * ar).toFixed(1)}px"><img src="${esc(p.image)}" alt="" style="width:${sc.toFixed(1)}px;height:${ih.toFixed(1)}px;left:${(-x1 * sc).toFixed(1)}px;top:${(-y1 * ih).toFixed(1)}px"></div>`;
+}
+function cropRow(p, cls, value, w = 236) {
+  const b = bestBox(p, cls);
+  return `<div class="cr"><div class="cl"><span>${esc(T.cls[cls] || cls)}</span><b>${esc(value || "?")}</b></div>${b ? cropHtml(p, b.box, w, 46, 0.006) : `<div class="nocrop">–</div>`}</div>`;
+}
+function objCrops(p) {
+  return `<div class="objs">` + rule(p).require.map(c => {
+    const v = val(p, c), b = bestBox(p, c);
+    return `<div class="oc"><div class="cl"><span>${esc(T.cls[c] || c)}</span><span class="st ${v === true ? "y" : v === false ? "n" : "q"}">${v === true ? "✓" : v === false ? "✗" : "?"}</span></div>${b ? cropHtml(p, b.box, 112, 80, 0.01) : `<div class="nocrop">–</div>`}</div>`;
+  }).join("") + `</div>`;
+}
+function tileBody(p) {   // the parts that decide: numbers next to what was read, stamp and signature
+  const t = docType(p), tour = tourOf(p), tv = tour ? (tour === D.tour ? "✓ " + tour.split("/")[0] : tour) : "";
+  if (t === "lieferschein") {
+    const pg = lsPage(p);
+    return cropRow(p, "ls_nummer", (lsNumber(p) || "") + (pg ? ` (${pg[0]}/${pg[1]})` : "")) + (backPage(p) ? "" : cropRow(p, "tour_nummer", tv)) + objCrops(p);
+  }
+  if (t === "cmr") { const cc = cmrCount(p); return cropRow(p, "cmr_count", cc ? cc.join("/") : "") + cropRow(p, "ta_nummer", cmrTAs(p).join(", ")) + cropRow(p, "tour_nummer", tv) + objCrops(p); }
+  return null;
+}
 function stIcons(p) {
   return rule(p).require.map(c => { const v = val(p, c); return `<span class="st ${v === true ? "y" : v === false ? "n" : "q"}" title="${esc(T.cls[c])}">${(T.cls[c] || c)[0].toUpperCase()}${v === true ? "✓" : v === false ? "✗" : "?"}</span>`; }).join(" ");
 }
@@ -574,8 +636,11 @@ function tileHtml(p, step, opts = {}) {
   let foot = reviewable(p) ? stIcons(p) : "";
   if (opts.foot) foot += opts.foot;
   if (!archive(p)) foot += ` <span class="muted">${T.dup}</span>`;
-  return `<div class="${cls}" tabindex="0" data-open="${p.n}" data-step="${step}"><div class="th"><b>${esc(opts.label || cardTitle(p))}</b><span class="muted">${fmt(T.page, {n: p.n})}</span></div>
-    ${thumbHtml(p, full ? [0, 0, 1, 1] : (p.view || [0, 0, 1, 1]))}<div class="tf">${foot}${iss.length ? `<span class="issues">· ${esc(iss[0].text)}${iss.length > 1 ? " +" + (iss.length - 1) : ""}</span>` : ""}</div></div>`;
+  const body = full ? null : tileBody(p);
+  if (body) foot = opts.foot || "";
+  if (body && !archive(p)) foot += ` <span class="muted">${T.dup}</span>`;
+  return `<div class="${cls}${body ? " t2" : ""}" tabindex="0" data-open="${p.n}" data-step="${step}"><div class="th"><b>${esc(opts.label || cardTitle(p))}</b><span class="muted">${fmt(T.page, {n: p.n})}</span></div>
+    ${body || thumbHtml(p, full ? [0, 0, 1, 1] : (p.view || [0, 0, 1, 1]))}<div class="tf">${foot}${iss.length ? `<span class="issues">· ${esc(iss[0].text)}${iss.length > 1 ? " +" + (iss.length - 1) : ""}</span>` : ""}</div></div>`;
 }
 const phHtml = (text, key) => `<div class="ph${key && (S.accepted || {})[key] ? " acc" : ""}">${esc(text)}${key ? accHtml(key) : ""}</div>`;
 function confirmBar(k) {
@@ -616,29 +681,31 @@ function render1() {
   let h = `<h2>1 · ${T.steps[1]}</h2>`;
   if (!ll.length) return h + `<p>${T.s1_none}</p>` + confirmBar(1);
   h += `<p class="muted">${T.s1_intro}</p>`;
-  const pos = ll.map(p => p.page_of), total = Math.max(0, ...pos.filter(Boolean).map(x => x[1]));
+  const pos = ll.map(llPageOf), total = Math.max(0, ...pos.filter(Boolean).map(x => x[1]));
   const miss = missingPages(pos);
   if (miss.length) h += `<div class="tiles">${miss.map(i => phHtml(fmt(T.ll_missing, {i, n: total}), "ll:" + i)).join("")}</div>`;
-  for (const p of ll) h += `<h3>${fmt(T.page, {n: p.n})}${p.page_of ? ` · ${p.page_of[0]}/${p.page_of[1]}` : ""}</h3>
+  for (const p of ll) h += `<h3>${fmt(T.page, {n: p.n})}${llPageOf(p) ? ` · ${llPageOf(p)[0]}/${llPageOf(p)[1]}` : ""}</h3>
     <div class="ll"><div class="vbox" id="llv${p.n}"></div><div class="list" id="lll${p.n}">${llList(p)}</div></div>`;
   h += `<p id="llsum"><b>${fmt(T.loaded_n, {n: loaded().length})}</b> · ${fmt(T.struck_n, {n: struckTAs().length})}</p>`;
   return h + confirmBar(1);
 }
 function llList(p) {
-  const es = llEntries(p);
-  return `<table>${es.map((e, i) => `<tr class="${e.struck ? "struck" : ""}"><td><input class="ta" data-ll="${p.n}" data-i="${i}" value="${esc(e.ta)}" placeholder="12345678"></td>
+  const es = llEntries(p), po = llPageOf(p), iss = pageIssues(p).filter(x => x.step === 1);
+  const read = p.page_read && p.page_read.text ? ` <span class="muted small">${T.ocr_read}: „${esc(p.page_read.text)}“</span>` : "";
+  return `<p>${T.ll_page} <input data-llpage="${p.n}" placeholder="1/3" style="width:70px" value="${esc(has(p, "page_of") ? S.pages[p.n].page_of : po ? po.join("/") : "")}">${read}</p>
+    ${iss.length ? `<p class="issues small">${iss.map(x => esc(x.text)).join(" · ")}</p>` : ""}<table>${es.map((e, i) => `<tr class="${e.struck ? "struck" : ""}"><td><input class="ta" data-ll="${p.n}" data-i="${i}" value="${esc(e.ta)}" placeholder="12345678"></td>
     <td class="small ${!e.struck && !okTA(e.ta) ? "issues" : "muted"}">${e.struck ? T.struck : e.src === "person" ? T.ta_drawn : !okTA(e.ta) ? T.ta_unread : T.ta_read}</td>
     <td><button class="small" data-strike="${p.n}" data-i="${i}">${e.struck ? T.unstrike : T.strike}</button>${e.src === "person" ? ` <button class="small" data-delta="${p.n}" data-i="${i}">×</button>` : ""}</td></tr>`).join("")}</table>
-    <p><button data-tadraw="${p.n}">${T.ta_draw}</button></p>`;
+    <p><button data-lldraw="${p.n}" data-cls="ta_nummer">${T.ta_draw}</button> <button data-lldraw="${p.n}" data-cls="seitenzahl">${T.page_draw}</button></p>`;
 }
 function mountLL() {
   for (const p of llPages()) {
     const el = $("llv" + p.n); if (!el) continue;
     const v = new Viewer(el, p, {
       boxes: () => llBoxes(p),
-      click: k => { const i = +k.split(":")[1]; const e = llEntries(p)[i]; if (e) { e.struck = !e.struck; changed(1); refresh1(p); } },
-      draw: box => { const es = llEntries(p); us(p).pb = (us(p).pb || []).concat([{cls: "ta_nummer", box}]); es.push({ta: "", box, src: "person"}); changed(1); refresh1(p);
-        setTimeout(() => { const inp = document.querySelector(`input[data-ll="${p.n}"][data-i="${es.length - 1}"]`); if (inp) inp.focus(); }, 0); },
+      click: k => { if (!k.startsWith("e:")) return; const i = +k.split(":")[1]; const e = llEntries(p)[i]; if (e) { e.struck = !e.struck; changed(1); refresh1(p); } },
+      draw: (box, cls) => { us(p).pb = (us(p).pb || []).concat([{cls, box}]); changed(1); const es = llEntries(p); refresh1(p);
+        if (cls === "ta_nummer") setTimeout(() => { const inp = document.querySelector(`input[data-ll="${p.n}"][data-i="${es.length - 1}"]`); if (inp) inp.focus(); }, 0); },
     });
     LV[p.n] = v; v.fit([0, 0, 1, 1], 0);
   }
@@ -646,10 +713,12 @@ function mountLL() {
 function llBoxes(p) {
   const out = [];
   llEntries(p).forEach((e, i) => { if (e.box) out.push({key: "e:" + i, box: e.box, cls: "ta_nummer", label: e.struck ? T.struck : (e.ta || "?"), style: e.struck ? "struck" : okTA(e.ta) ? "" : "rej", person: e.src === "person"}); });
+  for (const b of finalBoxes(p).pos) if (b.cls !== "ta_nummer") out.push({key: "x", box: b.box, cls: b.cls, label: T.cls[b.cls] || b.cls, person: b.src === "person", style: "weak"});
   return out;
 }
 function refresh1(p) {
   const l = $("lll" + p.n); if (l) l.innerHTML = llList(p);
+  const hd = l && l.parentElement.previousElementSibling; if (hd && llPageOf(p)) hd.textContent = `${fmt(T.page, {n: p.n})} · ${llPageOf(p)[0]}/${llPageOf(p)[1]}`;
   if (LV[p.n]) LV[p.n].render();
   renderStepper();
   const b = $("bar1"); if (b) b.outerHTML = confirmBar(1);
@@ -664,7 +733,7 @@ function lsRowCells(num, pages) {
   let h = "";
   for (let i = 1; i <= n; i++) {
     const col = (byI[i] || []).sort((a, b) => (archive(b) ? 1 : 0) - (archive(a) ? 1 : 0));
-    h += `<div class="col"><div class="ch">${i}/${n}</div>` + (col.length ? col.map(p => tileHtml(p, 2, {label: `${num} · ${i}/${n}`})).join("") : phHtml(fmt(T.page_missing, {i}), `ls:${num}:${i}`)) + `</div>`;
+    h += `<div class="col"><div class="ch">${i}/${n}${col.length > 1 ? ` · <a class="lnk" data-cmp="${col.map(q => q.n).join(",")}">${T.compare}</a>` : ""}</div>` + (col.length ? col.map(p => tileHtml(p, 2, {label: `${num} · ${i}/${n}`})).join("") : phHtml(fmt(T.page_missing, {i}), `ls:${num}:${i}`)) + `</div>`;
   }
   for (const p of extra) h += `<div class="col"><div class="ch">?</div>${tileHtml(p, 2)}</div>`;
   return h;
@@ -672,6 +741,8 @@ function lsRowCells(num, pages) {
 function lsRow(label, num, pages, accKey) {
   const v = pages.length ? docValid(num) : null;
   let lab = `<b>${esc(label)}</b><br>`;
+  const le = llEntryOf(num);
+  if (le) lab += `<a data-tazoom="${le.p.n}:${le.i}" title="${esc(T.show_on_list)}">${cropHtml(le.p, le.e.box, 196, 40, 0.02)}</a>`;
   if (pages.length) lab += `<span class="pill ${v === true ? "ok" : v === false ? "bad" : "open"}">${v === true ? T.valid : v === false ? T.invalid : T.open}</span>`;
   if (v === false) lab += accHtml("ls_doc:" + num);
   if (pages.some(p => p.carrier)) lab += `<br><span class="tag">${T.carrier}</span>`;
@@ -710,17 +781,47 @@ function render3() {
   h += `<div class="cells">`;
   for (let i = 1; i <= ci.N; i++) {
     const col = (ci.by[i] || []).slice().sort((a, b) => (archive(b) ? 1 : 0) - (archive(a) ? 1 : 0));
-    h += `<div class="col"><div class="ch">${i}/${[...ci.tot].join("|") || "?"}</div>` + (col.length ? col.map(p => tileHtml(p, 3, {foot: taChips(p)})).join("") : phHtml(fmt(T.cmr_missing, {i}), ci.tot.size === 1 ? "cmr:" + i : null)) + `</div>`;
+    h += `<div class="col"><div class="ch">${i}/${[...ci.tot].join("|") || "?"}${col.length > 1 ? ` · <a class="lnk" data-cmp="${col.map(q => q.n).join(",")}">${T.compare}</a>` : ""}</div>` + (col.length ? col.map(p => tileHtml(p, 3, {foot: taChips(p)})).join("") : phHtml(fmt(T.cmr_missing, {i}), ci.tot.size === 1 ? "cmr:" + i : null)) + `</div>`;
   }
   h += `</div>`;
   if (L.length) {
     const cmrT = [];
     D.pages.filter(p => docType(p) === "cmr" && archive(p) && !otherTour(p)).forEach(p => cmrTAs(p).forEach(t => { if (!cmrT.includes(t)) cmrT.push(t); }));
     const noCmr = L.filter(t => !cmrT.includes(t)), extra = cmrT.filter(t => !L.includes(t) && !struck.includes(t));
-    if (noCmr.length) h += `<h3>${T.ta_no_cmr}</h3><div class="tiles">${noCmr.map(t => phHtml("TA " + t, "ta_cmr:" + t)).join("")}</div>`;
-    if (extra.length) h += `<h3>${T.ta_cmr_extra}</h3><div class="tiles">${extra.map(t => phHtml("TA " + t, "ta_cmr_extra:" + t)).join("")}</div>`;
+    if (noCmr.length || extra.length) {
+      h += `<h3>${T.ta_no_cmr} / ${T.ta_cmr_extra}</h3><div class="tacheck"><div class="tal">`;
+      for (const t of noCmr) {
+        const le = llEntryOf(t);
+        h += `<div class="tai"><b>TA ${t}</b> – ${T.ta_no_cmr_s}${le ? ` · <a class="lnk" data-tazoom="${le.p.n}:${le.i}">${T.show_on_list}</a><br>${cropHtml(le.p, nearBand(le.e.box), 460, 60, 0)}` : ""}${accHtml("ta_cmr:" + t)}</div>`;
+      }
+      for (const t of extra) {
+        const c = D.pages.find(q => docType(q) === "cmr" && archive(q) && !otherTour(q) && cmrTAs(q).includes(t)), b = c && bestBox(c, "ta_nummer");
+        h += `<div class="tai"><b>TA ${t}</b> – ${fmt(T.ta_extra_s, {page: c ? `<a data-open="${c.n}" data-step="3">${fmt(T.page, {n: c.n})}</a>` : "?"})}${b ? `<br>${cropHtml(c, b.box, 460, 50, 0.006)}` : ""}${accHtml("ta_cmr_extra:" + t)}</div>`;
+      }
+      h += `</div><div><p class="muted small">${T.tav_hint}</p><div class="tav" id="tav"></div></div></div>`;
+    }
   }
   return h + confirmBar(3);
+}
+
+function llEntryOf(ta) {
+  for (const p of llPages()) { const es = llEntries(p); const i = es.findIndex(e => e.ta === ta && e.box); if (i >= 0) return {p, i, e: es[i]}; }
+  return null;
+}
+const rowBand = b => [0, Math.max(0, b[1] - 0.006), 1, Math.min(1, b[3] + 0.006)];
+const nearBand = b => [Math.max(0, b[0] - 0.25), Math.max(0, b[1] - 0.01), Math.min(1, b[2] + 0.25), Math.min(1, b[3] + 0.01)];   // the row around a TA: struck out / notes
+let TV = null;
+function mountTA(n) {
+  const el = $("tav"); if (!el || !llPages().length) { TV = null; return; }
+  const p = byN[n] || llPages()[0];
+  TV = new Viewer(el, p, {boxes: () => llBoxes(p), draw: () => {}});
+  TV.fit([0, 0, 1, 1], 0);
+}
+function zoomTA(n, i) {
+  if (S.cur !== 3 && S.cur !== 2) return;
+  if (S.cur === 2) { openPage(n, 1); const e = llEntries(byN[n])[i]; if (e && OV) requestAnimationFrame(() => OV.viewer.fit(rowBand(e.box), 0.01)); return; }
+  if (!TV || TV.p.n !== n) mountTA(n);
+  const e = llEntries(byN[n])[i]; if (TV && e) TV.fit(rowBand(e.box), 0.01);
 }
 
 // ------------------------------------------------------------ step 4: finish
@@ -750,6 +851,7 @@ function renderMain() {
   for (const k in LV) delete LV[k];
   $("main").innerHTML = [render0, render1, render2, render3, render4][S.cur]();
   if (S.cur === 1) mountLL();
+  if (S.cur === 3) mountTA();
 }
 function renderAll() { $("title").textContent = T.title + " " + (D.tour || D.name); renderStepper(); renderMain(); }
 function go(k) { if (!canEnter(k)) { alert(T.step_locked); return; } S.cur = k; persist(); renderAll(); window.scrollTo(0, 0); }
@@ -856,7 +958,20 @@ function showOv(refit) {
   if (refit) { const want = sideFocus(p); const el = want && $("ovside").querySelector(want); if (el) el.focus(); }
 }
 function sideFocus(p) { const t = docType(p); if (t === "lieferschein" && !lsNumber(p)) return 'input[data-f="ls"]'; if (t === "cmr" && !cmrCount(p)) return 'input[data-f="cmr"]'; if (OV.step === 0 && REVIEW.includes(t) && !tourOf(p)) return 'input[data-f="tour"]'; return null; }
-function defaultDrawCls(p) { const x = pageIssues(p).find(i => i.box); if (x) return x.box; return reviewable(p) ? (rule(p).require.find(c => val(p, c) !== false) || "stempel") : "tour_nummer"; }
+const EXPECT = {cmr: ["unterschrift", "stempel", "tour_nummer", "cmr_count", "ta_nummer"],
+  lieferschein: ["ls_nummer", "tour_nummer", "seitenzahl", "unterschrift", "stempel"],
+  loading_list: ["tour_nummer", "ta_nummer", "seitenzahl"], bestaetigung: ["unterschrift", "stempel", "seitenzahl"], abholschein: ["seitenzahl"]};
+function expected(p) {
+  const t = docType(p);
+  let e = EXPECT[t] || D.classes;
+  if (t === "lieferschein" && backPage(p)) e = e.filter(c => c !== "tour_nummer");   // page 2/2: no tour number printed
+  return e.filter(c => D.classes.includes(c));
+}
+function defaultDrawCls(p) {
+  const x = pageIssues(p).find(i => i.box); if (x) return x.box;
+  const pos = finalBoxes(p).pos;
+  return expected(p).find(c => !pos.some(b => b.cls === c)) || expected(p)[0] || "stempel";
+}
 function sideHtml(p) {
   const t = docType(p), s = S.pages[p.n] || {}, iss = pageIssues(p);
   let h = `<h3 style="margin-top:0">${esc(cardTitle(p))}</h3><div class="muted small">${fmt(T.page, {n: p.n})} · ${esc(p.source)} · ${OV.idx + 1}/${OV.list.length}</div>`;
@@ -867,6 +982,10 @@ function sideHtml(p) {
     const read = p.tour && p.tour.raw ? ` – ${T.ocr_read}: „${esc(p.tour.raw)}“` : "";
     h += `<label>${T.tour}${read}</label><input data-f="tour" placeholder="${esc(D.tour || "")}" value="${esc(has(p, "tour") ? s.tour : tourOf(p) || "")}" style="width:220px">`;
     if (D.tour && tourOf(p) !== D.tour) h += ` <button data-tourthis="1">${esc(fmt(T.tour_this, {tour: D.tour}))}</button>`;
+  }
+  if (t === "loading_list") {
+    const po = llPageOf(p), read = p.page_read && p.page_read.text ? ` – ${T.ocr_read}: „${esc(p.page_read.text)}“` : "";
+    h += `<label>${T.ll_page}${read}</label><input data-f="page_of" placeholder="1/3" style="width:80px" value="${esc(has(p, "page_of") ? s.page_of : po ? po.join("/") : "")}">`;
   }
   if (t === "lieferschein") {
     const read = p.ls_read && p.ls_read.text ? ` – ${T.ocr_read}: „${esc(p.ls_read.text)}“` : "";
@@ -895,11 +1014,15 @@ function sideHtml(p) {
     h += `<p><span class="pill ${v === true ? "ok" : v === false ? "bad" : "open"}">${v === true ? T.valid : v === false ? T.invalid : T.open}</span></p>`;
     if (v === false && archive(p)) h += accHtml(t === "lieferschein" && lsNumber(p) ? "ls_doc:" + lsNumber(p) : "page:" + p.n);
     const cop = copiesOf(p);
-    if (cop.length > 1) h += `<p class="small">${fmt(T.copies, {pages: cop.map(q => fmt(T.page, {n: q.n})).join(", ")})}${archive(p) ? "" : ` · ${T.dup} <button data-archthis="1">${T.archive_this}</button>`}</p>`;
+    if (cop.length > 1) h += `<p class="small">${fmt(T.copies, {pages: cop.map(q => fmt(T.page, {n: q.n})).join(", ")})}${archive(p) ? "" : ` · ${T.dup} <button data-archthis="1">${T.archive_this}</button>`} <button data-cmp="${cop.map(q => q.n).join(",")}">${T.compare}</button></p>`;
   }
-  const dc = defaultDrawCls(p), drawing = OV.viewer && OV.viewer.drawCls;
-  h += `<h3>${T.draw}</h3><div class="vbtns"><select id="drawcls">${D.classes.map(c => `<option value="${c}"${c === dc ? " selected" : ""}>${esc(T.cls[c] || c)}</option>`).join("")}</select>
-    <button id="drawbtn">${drawing ? T.drawing : T.draw + " (B)"}</button></div>`;
+  const drawing = OV.viewer && OV.viewer.drawCls, ex = expected(p), pos = finalBoxes(p).pos;
+  h += `<h3>${T.expected}</h3>${drawing ? `<div class="hint">${T.drawing}</div>` : ""}<div class="exp">` + ex.map(c => {
+    const n = pos.filter(b => b.cls === c).length;
+    return `<div class="ex"><span class="sw" style="background:${D.colors[c] || "#000"}"></span><span class="nm">${esc(T.cls[c] || c)}</span><span class="st ${n ? "y" : "q"}">${n ? "✓" + (n > 1 ? " " + n : "") : "–"}</span><button data-drawc="${c}" class="${drawing === c ? "on" : ""}">${T.draw}</button></div>`;
+  }).join("") + `</div>`;
+  const rest = D.classes.filter(c => !ex.includes(c));
+  if (rest.length) h += `<details class="small"><summary>${T.other_cls}</summary>${rest.map(c => `<button data-drawc="${c}">${esc(T.cls[c] || c)}</button>`).join(" ")}</details>`;
   const pb = s.pb || [];
   if (pb.length) h += `<div class="small">${T.boxes_person}: ${pb.map((b, i) => `<span class="chip">${esc(T.cls[b.cls] || b.cls)} <a class="lnk" data-delpb="${i}">×</a></span>`).join(" ")}</div>`;
   h += `<div class="nav"><button data-nav="-1">${T.prev}</button><button data-nav="1">${T.next}</button><button data-close="1">${T.close}</button></div><p class="muted small">${T.keys}</p>`;
@@ -929,15 +1052,42 @@ $("ovside").addEventListener("click", e => {
   else if (b.dataset.tourthis) setField(p, "tour", D.tour);
   else if (b.dataset.archthis) { archiveThis(p); edit(p); }
   else if (b.dataset.delpb != null) { const s = us(p); s.pb.splice(+b.dataset.delpb, 1); edit(p); }
-  else if (b.id === "drawbtn") { OV.viewer.startDraw($("drawcls").value); $("ovside").innerHTML = sideHtml(p); }
+  else if (b.dataset.drawc) { OV.viewer.startDraw(b.dataset.drawc); $("ovside").innerHTML = sideHtml(p); }
+  else if (b.dataset.cmp) openCompare(b.dataset.cmp.split(",").map(Number));
   else if (b.dataset.nav) nextOpen(+b.dataset.nav);
   else if (b.dataset.close) closeOv();
 });
 
+// ------------------------------------------------------------ copies side by side
+let CV = null;
+function openCompare(ns) {
+  CV = {ns}; $("cmp").classList.add("on");
+  $("cmpt").textContent = T.compare;
+  for (const [k, t] of [["full", T.v_full], ["area", T.v_area]]) document.querySelector(`[data-cmpfit="${k}"]`).textContent = t;
+  document.querySelector("[data-cmpclose]").textContent = T.close;
+  $("cmpb").innerHTML = ns.map(n => `<div class="cpane"><div class="cv" id="cv${n}"></div><div class="cf" id="cf${n}"></div></div>`).join("");
+  CV.viewers = ns.map(n => { const p = byN[n]; return new Viewer($("cv" + n), p, {boxes: () => ovBoxes(p), draw: () => {}}); });
+  requestAnimationFrame(() => CV && CV.viewers.forEach(v => v.fit(v.p.view || [0, 0, 1, 1], 0.03)));
+  renderCompare();
+}
+function renderCompare() {
+  for (const n of CV.ns) { const p = byN[n];
+    $("cf" + n).innerHTML = `<b>${esc(cardTitle(p))}</b> <span class="muted">${fmt(T.page, {n})}</span> ${reviewable(p) ? stIcons(p) : ""}
+      ${archive(p) ? `<span class="pill ok">${T.archived}</span>` : `<button data-cmparch="${n}">${T.archive_this}</button>`}`; }
+  CV.viewers.forEach(v => v.render());
+}
+function closeCompare() { CV = null; $("cmp").classList.remove("on"); $("cmpb").innerHTML = ""; if (OV) showOv(false); else rerender(); }
+$("cmp").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b || !CV) return;
+  if (b.dataset.cmparch) { archiveThis(byN[+b.dataset.cmparch]); changed(S.cur); renderCompare(); }
+  else if (b.dataset.cmpfit) CV.viewers.forEach(v => v.fit(b.dataset.cmpfit === "full" ? [0, 0, 1, 1] : (v.p.view || [0, 0, 1, 1]), 0.03));
+  else if (b.dataset.cmpclose) closeCompare();
+});
+
 // ------------------------------------------------------------ events on the main page
 document.addEventListener("click", e => {
-  if (e.target.closest("select,input") || e.target.closest("#ov")) return;
-  const t = e.target.closest("[data-acc],[data-accok],[data-acccancel],[data-unacc],[data-mreset],#mconfirm,[data-confirm],[data-step-go],[data-strike],[data-delta],[data-tadraw],#save2,[data-open]");
+  if (e.target.closest("select,input") || e.target.closest("#ov") || e.target.closest("#cmp")) return;
+  const t = e.target.closest("[data-acc],[data-accok],[data-acccancel],[data-unacc],[data-mreset],#mconfirm,[data-confirm],[data-step-go],[data-strike],[data-delta],[data-lldraw],[data-cmp],[data-tazoom],#save2,[data-open]");
   if (!t) return;
   if (t.dataset.acc != null) { accOpen = t.dataset.acc; rerender(); }
   else if (t.dataset.acccancel != null) { accOpen = null; rerender(); }
@@ -954,7 +1104,9 @@ document.addEventListener("click", e => {
   else if (t.dataset.stepGo != null) go(+t.dataset.stepGo);
   else if (t.dataset.strike != null) { const p = byN[+t.dataset.strike], x = llEntries(p)[+t.dataset.i]; x.struck = !x.struck; changed(1); refresh1(p); }
   else if (t.dataset.delta != null) { const p = byN[+t.dataset.delta], es = llEntries(p), x = es[+t.dataset.i]; es.splice(+t.dataset.i, 1); us(p).pb = (us(p).pb || []).filter(b => !sameBox(b.box, x.box)); changed(1); refresh1(p); }
-  else if (t.dataset.tadraw != null) { const v = LV[+t.dataset.tadraw]; if (v) v.startDraw("ta_nummer"); }
+  else if (t.dataset.lldraw != null) { const v = LV[+t.dataset.lldraw]; if (v) v.startDraw(t.dataset.cls); }
+  else if (t.dataset.cmp != null) openCompare(t.dataset.cmp.split(",").map(Number));
+  else if (t.dataset.tazoom != null) { const [n, i] = t.dataset.tazoom.split(":").map(Number); zoomTA(n, i); }
   else if (t.id === "save2") save();
   else if (t.dataset.open != null) openPage(+t.dataset.open, +(t.dataset.step || S.cur));
   else return;
@@ -964,11 +1116,13 @@ document.addEventListener("change", e => {
   const el = e.target;
   if (el.closest("#ov")) return;
   if (el.dataset.ll != null) { const p = byN[+el.dataset.ll], x = llEntries(p)[+el.dataset.i]; const v = parse8(el.value)[0] || el.value.replace(/\s/g, ""); x.ta = v; if (v && !okTA(v)) alert(T.bad_number); changed(1); refresh1(p); }
+  else if (el.dataset.llpage != null) { const p = byN[+el.dataset.llpage], v = el.value.trim(); if (v) us(p).page_of = v; else delete us(p).page_of; changed(1); refresh1(p); }
   else if (el.dataset.dt != null) { setField(byN[+el.dataset.dt], "doc_type", el.value); rerender(); }
   else if (el.id === "reviewer") { S.reviewer = el.value; persist(); if (S.cur === 4) rerender(); }
 });
 document.addEventListener("toggle", e => { if (e.target.id === "all0") { S.open0 = e.target.open; persist(); } }, true);
 document.addEventListener("keydown", e => {
+  if (CV) { if (e.key === "Escape") { closeCompare(); e.preventDefault(); } return; }
   if (OV) {
     const p = ovPage();
     if (e.target.matches("input,select")) {
@@ -982,7 +1136,7 @@ document.addEventListener("keydown", e => {
     else if (k === "arrowright") { if (OV.idx < OV.list.length - 1) { OV.idx++; showOv(true); } }
     else if (k === "arrowleft") { if (OV.idx > 0) { OV.idx--; showOv(true); } }
     else if ((k === "1" || k === "2") && reviewable(p) && rule(p).require.includes(OBJ[+k - 1])) setObj(p, OBJ[+k - 1], val(p, OBJ[+k - 1]) !== true);
-    else if (k === "b") { OV.viewer.startDraw(($("drawcls") || {}).value || defaultDrawCls(p)); $("ovside").innerHTML = sideHtml(p); }
+    else if (k === "b") { OV.viewer.startDraw(defaultDrawCls(p)); $("ovside").innerHTML = sideHtml(p); }
     else return;
     e.preventDefault(); return;
   }
@@ -1032,6 +1186,7 @@ async function save() {
     }
     if (docType(p) === "lieferschein") { e.ls_number = lsNumber(p); e.ls_page = lsPage(p); }
     if (docType(p) === "cmr" && has(p, "ta")) e.ta = cmrTAs(p);
+    if (docType(p) === "loading_list") e.page_of = llPageOf(p);
     if (docType(p) === "loading_list") e.ta_list = llEntries(p).map(x => ({ta: (x.ta || "").replace(/\s/g, ""), box: x.box, struck: !!x.struck, src: x.src}));
     out.pages[p.n] = e;
   }
