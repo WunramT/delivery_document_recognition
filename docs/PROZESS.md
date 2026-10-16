@@ -111,7 +111,7 @@ lässt sich mit Grund „trotzdem akzeptieren“.
    darunter, fehlende Nummer als Platzhalter. Auf jeder Kachel die TAs des CMR (grün = auf der
    Ladeliste, rot = nicht); darunter „TA ohne CMR“ und „TA auf CMR, nicht auf der Ladeliste“.
 4. **Abschluss**: Zusammenfassung, Fehlliste mit „trotzdem akzeptieren“, **„Fehlliste
-   bestätigen“** (erst dann erzeugt `make finalize` die Mail-Entwürfe), Name, **„Entscheidung
+   bestätigen“** (erst dann erzeugt `make finalize` die Mail-Entwürfe), **„Entscheidung
    speichern“** → `entscheidung.json` in den Ordner der Prüfseite.
 
 **Kacheln** zeigen den Prüfbereich (Stempel/Unterschrift) mit Nummer und Status (U✓ S✗ …);
@@ -133,7 +133,7 @@ entschieden sein, sonst bleibt der Knopf grau.
   hatte dort keine Box → Box ziehen. Hat es die Box gefunden und nur falsch gelesen, reicht
   die Nummer.
 
-Der Zwischenstand bleibt im Browser erhalten.
+Der Name der prüfenden Person steht oben in der Kopfzeile (für jeden Schritt sichtbar); „Entscheidung speichern“ geht jederzeit, auch zwischendurch. Der Zwischenstand bleibt im Browser erhalten.
 
 ### Abschluss
 

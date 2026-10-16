@@ -295,6 +295,7 @@ details summary{cursor:pointer;margin:10px 0}
   <h1 id="title"></h1>
   <div id="stepper"></div>
   <span style="flex:1"></span>
+  <label>{{reviewer}} <input id="reviewer" autocomplete="name" style="width:180px"></label>
   <button id="discard">{{discard}}</button>
   <button id="save" class="primary">{{save}}</button>
 </header>
@@ -735,7 +736,7 @@ function render4() {
     : `<p style="color:var(--ok)">✓ ${T.missing_none}</p>`;
   if (items.length) h += `<div class="bar">` + (missingConfirmed(items) ? `<span class="pill ok">✓ ${T.missing_confirmed}</span> <a class="lnk" data-mreset="1">${T.undo}</a>`
     : `<button class="primary" id="mconfirm">${T.confirm_missing}</button>` + (S.missing_keys ? ` <span class="small" style="color:var(--warn)">${T.missing_changed}</span>` : "")) + `</div>`;
-  h += `<div class="bar"><label>${T.reviewer} <input id="reviewer" value="${esc(S.reviewer || "")}" autocomplete="name" style="width:220px"></label>
+  h += `<div class="bar"><span class="muted small">${T.reviewer}: ${S.reviewer ? esc(S.reviewer) : "–"}</span>
     <span style="flex:1"></span><button class="primary" id="save2">${T.save}</button></div>`;
   return h;
 }
@@ -964,7 +965,7 @@ document.addEventListener("change", e => {
   if (el.closest("#ov")) return;
   if (el.dataset.ll != null) { const p = byN[+el.dataset.ll], x = llEntries(p)[+el.dataset.i]; const v = parse8(el.value)[0] || el.value.replace(/\s/g, ""); x.ta = v; if (v && !okTA(v)) alert(T.bad_number); changed(1); refresh1(p); }
   else if (el.dataset.dt != null) { setField(byN[+el.dataset.dt], "doc_type", el.value); rerender(); }
-  else if (el.id === "reviewer") { S.reviewer = el.value; persist(); }
+  else if (el.id === "reviewer") { S.reviewer = el.value; persist(); if (S.cur === 4) rerender(); }
 });
 document.addEventListener("toggle", e => { if (e.target.id === "all0") { S.open0 = e.target.open; persist(); } }, true);
 document.addEventListener("keydown", e => {
@@ -1010,7 +1011,7 @@ async function saveText(name, text) {
   return true;
 }
 async function save() {
-  if (!(S.reviewer || "").trim()) { alert(T.save_need_name); if (canEnter(4)) go(4); const r = $("reviewer"); if (r) r.focus(); return; }
+  if (!(S.reviewer || "").trim()) { alert(T.save_need_name); $("reviewer").focus(); return; }
   const openSteps = [0, 1, 2, 3].filter(k => !stepDone(k));
   if (openSteps.length && !confirm(fmt(T.save_open, {steps: openSteps.map(k => T.steps[k]).join(", ")}))) return;
   const items = missingItems(), mconf = missingConfirmed(items);
@@ -1039,6 +1040,7 @@ async function save() {
 $("save").onclick = save;
 $("discard").onclick = () => { if (!confirm(T.confirm_discard)) return; S = {reviewer: S.reviewer, pages: {}, steps: {}, accepted: {}, cur: 0}; persist(); notice(""); renderAll(); };
 
+$("reviewer").value = S.reviewer || "";
 if (S.cur == null || !canEnter(S.cur)) { S.cur = 0; while (S.cur < 4 && stepDone(S.cur)) S.cur++; }
 renderAll();
 </script>
