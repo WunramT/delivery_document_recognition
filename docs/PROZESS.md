@@ -104,7 +104,7 @@ lässt sich mit Grund „trotzdem akzeptieren“.
    TA der Ladeliste eine Zeile: Seiten 1..n von links nach rechts, Kopien darunter (die beste
    oben, „diese archivieren“ tauscht), fehlende Seite als roter Platzhalter, „kein
    Lieferschein“, wenn es zur TA keinen gibt. Lieferscheine, deren Nummer nicht auf der
-   Ladeliste steht, am Ende; die zu gestrichenen TAs eingeklappt. **Regel je Lieferschein:**
+   Ladeliste steht, am Ende; die zu gestrichenen TAs eingeklappt. Die Tournummer steht nur auf der Vorderseite: Folgeseiten übernehmen die Tour der Seite mit derselben Lieferscheinnummer (sonst zählen sie zur Tour). **Regel je Lieferschein:**
    Stempel oder Unterschrift auf einer seiner Seiten genügt. Hermes/DHL in der Lieferanschrift:
    Schild „Sammelbestätigung prüfen“ – die Person entscheidet (ggf. trotzdem akzeptieren).
 3. **CMR**: zuerst die mit unlesbarer Zählung, dann CMR 1..n von links nach rechts, Kopien

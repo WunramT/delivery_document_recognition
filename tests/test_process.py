@@ -339,3 +339,15 @@ def test_label_export_uses_the_persons_boxes(tmp_path):
     assert [(a["image_id"], a["attributes"]["quelle"], a["bbox"][0]) for a in coco["annotations"]] == [(1, "person", 50.0)]
     rows = (tmp_path / "out" / "page_types.csv").read_text(encoding="utf-8-sig").splitlines()
     assert rows[1].endswith(";korrigiert") and rows[2].endswith(";vorschlag")
+
+
+def test_following_lieferschein_page_takes_tour_of_front_page():
+    front = ls(1, "12283251", 1, 2)
+    back = ls(2, "12283251", 2, 2, tour=None)                 # no tour number printed on page 2
+    other_front = ls(3, "12288834", 1, 2, tour="504/01.09.2026/4000")
+    other_back = ls(4, "12288834", 2, 2, tour=None)
+    lone_back = ls(5, "12299999", 2, 2, tour=None)            # its front page is missing
+    org = organize([front, back, other_front, other_back, lone_back], TOUR, RULES)
+    assert org["unclear"]["tour"] == []
+    assert org["other_tour"] == {3: "504/01.09.2026/4000", 4: "504/01.09.2026/4000"}
+    assert sorted(org["ls_order"]) == [1, 2, 5]

@@ -175,11 +175,30 @@ def organize(pages: list[dict], tour: str | None, rules: dict, ta_validated: boo
         add("discarded", HINT, pages=sorted(discarded))
 
     # ---------------------------------------------------------------- tour number
+    # only the front page of a Lieferschein carries the tour number: its following pages
+    # ("Lieferschein (12283251)", "Seite 2/2") take the tour of the page with the same number,
+    # and count to this tour if none was read
+    ls_tour: dict[str, str] = {}
+    for p in pages:
+        t = p.get("tour") or {}
+        if p.get("doc_type") == "lieferschein" and p.get("ls_number") and t.get("accepted") and t.get("text"):
+            ls_tour.setdefault(p["ls_number"], t["text"])
+
+    def page_tour(p: dict) -> dict:
+        t = p.get("tour") or {}
+        if t.get("accepted") or p.get("doc_type") != "lieferschein":
+            return t
+        if p.get("ls_number") in ls_tour:
+            return {"text": ls_tour[p["ls_number"]], "accepted": True, "inherited": True}
+        if (p.get("ls_page") or [1])[0] > 1 and tour:
+            return {"text": tour, "accepted": True, "inherited": True}
+        return t
+
     this_tour, other_tour, unread_tour = [], {}, []
     for p in pages:
         if p.get("doc_type") not in REVIEW_TYPES:
             continue
-        t = p.get("tour") or {}
+        t = page_tour(p)
         if t.get("accepted") and tour and t.get("text") != tour:
             other_tour[p["n"]] = t["text"]
             continue

@@ -313,8 +313,8 @@ const byN = {}; D.pages.forEach(p => byN[p.n] = p);
 const KEY = "docval-pruefung2:" + D.name + ":" + D.created;
 let S = {reviewer: "", pages: {}, steps: {}, accepted: {}, cur: null};
 try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && s.pages) { S = Object.assign(S, s); notice(T.loaded); } } catch (e) {}
-let dirty = true, G = null;
-function persist() { dirty = true; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+let dirty = true, G = null, TM = null;
+function persist() { dirty = true; TM = null; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 function notice(msg) { const n = $("notice"); n.textContent = msg; n.style.display = msg ? "block" : "none"; }
 const thrOf = c => D.thr[c] != null ? D.thr[c] : 0.5;
 
@@ -327,7 +327,23 @@ function parseCount(s) { const m = /^\s*(?:cmr)?\s*(\d{1,3})\s*\/\s*(\d{1,3})\s*
 function parse8(s) { const out = []; for (const m of String(s || "").matchAll(/(?<!\d)(?:\d ?){7}\d(?!\d)/g)) { const n = m[0].replace(/ /g, ""); if (!out.includes(n)) out.push(n); } return out; }
 function parsePageOf(s) { const m = /(\d{1,2})\s*\/\s*(\d{1,2})/.exec(s || ""); return m && +m[1] >= 1 && +m[1] <= +m[2] ? [+m[1], +m[2]] : null; }
 const cmrCount = p => has(p, "cmr") ? parseCount(S.pages[p.n].cmr) : (p.cmr_count && p.cmr_count.parsed) || null;
-const tourOf = p => has(p, "tour") ? S.pages[p.n].tour.trim() : (p.tour && p.tour.accepted ? p.tour.text : null);
+const ownTour = p => has(p, "tour") ? S.pages[p.n].tour.trim() : (p.tour && p.tour.accepted ? p.tour.text : null);
+// the tour number is printed on the front page of a Lieferschein only: following pages take the
+// tour of the page with the same number, else (page 2/2 ...) count to this tour - as organize.py
+const backPage = p => docType(p) === "lieferschein" && (lsPage(p) || [1])[0] > 1;
+function lsTours() {   // Lieferschein number -> tour read on one of its pages (cached until the next change)
+  if (TM) return TM;
+  TM = {};
+  for (const q of D.pages) if (docType(q) === "lieferschein") { const n = lsNumber(q), t = ownTour(q); if (n && t && !(n in TM)) TM[n] = t; }
+  return TM;
+}
+function tourOf(p) {
+  const t = ownTour(p);
+  if (t || docType(p) !== "lieferschein") return t;
+  const num = lsNumber(p);
+  if (num && lsTours()[num]) return lsTours()[num];
+  return backPage(p) ? D.tour : null;
+}
 const otherTour = p => { const t = tourOf(p); return reviewable(p) && t && D.tour && t !== D.tour ? t : null; };
 const lsNumber = p => has(p, "ls") ? (parse8(S.pages[p.n].ls)[0] || null) : p.ls_number || null;
 const lsPage = p => has(p, "ls_page") ? parsePageOf(S.pages[p.n].ls_page) : p.ls_page || null;
@@ -433,7 +449,7 @@ function pageIssues(p) {   // [{step, text, box}]
   const needBox = (step, cls) => add(step, fmt(T.iss_box, {cls: T.cls[cls] || cls}), cls);
   if (t === "unsicher" || !t) add(0, T.iss_doctype);
   if (REVIEW.includes(t)) {
-    if (!(p.tour && p.tour.accepted) && !has(p, "tour")) add(0, T.iss_tour);
+    if (!tourOf(p)) add(0, T.iss_tour);
     if (has(p, "tour") && !hasPos(p, "tour_nummer")) needBox(0, "tour_nummer");
   }
   if (otherTour(p)) return out;
@@ -461,7 +477,7 @@ function stepIssues(k) {
 }
 function problemPages() {
   return D.pages.filter(p => p.doc_type === "unsicher" || pageIssues(p).some(x => x.step === 0) || otherTour(p)
-    || ["abholschein", "bestaetigung"].includes(docType(p)) || (REVIEW.includes(p.doc_type) && !(p.tour && p.tour.accepted)));
+    || ["abholschein", "bestaetigung"].includes(docType(p)) || (REVIEW.includes(docType(p)) && !tourOf(p) && !has(p, "tour")));
 }
 function stepDone(k) {
   if (stepIssues(k).length) return false;
@@ -576,7 +592,7 @@ function render0() {
   for (const p of prob) {
     const why = [];
     if (p.doc_type === "unsicher") why.push(T.why_dt);
-    if (REVIEW.includes(p.doc_type) && !(p.tour && p.tour.accepted)) why.push(T.why_tour);
+    if (REVIEW.includes(docType(p)) && !(p.tour && p.tour.accepted) && !tourOf(p)) why.push(T.why_tour);
     if (otherTour(p)) why.push(fmt(T.why_other, {tour: otherTour(p)}));
     if (docType(p) === "abholschein") why.push(T.why_discard);
     if (docType(p) === "bestaetigung") why.push(T.why_conf);
