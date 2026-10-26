@@ -79,7 +79,9 @@ def make_server(run_dir: Path, read, port: int = 0, start_page: str = "pruefung.
             self.send_response(200)
             self.send_header("Content-Type", mimetypes.guess_type(f.name)[0] or "application/octet-stream")
             self.send_header("Content-Length", str(len(data)))
-            self.send_header("Cache-Control", "no-store")
+            # page images never change: let the browser cache them (many crops of the same page);
+            # the review page itself always fresh
+            self.send_header("Cache-Control", "max-age=86400" if f.suffix.lower() == ".png" else "no-store")
             self.end_headers()
             self.wfile.write(data)
 
@@ -107,7 +109,15 @@ def make_server(run_dir: Path, read, port: int = 0, start_page: str = "pruefung.
             except (KeyError, ValueError, TypeError, json.JSONDecodeError) as e:
                 return self.send_json({"ok": False, "error": str(e)}, 400)
 
-    return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    class Server(ThreadingHTTPServer):
+        daemon_threads = True
+
+        def handle_error(self, request, client_address):   # browser closed a connection: not an error
+            import sys
+            if not isinstance(sys.exc_info()[1], (BrokenPipeError, ConnectionResetError)):
+                super().handle_error(request, client_address)
+
+    return Server(("127.0.0.1", port), Handler)
 
 
 def run_review(cfg, run: str, port: int | None, log, open_browser: bool = True) -> int:

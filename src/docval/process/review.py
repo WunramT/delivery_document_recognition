@@ -106,6 +106,10 @@ UI = {
         "live_ocr": "Live-OCR an", "ocr_check": "OCR – bitte prüfen", "ocr_busy": "OCR liest …",
         "ocr_none": "nicht erkannt: „{text}“", "saved_srv": "Gespeichert: {path} – weiter mit make finalize RUN={name}",
         "save_failed": "Speichern über den Server fehlgeschlagen – die Datei wird stattdessen heruntergeladen.",
+        "model_boxes": "Boxen des Modells", "box_on": "zählt", "box_off": "verworfen", "box_toggle": "umschalten",
+        "ta_on_cmr": "TAs auf diesem CMR", "ta_ok": "auf der Ladeliste", "ta_bad": "nicht auf der Ladeliste",
+        "ta_struck_s": "gestrichen", "peek_hint": "Vorschau – Klick öffnet die Seite zum Bearbeiten",
+        "close_x": "Schließen",
     },
     "pl": {
         "html_lang": "pl", "title": "Kontrola trasy", "save": "Zapisz decyzję", "discard": "odrzuć wszystko",
@@ -177,6 +181,10 @@ UI = {
         "live_ocr": "OCR na żywo", "ocr_check": "OCR – sprawdzić", "ocr_busy": "OCR czyta …",
         "ocr_none": "nie rozpoznano: „{text}“", "saved_srv": "Zapisano: {path} – dalej make finalize RUN={name}",
         "save_failed": "Zapis przez serwer nie powiódł się – plik zostanie pobrany.",
+        "model_boxes": "Ramki modelu", "box_on": "liczy się", "box_off": "odrzucona", "box_toggle": "przełącz",
+        "ta_on_cmr": "TA na tym CMR", "ta_ok": "na liście załadunkowej", "ta_bad": "nie ma na liście załadunkowej",
+        "ta_struck_s": "skreślone", "peek_hint": "Podgląd – kliknięcie otwiera stronę do edycji",
+        "close_x": "Zamknij",
     },
 }
 
@@ -290,8 +298,20 @@ ul.items li.fehler{background:var(--errbg)} ul.items li.hinweis{background:var(-
 .vin .b.person{border-width:4px}
 .vin .tmp{position:absolute;border:2px dashed #000;background:rgba(31,111,235,.15)}
 .vin .mask{position:absolute;pointer-events:none;background:repeating-linear-gradient(45deg,rgba(110,110,115,.35) 0 6px,transparent 6px 12px)}
-#ov{display:none;position:fixed;inset:0;z-index:20;background:#fff}
+#ov{display:none;position:fixed;inset:0;z-index:20;background:rgba(20,20,25,.55);padding:18px}
 #ov.on{display:flex}
+#ovbox{display:flex;flex:1;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.35);min-height:0}
+#ovx{position:absolute;top:22px;right:28px;z-index:2;font-size:20px;line-height:1;padding:4px 12px;border-radius:20px}
+#peek{display:none;position:fixed;top:64px;bottom:12px;width:46vw;z-index:15;background:#fff;border:1px solid var(--line);
+  border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.25);padding:8px;pointer-events:none}
+#peek.on{display:flex;flex-direction:column} #peek .pv{flex:1;min-height:0;overflow:hidden;display:flex;justify-content:center}
+#peek .thumb{height:100%;width:auto} #peek .ph2{font-size:12px;color:var(--muted);padding:4px}
+.mb{display:flex;gap:6px;align-items:center;font-size:12px;margin:2px 0} .mb .sw{width:10px;height:10px;border-radius:2px;flex:none}
+.mb.off span.nm{text-decoration:line-through;color:var(--muted)} .mb button{font-size:11px;padding:0 6px}
+.tachips{display:flex;flex-wrap:wrap;gap:3px;margin:2px 0}
+.chip.big{font-size:13px;padding:2px 8px}
+.mi{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.mi .crop{cursor:pointer}
 #ovimg{flex:1;padding:8px}
 #ovside{width:400px;flex:none;border-left:1px solid var(--line);padding:12px;overflow:auto}
 #ovside label{display:block;margin:6px 0 2px;font-size:12px;color:var(--muted)}
@@ -333,7 +353,8 @@ details summary{cursor:pointer;margin:10px 0}
 </header>
 <div id="notice"></div>
 <main id="main"></main>
-<div id="ov"><div id="ovimg"></div><div id="ovside"></div></div>
+<div id="ov"><button id="ovx" title="Esc">✕</button><div id="ovbox"><div id="ovimg"></div><div id="ovside"></div></div></div>
+<div id="peek"><div class="ph2" id="peekt"></div><div class="pv" id="peekv"></div></div>
 <div id="cmp"><div class="cmph"><b id="cmpt"></b><span style="flex:1"></span><button data-cmpfit="full"></button><button data-cmpfit="area"></button><button data-cmpclose="1"></button></div><div id="cmpb"></div></div>
 <script>
 const D = __DATA__;
@@ -350,6 +371,11 @@ try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && s.page
 let dirty = true, G = null, TM = null;
 function persist() { dirty = true; TM = null; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 function notice(msg) { const n = $("notice"); n.textContent = msg; n.style.display = msg ? "block" : "none"; }
+function imgRetry(img) {   // a page image that did not load (busy disk/server): try twice more, then say so
+  const k = +(img.dataset.retry || 0);
+  if (k < 2) { img.dataset.retry = k + 1; const src = img.getAttribute("src"); setTimeout(() => { img.src = src.split("?")[0] + "?r=" + (k + 1); }, 400 * (k + 1)); }
+  else { img.alt = T.img_missing + img.getAttribute("src").split("?")[0]; img.title = img.alt; }
+}
 const thrOf = c => D.thr[c] != null ? D.thr[c] : 0.5;
 
 // ------------------------------------------------------------ effective values (person > model)
@@ -597,11 +623,11 @@ function accHtml(key) {
 }
 
 // ------------------------------------------------------------ tiles
-function thumbHtml(p, v) {
+function thumbHtml(p, v, all) {
   const [x1, y1, x2, y2] = v, rw = x2 - x1, rh = y2 - y1;
   const pos = b => `left:${(b[0] - x1) / rw * 100}%;top:${(b[1] - y1) / rh * 100}%;width:${(b[2] - b[0]) / rw * 100}%;height:${(b[3] - b[1]) / rh * 100}%`;
-  let h = `<img src="${esc(p.image)}" alt="" style="width:${100 / rw}%;left:${-x1 / rw * 100}%;top:${-y1 / rh * 100}%">`;
-  for (const b of finalBoxes(p).pos) if (OBJ.includes(b.cls)) h += `<div class="b" style="${pos(b.box)};border-color:${D.colors[b.cls] || "#000"}"></div>`;
+  let h = `<img src="${esc(p.image)}" alt="" onerror="imgRetry(this)" style="width:${100 / rw}%;left:${-x1 / rw * 100}%;top:${-y1 / rh * 100}%">`;
+  for (const b of finalBoxes(p).pos) if (all || OBJ.includes(b.cls)) h += `<div class="b" style="${pos(b.box)};border-color:${D.colors[b.cls] || "#000"}"></div>`;
   return `<div class="thumb" style="aspect-ratio:${rw * p.w} / ${rh * p.h}">${h}</div>`;
 }
 function bestBox(p, cls) {
@@ -613,7 +639,7 @@ function cropHtml(p, box, w, maxH, pad) {   // one part of the page, w px wide (
   const rw = x2 - x1, rh = y2 - y1, ar = (rh * p.h) / (rw * p.w);
   if (w * ar > maxH) w = maxH / ar;
   const sc = w / rw, ih = sc * p.h / p.w;
-  return `<div class="crop" style="width:${w.toFixed(1)}px;height:${(w * ar).toFixed(1)}px"><img src="${esc(p.image)}" alt="" style="width:${sc.toFixed(1)}px;height:${ih.toFixed(1)}px;left:${(-x1 * sc).toFixed(1)}px;top:${(-y1 * ih).toFixed(1)}px"></div>`;
+  return `<div class="crop" style="width:${w.toFixed(1)}px;height:${(w * ar).toFixed(1)}px"><img src="${esc(p.image)}" alt="" onerror="imgRetry(this)" style="width:${sc.toFixed(1)}px;height:${ih.toFixed(1)}px;left:${(-x1 * sc).toFixed(1)}px;top:${(-y1 * ih).toFixed(1)}px"></div>`;
 }
 function cropRow(p, cls, value, w = 236) {
   const b = bestBox(p, cls);
@@ -631,8 +657,19 @@ function tileBody(p) {   // the parts that decide: numbers next to what was read
     const pg = lsPage(p);
     return cropRow(p, "ls_nummer", (lsNumber(p) || "") + (pg ? ` (${pg[0]}/${pg[1]})` : "")) + (backPage(p) ? "" : cropRow(p, "tour_nummer", tv)) + objCrops(p);
   }
-  if (t === "cmr") { const cc = cmrCount(p); return cropRow(p, "cmr_count", cc ? cc.join("/") : "") + cropRow(p, "ta_nummer", cmrTAs(p).join(", ")) + cropRow(p, "tour_nummer", tv) + objCrops(p); }
+  if (t === "cmr") {
+    const cc = cmrCount(p), b = bestBox(p, "ta_nummer");
+    return cropRow(p, "cmr_count", cc ? cc.join("/") : "") +
+      `<div class="cr"><div class="cl"><span>${esc(T.cls.ta_nummer)}</span></div>${taChips(p)}${b ? cropHtml(p, b.box, 236, 60, 0.006) : `<div class="nocrop">–</div>`}</div>` +
+      cropRow(p, "tour_nummer", tv) + objCrops(p);
+  }
   return null;
+}
+function taChips(p, big) {   // TAs of a CMR, each against the loading list
+  const L = loaded(), st = struckTAs(), tas = cmrTAs(p);
+  if (!tas.length) return `<div class="tachips"><span class="chip bad">?</span></div>`;
+  return `<div class="tachips">` + tas.map(t => { const c = !L.length ? "" : L.includes(t) ? "ok" : st.includes(t) ? "" : "bad";
+    return `<span class="chip ${c}${big ? " big" : ""}" title="${esc(!L.length ? "" : L.includes(t) ? T.ta_ok : st.includes(t) ? T.ta_struck_s : T.ta_bad)}">${t}${st.includes(t) ? " (" + T.ta_struck_s + ")" : ""}</span>`; }).join("") + `</div>`;
 }
 function stIcons(p) {
   return rule(p).require.map(c => { const v = val(p, c); return `<span class="st ${v === true ? "y" : v === false ? "n" : "q"}" title="${esc(T.cls[c])}">${(T.cls[c] || c)[0].toUpperCase()}${v === true ? "✓" : v === false ? "✗" : "?"}</span>`; }).join(" ");
@@ -786,11 +823,10 @@ function render3() {
   if (ci.unread.length) h += `<h3 class="issues">${T.s3_unread}</h3><div class="tiles">${ci.unread.map(p => tileHtml(p, 3, {full: true})).join("")}</div>`;
   h += `<p class="muted">${T.s3_intro}</p>`;
   if (ci.tot.size > 1) h += `<p class="issues">${fmt(T.cmr_conflict, {totals: [...ci.tot].map(t => "/" + t).join(", ")})}</p>`;
-  const taChips = p => " " + cmrTAs(p).map(t => `<span class="chip ${!L.length ? "" : L.includes(t) ? "ok" : struck.includes(t) ? "" : "bad"}">${t}</span>`).join(" ");
   h += `<div class="cells">`;
   for (let i = 1; i <= ci.N; i++) {
     const col = (ci.by[i] || []).slice().sort((a, b) => (archive(b) ? 1 : 0) - (archive(a) ? 1 : 0));
-    h += `<div class="col"><div class="ch">${i}/${[...ci.tot].join("|") || "?"}${col.length > 1 ? ` · <a class="lnk" data-cmp="${col.map(q => q.n).join(",")}">${T.compare}</a>` : ""}</div>` + (col.length ? col.map(p => tileHtml(p, 3, {foot: taChips(p)})).join("") : phHtml(fmt(T.cmr_missing, {i}), ci.tot.size === 1 ? "cmr:" + i : null)) + `</div>`;
+    h += `<div class="col"><div class="ch">${i}/${[...ci.tot].join("|") || "?"}${col.length > 1 ? ` · <a class="lnk" data-cmp="${col.map(q => q.n).join(",")}">${T.compare}</a>` : ""}</div>` + (col.length ? col.map(p => tileHtml(p, 3)).join("") : phHtml(fmt(T.cmr_missing, {i}), ci.tot.size === 1 ? "cmr:" + i : null)) + `</div>`;
   }
   h += `</div>`;
   if (L.length) {
@@ -842,13 +878,26 @@ function render4() {
   let h = `<h2>4 · ${T.steps[4]}</h2><div class="sum"><div><b>${cmrN}</b>${T.sum_cmr}</div><div><b>${lsN}</b>${T.sum_ls}</div>
     <div><b>${struckTAs().length}</b>${T.sum_struck}</div><div><b>${corr}</b>${T.sum_corr}</div><div><b>${boxes}</b>${T.sum_boxes}</div></div>
     <p class="muted">${T.s4_intro}</p>`;
-  h += items.length ? `<ul class="items">` + items.map(x => `<li class="${x.accepted ? "ok" : x.level}">${x.accepted ? "✓" : ic[x.level]} ${x.go ? `<a data-open="${x.go}" data-step="${stepOf(byN[x.go])}">${esc(x.text)}</a>` : esc(x.text)}${accHtml(x.key)}</li>`).join("") + `</ul>`
+  h += items.length ? `<ul class="items">` + items.map(x => `<li class="${x.accepted ? "ok" : x.level}">${x.accepted ? "✓" : ic[x.level]} ${x.go ? `<a data-open="${x.go}" data-step="${stepOf(byN[x.go])}">${esc(x.text)}</a>` : esc(x.text)}${accHtml(x.key)}${itemImages(x.key)}</li>`).join("") + `</ul>`
     : `<p style="color:var(--ok)">✓ ${T.missing_none}</p>`;
   if (items.length) h += `<div class="bar">` + (missingConfirmed(items) ? `<span class="pill ok">✓ ${T.missing_confirmed}</span> <a class="lnk" data-mreset="1">${T.undo}</a>`
     : `<button class="primary" id="mconfirm">${T.confirm_missing}</button>` + (S.missing_keys ? ` <span class="small" style="color:var(--warn)">${T.missing_changed}</span>` : "")) + `</div>`;
   h += `<div class="bar"><span class="muted small">${T.reviewer}: ${S.reviewer ? esc(S.reviewer) : "–"}</span>
     <span style="flex:1"></span><button class="primary" id="save2">${T.save}</button></div>`;
   return h;
+}
+
+function itemImages(key) {   // what the missing item is about, as pictures (click = the page)
+  const [kind, a, b] = key.split(":"), out = [];
+  const link = (p, inner) => `<a data-open="${p.n}" data-step="${stepOf(p)}" title="${esc(fmt(T.page, {n: p.n}))}">${inner}</a>`;
+  if (kind === "page") { const p = byN[+a]; out.push(link(p, tileBody(p) ? `<div style="width:250px">${tileBody(p)}</div>` : thumbHtml(p, p.view || [0, 0, 1, 1]))); }
+  else if (kind === "ls_doc") for (const p of lsByNumber()[a] || []) out.push(link(p, `<div style="width:250px">${tileBody(p)}</div>`));
+  else if (kind === "ls") for (const p of lsByNumber()[a] || []) { const bb = bestBox(p, "seitenzahl") || bestBox(p, "ls_nummer"); if (bb) out.push(link(p, cropHtml(p, bb.box, 200, 50, 0.01))); }
+  else if (kind === "ll") for (const p of llPages()) out.push(link(p, `<div style="width:90px">${thumbHtml(p, [0, 0, 1, 1])}</div>`));
+  else if (kind === "ta_cmr" || kind === "ta_ls") { const le = llEntryOf(a); if (le) out.push(link(le.p, cropHtml(le.p, nearBand(le.e.box), 420, 50, 0))); }
+  else if (kind === "ta_cmr_extra") { const c = D.pages.find(q => docType(q) === "cmr" && archive(q) && cmrTAs(q).includes(a)), bb = c && bestBox(c, "ta_nummer"); if (bb) out.push(link(c, cropHtml(c, bb.box, 300, 60, 0.008))); }
+  else if (kind === "ta_ls_extra") for (const p of lsByNumber()[a] || []) { const bb = bestBox(p, "ls_nummer"); if (bb) { out.push(link(p, cropHtml(p, bb.box, 260, 40, 0.01))); break; } }
+  return out.length ? `<div class="mi">${out.join("")}</div>` : "";
 }
 
 // ------------------------------------------------------------ rendering
@@ -870,7 +919,7 @@ function rerender() { const y = window.scrollY; if (OV) showOv(false); renderSte
 class Viewer {
   constructor(el, p, cb) {
     this.el = el; this.p = p; this.cb = cb; this.s = 1; this.tx = 0; this.ty = 0; this.drawCls = null;
-    el.innerHTML = `<div class="vw"><div class="vin" style="width:${p.w}px;height:${p.h}px"><img src="${esc(p.image)}" alt="${esc(T.img_missing + p.image)}"><div class="ovl"></div></div></div>`;
+    el.innerHTML = `<div class="vw"><div class="vin" style="width:${p.w}px;height:${p.h}px"><img src="${esc(p.image)}" alt="" onerror="imgRetry(this)"><div class="ovl"></div></div></div>`;
     this.vw = el.querySelector(".vw"); this.vin = el.querySelector(".vin"); this.ovl = el.querySelector(".ovl");
     this.vw.addEventListener("wheel", e => { e.preventDefault(); const r = this.vw.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
       this.tx = mx - (mx - this.tx) * f; this.ty = my - (my - this.ty) * f; this.s *= f; this.apply(); }, {passive: false});
@@ -907,7 +956,13 @@ class Viewer {
       const cls = this.drawCls; this.cancelDraw();
       if (box[2] - box[0] > 0.004 && box[3] - box[1] > 0.003) this.cb.draw(box, cls);
     } else if (this.pan) {
-      const b = !this.pan.moved && this.pan.target.closest && this.pan.target.closest("[data-k]");
+      let b = !this.pan.moved && this.pan.target.closest && this.pan.target.closest("[data-k]");
+      if (b) {   // several boxes under the mouse: the smallest, then the next one on each further click
+        const [x, y] = this.norm(e), hits = [...this.ovl.querySelectorAll("[data-k]")].filter(el => {
+          const r = el.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; })
+          .sort((a, c) => a.offsetWidth * a.offsetHeight - c.offsetWidth * c.offsetHeight);
+        if (hits.length > 1) { const key = hits.map(h => h.dataset.k).join("|"); this.cyc = this.cycKey === key ? (this.cyc + 1) % hits.length : 0; this.cycKey = key; b = hits[this.cyc]; }
+      }
       this.pan = null;
       if (b && this.cb.click) this.cb.click(b.dataset.k);
     }
@@ -931,11 +986,12 @@ function stepList(step) {
   return [...document.querySelectorAll(`#main [data-open][data-step="${step}"]`)].map(e => +e.dataset.open).filter((n, i, a) => a.indexOf(n) === i);
 }
 function openPage(n, step) {
+  hidePeek();
   const list = stepList(step); if (!list.includes(n)) list.unshift(n);
   OV = {list, idx: list.indexOf(n), step};
   $("ov").classList.add("on"); showOv(true);
 }
-function closeOv() { if (OV && OV.viewer) OV.viewer.cancelDraw(); OV = null; $("ov").classList.remove("on"); $("ovimg").innerHTML = ""; renderStepper(); renderMain(); }
+function closeOv() { if (!OV) return; if (OV.viewer) OV.viewer.cancelDraw(); OV = null; $("ov").classList.remove("on"); $("ovimg").innerHTML = ""; renderStepper(); renderMain(); }
 function ovBoxes(p) {
   const out = [];
   p.dets.forEach((d, i) => {
@@ -1008,7 +1064,9 @@ function sideHtml(p) {
     const read = p.cmr_count && p.cmr_count.text ? ` – ${T.ocr_read}: „${esc(p.cmr_count.text)}“` : "";
     const cc = cmrCount(p);
     h += `<label>${T.cmr_count}${read}</label><input class="num" data-f="cmr" placeholder="3/13" value="${esc(has(p, "cmr") ? s.cmr : cc ? cc.join("/") : "")}">${ocrNote(p, "cmr")}`;
-    h += `<label>${T.ta_field}</label><input data-f="ta" placeholder="12345678, 12345679" style="width:300px" value="${esc(has(p, "ta") ? s.ta : cmrTAs(p).join(", "))}">${ocrNote(p, "ta")}`;
+    h += `<label>${T.ta_on_cmr}</label>${taChips(p, true)}`;
+    const tb = bestBox(p, "ta_nummer"); if (tb) h += cropHtml(p, tb.box, 370, 90, 0.008);
+    h += `<input data-f="ta" placeholder="12345678, 12345679" style="width:370px;margin-top:4px" value="${esc(has(p, "ta") ? s.ta : cmrTAs(p).join(", "))}">${ocrNote(p, "ta")}`;
   }
   if (REVIEW.includes(t) && OV.step !== 0) {
     h += `<h3>${T.h_obj}</h3>`;
@@ -1033,6 +1091,11 @@ function sideHtml(p) {
   }).join("") + `</div>`;
   const rest = D.classes.filter(c => !ex.includes(c));
   if (rest.length) h += `<details class="small"><summary>${T.other_cls}</summary>${rest.map(c => `<button data-drawc="${c}">${esc(T.cls[c] || c)}</button>`).join(" ")}</details>`;
+  if (p.dets.length) h += `<details class="small"${p.dets.length <= 8 ? " open" : ""}><summary>${T.model_boxes} (${p.dets.length})</summary>` + p.dets.map((d, i) => {
+    const inc = detInc(p, d, i);
+    return `<div class="mb${inc ? "" : " off"}"><span class="sw" style="background:${D.colors[d.cls] || "#000"}"></span><span class="nm">${esc(T.cls[d.cls] || d.cls)} ${d.score.toFixed(2)}</span>
+      <span class="${inc ? "acc" : "muted"}">${inc ? T.box_on : T.box_off}</span><button data-togdet="${i}">${T.box_toggle}</button></div>`;
+  }).join("") + `</details>`;
   const pb = s.pb || [];
   if (pb.length) h += `<div class="small">${T.boxes_person}: ${pb.map((b, i) => `<span class="chip">${esc(T.cls[b.cls] || b.cls)} <a class="lnk" data-delpb="${i}">×</a></span>`).join(" ")}</div>`;
   h += `<div class="nav"><button data-nav="-1">${T.prev}</button><button data-nav="1">${T.next}</button><button data-close="1">${T.close}</button></div><p class="muted small">${T.keys}</p>`;
@@ -1052,6 +1115,8 @@ function nextOpen(dir = 1) {
   for (let k = OV.idx + dir; k >= 0 && k < OV.list.length; k += dir) if (pageIssues(byN[OV.list[k]]).some(x => x.step === OV.step)) { OV.idx = k; showOv(true); return; }
   if (OV.idx + dir >= 0 && OV.idx + dir < OV.list.length) { OV.idx += dir; showOv(true); } else closeOv();
 }
+$("ov").addEventListener("mousedown", e => { if (e.target.id === "ov") closeOv(); });
+$("ovx").addEventListener("click", () => closeOv());
 $("ovside").addEventListener("change", e => {
   const p = ovPage(), f = e.target.dataset.f; if (!p || !f) return;
   setField(p, f, e.target.value);
@@ -1061,6 +1126,7 @@ $("ovside").addEventListener("click", e => {
   if (b.dataset.obj) setObj(p, b.dataset.obj, b.dataset.v === "1");
   else if (b.dataset.fit) OV.viewer.fit(b.dataset.fit === "full" ? [0, 0, 1, 1] : b.dataset.fit === "area" ? (p.view || [0, 0, 1, 1]) : (topOf(p, docType(p) === "cmr" ? "cmr_count" : "ls_nummer") || {box: [0, 0, 1, 0.35]}).box, 0.04);
   else if (b.dataset.tourthis) setField(p, "tour", D.tour);
+  else if (b.dataset.togdet != null) { const i = +b.dataset.togdet, st = us(p); st.bx = st.bx || {}; st.bx[i] = !detInc(p, p.dets[i], i); edit(p); }
   else if (b.dataset.archthis) { archiveThis(p); edit(p); }
   else if (b.dataset.delpb != null) { const s = us(p); s.pb.splice(+b.dataset.delpb, 1); edit(p); }
   else if (b.dataset.drawc) { OV.viewer.startDraw(b.dataset.drawc); $("ovside").innerHTML = sideHtml(p); }
@@ -1124,6 +1190,25 @@ function ocrNote(p, f) {   // next to a field: read by OCR (check it) / not reco
   if ((s.ocrt || {})[f] && !has(p, f)) return ` <span class="small issues">${esc(fmt(T.ocr_none, {text: s.ocrt[f]}))}</span>`;
   return "";
 }
+
+// ------------------------------------------------------------ quick preview: hover a tile (or Space on it)
+let PK = null, PKT = null;
+function showPeek(p, tile) {
+  const r = tile.getBoundingClientRect(), right = r.left + r.width / 2 < window.innerWidth / 2;
+  const el = $("peek"); el.style.left = right ? "auto" : "12px"; el.style.right = right ? "12px" : "auto";
+  $("peekt").textContent = `${cardTitle(p)} · ${fmt(T.page, {n: p.n})} – ${T.peek_hint}`;
+  $("peekv").innerHTML = thumbHtml(p, [0, 0, 1, 1], true);
+  el.classList.add("on"); PK = p.n;
+}
+function hidePeek() { clearTimeout(PKT); $("peek").classList.remove("on"); PK = null; }
+document.addEventListener("mouseover", e => {
+  if (OV || CV) return;
+  const t = e.target.closest("#main .tile[data-open]");
+  if (!t) { if (PK != null && !e.target.closest("#peek")) hidePeek(); return; }
+  const n = +t.dataset.open; if (n === PK) return;
+  clearTimeout(PKT); PKT = setTimeout(() => showPeek(byN[n], t), 350);
+});
+document.addEventListener("mouseout", e => { if (e.target.closest && e.target.closest("#main .tile[data-open]") && !e.relatedTarget?.closest?.("#main .tile[data-open]")) hidePeek(); });
 
 // ------------------------------------------------------------ copies side by side
 let CV = null;
@@ -1209,6 +1294,7 @@ document.addEventListener("keydown", e => {
   }
   if (e.target.matches("input,select")) return;
   const tiles = [...document.querySelectorAll("#main .tile[data-open]")], i = tiles.indexOf(document.activeElement);
+  if (e.key === " " && i >= 0) { const t = tiles[i]; if (PK === +t.dataset.open) hidePeek(); else showPeek(byN[+t.dataset.open], t); e.preventDefault(); return; }
   if (["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"].includes(e.key) && tiles.length) {
     const j = Math.max(0, Math.min(tiles.length - 1, i < 0 ? 0 : i + (["ArrowRight", "ArrowDown"].includes(e.key) ? 1 : -1)));
     tiles[j].focus(); tiles[j].scrollIntoView({block: "nearest"}); e.preventDefault();

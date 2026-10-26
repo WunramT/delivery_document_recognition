@@ -198,7 +198,7 @@ class BoxReader:
             po = parse_page_of(text)
             value = f"{po[0]}/{po[1]}" if po else ""
         elif cls == "cmr_count":
-            c = parse_cmr_count(text)
+            c = parse_cmr_count(text) or parse_page_of(text)
             value = f"{c[0]}/{c[1]}" if c else ""
         else:
             value = ""
@@ -314,6 +314,8 @@ class Pipeline:
         if not parsed:  # label and number on two lines
             t, _ = ocr_det_rec_text(self.ocr, crop)
             parsed = parse_cmr_count(t)
+        if not parsed:  # slash read as "1" / "|": "3113" -> 3/13
+            parsed = parse_page_of(t)
         return {"text": t, "parsed": list(parsed) if parsed else None, "box": b}
 
     def box_lines(self, im, box) -> list[str]:
@@ -413,11 +415,21 @@ def numbers8(text: str) -> list[str]:
 
 
 def parse_page_of(text: str) -> list[int] | None:
-    """"Seite 1/2", "1 / 2", "2/6" -> [i, n] with 1 <= i <= n; else None."""
-    for m in re.finditer(PAGE_OF, text or ""):
+    """"Seite 1/2", "1 / 2", "2/6" -> [i, n] with 1 <= i <= n; else None.
+    The OCR often reads the slash as "|", "l", "I" or "1": "Seite 1|2" and "Seite 112" -> [1, 2],
+    "3110" -> [3, 10] - a "1" counts as the slash only where i <= n results (page numbers < 100)."""
+    t = re.sub(r"(?<=\d)\s*[|lI\\]\s*(?=\d)", "/", text or "")
+    for m in re.finditer(PAGE_OF, t):
         i, n = int(m.group(1)), int(m.group(2))
         if 1 <= i <= n:
             return [i, n]
+    for m in re.finditer(r"(?<![\d/])(\d{3,4})(?![\d/])", t):
+        s = m.group(1)
+        for k in range(1, len(s) - 1):
+            if s[k] == "1" and s[k + 1] != "0":
+                i, n = int(s[:k]), int(s[k + 1:])
+                if 1 <= i <= n <= 99:
+                    return [i, n]
     return None
 
 

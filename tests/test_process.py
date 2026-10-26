@@ -120,6 +120,10 @@ def test_numbers_and_page_of_from_box_text():
     assert numbers8("Lieferschein (33258864)") == ["33258864"]
     assert parse_page_of("Seite 1/2") == [1, 2] and parse_page_of("2 / 6") == [2, 6]
     assert parse_page_of("Seite 3/2") is None and parse_page_of("") is None
+    # OCR reads the slash as 1, | or l: "112" is page 1 of 2, "3110" page 3 of 10
+    assert parse_page_of("Seite 112") == [1, 2] and parse_page_of("2|2") == [2, 2]
+    assert parse_page_of("1l3") == [1, 3] and parse_page_of("3110") == [3, 10]
+    assert parse_page_of("Seite 312") is None                                   # 3 of 2: no valid reading
 
 
 def test_lieferschein_and_loading_list_pages_missing_and_accepted():
