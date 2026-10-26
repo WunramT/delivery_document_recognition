@@ -428,7 +428,7 @@ def test_review_server_ocr_save_and_no_files_outside(tmp_path):
         r = post("/api/save", {"format": "docval-entscheidung", "reviewer": "A"})
         assert r["ok"] and r["finalize"] and json.loads((run / "entscheidung.json").read_text())["reviewer"] == "A"
         r = post("/api/finalize", {"run": 1})                  # make finalize from the page
-        assert r["ok"] and r["log"] == ["[finalize] fertig"]
+        assert r["ok"] and r["log"] == ["[finalize] fertig"] and r["files"] == [] and r["protocol"] == ""
     finally:
         srv.shutdown()
 

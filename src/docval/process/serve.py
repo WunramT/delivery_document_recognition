@@ -14,7 +14,8 @@ works as before, just without live OCR. Stop with Ctrl+C.
     GET  /api/ping           -> {"ok": true, "name": ...}
     POST /api/ocr            {"n": page, "box": [x1, y1, x2, y2] (0..1), "cls": class} -> {"text", "value"}
     POST /api/save           entscheidung.json content -> written into the run folder
-    POST /api/finalize       {} -> make finalize for this tour (PDFs, mail drafts, protocol): {"ok", "log", "out"}
+    POST /api/finalize       {} -> make finalize for this tour (PDFs, mail drafts, protocol):
+                             {"ok", "log", "out", "files", "protocol"}
 """
 
 from __future__ import annotations
@@ -111,7 +112,11 @@ def make_server(run_dir: Path, read, port: int = 0, start_page: str = "pruefung.
                     lines = []
                     with lock:
                         rc = finalize(lambda m: (lines.append(str(m)), log(m)))
-                    return self.send_json({"ok": rc == 0, "log": lines[-12:], "out": str(run_dir / "freigabe")})
+                    out = run_dir / "freigabe"
+                    files = sorted(f.name for f in out.iterdir() if f.is_file()) if out.is_dir() else []
+                    prot = next((out / f for f in files if f.startswith("protokoll") and f.endswith(".txt")), None)
+                    return self.send_json({"ok": rc == 0, "log": lines[-12:], "out": str(out), "files": files,
+                                           "protocol": prot.read_text(encoding="utf-8") if prot else ""})
                 return self.send_error(404)
             except (KeyError, ValueError, TypeError, json.JSONDecodeError) as e:
                 return self.send_json({"ok": False, "error": str(e)}, 400)

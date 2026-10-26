@@ -125,7 +125,10 @@ lässt sich mit Grund „trotzdem akzeptieren“.
    „S. 2 gelesen als ‚2l2‘ – ist das Seite 2/2?“ (ein Klick trägt sie ein). Eingetippte TAs
    heißen „eingetippt“, nicht „gelesen“; eine ungültige Eingabe (nicht 8 Ziffern) bleibt rot im
    Feld stehen und wird nicht übernommen („↺ gelesener Wert“ holt die gelesene Nummer zurück).
-   Unter jeder TA der Ausschnitt ihrer Zeile (Klick zoomt die Ladeliste hin). Farbige
+   Bei Zeilen mit Befund (unlesbar, Handvermerk, gestrichen, gezeichnet) darunter der Ausschnitt
+   der Zeile (Klick zoomt die Ladeliste hin); Fahren über eine Listenzeile hebt sie im Bild hervor.
+   Mausrad blättert die Seite, Strg + Mausrad zoomt die Ladeliste. Steht eine TA doppelt in der
+   Liste, ist das ein offener Punkt („verwerfen“ entfernt die Zeile). Farbige
    Handvermerke in der Zeile (rot durchgestrichen, „nie jedzie“ – `pen_mark` in `run.py`, nur
    farbige Tinte) markieren die Zeile „Handvermerk – gestrichen?“: offener Punkt, bis die Person
    „streichen“ oder „behalten“ klickt. Zeilen, für die das Modell keine TA-Box hat: die
@@ -157,7 +160,9 @@ lässt sich mit Grund „trotzdem akzeptieren“.
    `entscheidung.json` in den Ordner der Prüfseite. Danach grüne Meldung „Gespeichert um …“,
    Schritt 4 bekommt ✓ (bis zur nächsten Änderung), der Knopf oben zeigt „✓ Gespeichert 15:41 Uhr“.
    Mit `make review` geöffnet, erzeugt **„Abschluss erzeugen (PDFs, Mail-Entwürfe, Protokoll)“**
-   gleich auf der Seite, was sonst `make finalize` macht; das Protokoll steht darunter.
+   gleich auf der Seite, was sonst `make finalize` macht; darunter „Zu tun“ aus dem Protokoll, die
+   Dateien im Ordner `freigabe` und das ganze Protokoll (eingeklappt). Die Mail-Entwürfe sind die
+   Archiv-Mails (CMR- bzw. Lieferschein-PDF ans Archiv); Fehlendes steht im Protokoll unter „Zu tun“.
    Bei fehlendem Stempel / fehlender Unterschrift zeigt die Fehlliste zusätzlich den Prüfbereich
    der Seite als Beleg.
 
