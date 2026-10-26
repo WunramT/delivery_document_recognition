@@ -14,6 +14,7 @@ works as before, just without live OCR. Stop with Ctrl+C.
     GET  /api/ping           -> {"ok": true, "name": ...}
     POST /api/ocr            {"n": page, "box": [x1, y1, x2, y2] (0..1), "cls": class} -> {"text", "value"}
     POST /api/save           entscheidung.json content -> written into the run folder
+    POST /api/finalize       {} -> make finalize for this tour (PDFs, mail drafts, protocol): {"ok", "log", "out"}
 """
 
 from __future__ import annotations
@@ -34,8 +35,9 @@ from ..zones.synthetic import to_rgb
 MAX_BODY = 20 * 1024 * 1024
 
 
-def make_server(run_dir: Path, read, port: int = 0, start_page: str = "pruefung.html", log=print):
-    """read(image_path, box, cls) -> {"text", "value"}. port 0 = any free port."""
+def make_server(run_dir: Path, read, port: int = 0, start_page: str = "pruefung.html", log=print, finalize=None):
+    """read(image_path, box, cls) -> {"text", "value"}. port 0 = any free port.
+    finalize(log) -> exit code of make finalize for this tour (None: not offered)."""
     run_dir = Path(run_dir).resolve()
     pages = {p["n"]: p for p in json.loads((run_dir / "ergebnis.json").read_text(encoding="utf-8"))["pages"]}
     name = run_dir.name
@@ -104,7 +106,12 @@ def make_server(run_dir: Path, read, port: int = 0, start_page: str = "pruefung.
                     out = run_dir / "entscheidung.json"
                     out.write_text(json.dumps(req, ensure_ascii=False, indent=1), encoding="utf-8")
                     log(f"[review] Entscheidung gespeichert: {out}")
-                    return self.send_json({"ok": True, "path": str(out)})
+                    return self.send_json({"ok": True, "path": str(out), "finalize": finalize is not None})
+                if path == "/api/finalize" and finalize is not None:
+                    lines = []
+                    with lock:
+                        rc = finalize(lambda m: (lines.append(str(m)), log(m)))
+                    return self.send_json({"ok": rc == 0, "log": lines[-12:], "out": str(run_dir / "freigabe")})
                 return self.send_error(404)
             except (KeyError, ValueError, TypeError, json.JSONDecodeError) as e:
                 return self.send_json({"ok": False, "error": str(e)}, 400)
@@ -121,6 +128,7 @@ def make_server(run_dir: Path, read, port: int = 0, start_page: str = "pruefung.
 
 
 def run_review(cfg, run: str, port: int | None, log, open_browser: bool = True) -> int:
+    from .finalize import run_finalize
     from .run import BoxReader
 
     base = artifacts(cfg, "process", run)
@@ -139,10 +147,11 @@ def run_review(cfg, run: str, port: int | None, log, open_browser: bool = True) 
             return reader.read(to_rgb(im), box, cls)
 
     want = port if port is not None else int((cfg.get("process") or {}).get("review_port", 8765))
+    fin = lambda lg: run_finalize(cfg, run, None, False, lg)   # noqa: E731
     try:
-        srv = make_server(base, read, want, start, log)
+        srv = make_server(base, read, want, start, log, fin)
     except OSError:   # port taken (e.g. a second tour open): any free port
-        srv = make_server(base, read, 0, start, log)
+        srv = make_server(base, read, 0, start, log, fin)
     url = f"http://127.0.0.1:{srv.server_address[1]}/{start}"
     log(f"[review] Prüfseite: {url}  (Live-OCR beim Box-Zeichnen, Speichern direkt nach {base / 'entscheidung.json'})")
     log("[review] Beenden mit Strg+C, danach make finalize RUN=" + run)

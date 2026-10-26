@@ -168,6 +168,31 @@ def pen_mark(im, box, band: float = 0.012, min_frac: float = 0.002) -> bool:
     return bool(sat.mean() >= min_frac)
 
 
+def ta_missed(ocr, im, ta_boxes: list, known: set) -> list[dict]:
+    """8-digit numbers in the TA column of a loading list that no ta_nummer box covers (a row the
+    model missed). The column = the x range of the found TA boxes; needs at least two of them."""
+    if len(ta_boxes) < 2:
+        return []
+    W, H = im.width, im.height
+    X1, X2 = int(max(0.0, min(b[0] for b in ta_boxes) - 0.03) * W), int(min(1.0, max(b[2] for b in ta_boxes) + 0.03) * W)
+    Y1 = int(max(0.0, min(b[1] for b in ta_boxes) - 0.02) * H)
+    out = []
+    for d in ocr.detect_recognize(pil_to_bgr(im.convert("RGB").crop((X1, Y1, X2, H)))):
+        nums = numbers8(d["text"])
+        if not nums:
+            continue
+        xs, ys = [q[0] for q in d["quad"]], [q[1] for q in d["quad"]]
+        box = [round((X1 + min(xs)) / W, 4), round((Y1 + min(ys)) / H, 4), round((X1 + max(xs)) / W, 4), round((Y1 + max(ys)) / H, 4)]
+        cy = (box[1] + box[3]) / 2
+        if any(b[1] - 0.005 <= cy <= b[3] + 0.005 for b in ta_boxes):
+            continue
+        for n in nums:
+            if n not in known:
+                known.add(n)
+                out.append({"ta": n, "box": box})
+    return out
+
+
 class BoxReader:
     """OCR of one box exactly as make process reads it - also used live by make review when the
     person draws a box. read() returns {"text": OCR text, "value": parsed value or ""}:
@@ -398,8 +423,10 @@ class Pipeline:
         rec["proposal"] = props.get(dt_["doc_type"], {}).get("classes", {})
         t = dt_["doc_type"]
         rec["ta"], rec["ta_unread"] = self.ta(im, dets) if t in ("loading_list", "cmr", UNCERTAIN) else ([], [])
-        if t == "loading_list":   # pen in the row (struck out, "nie jedzie"): the person decides
-            for x in rec["ta"] + rec["ta_unread"]:
+        if t == "loading_list":   # a row without TA box; pen in the row (struck out, "nie jedzie"): the person decides
+            rec["ta_missed"] = ta_missed(self.reader.ocr, im, [d["box"] for d in dets if d["cls"] == "ta_nummer"],
+                                         {x["ta"] for x in rec["ta"]})
+            for x in rec["ta"] + rec["ta_unread"] + rec["ta_missed"]:
                 x["mark"] = pen_mark(im, x["box"])
         ls = self.ls_number(im, dets) if t in ("lieferschein", UNCERTAIN) else None
         po = self.page_of(im, dets) if t in ("lieferschein", "loading_list", UNCERTAIN) else None

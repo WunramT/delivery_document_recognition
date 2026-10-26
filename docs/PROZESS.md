@@ -128,7 +128,11 @@ lässt sich mit Grund „trotzdem akzeptieren“.
    Unter jeder TA der Ausschnitt ihrer Zeile (Klick zoomt die Ladeliste hin). Farbige
    Handvermerke in der Zeile (rot durchgestrichen, „nie jedzie“ – `pen_mark` in `run.py`, nur
    farbige Tinte) markieren die Zeile „Handvermerk – gestrichen?“: offener Punkt, bis die Person
-   „streichen“ oder „behalten“ klickt. Alles Weitere beruht auf dieser Liste.
+   „streichen“ oder „behalten“ klickt. Zeilen, für die das Modell keine TA-Box hat: die
+   Verarbeitung liest die TA-Spalte (x-Bereich der gefundenen TA-Boxen) zusätzlich mit OCR
+   (`ta_missed` in `run.py`); eine 8-stellige Nummer ohne Box erscheint als „ohne Box gefunden –
+   übernehmen?“ (übernehmen = TA zählt, ihre Box geht ins Training; × = löschen). Widersprechen
+   sich Seitenzahlen (S. 1 „1/2“, S. 2 „2/3“), ist das ein offener Punkt, keine Fehlseite. Alles Weitere beruht auf dieser Liste.
 2. **Lieferscheine**: zuerst die, deren Nummer nicht gelesen wurde (Nummer eintragen). Dann je
    TA der Ladeliste eine Zeile: Seiten 1..n von links nach rechts, Kopien darunter (die beste
    oben, „diese archivieren“ tauscht), fehlende Seite als roter Platzhalter, „kein
@@ -151,7 +155,11 @@ lässt sich mit Grund „trotzdem akzeptieren“.
    drei nummerierte Felder: ① Name, ② **„Fehlliste bestätigen (n Punkte → Mail-Entwürfe)“**
    (erst dann erzeugt `make finalize` die Mail-Entwürfe), ③ **„Entscheidung speichern“** →
    `entscheidung.json` in den Ordner der Prüfseite. Danach grüne Meldung „Gespeichert um …“,
-   Schritt 4 bekommt ✓ (bis zur nächsten Änderung).
+   Schritt 4 bekommt ✓ (bis zur nächsten Änderung), der Knopf oben zeigt „✓ Gespeichert 15:41 Uhr“.
+   Mit `make review` geöffnet, erzeugt **„Abschluss erzeugen (PDFs, Mail-Entwürfe, Protokoll)“**
+   gleich auf der Seite, was sonst `make finalize` macht; das Protokoll steht darunter.
+   Bei fehlendem Stempel / fehlender Unterschrift zeigt die Fehlliste zusätzlich den Prüfbereich
+   der Seite als Beleg.
 
 **Kacheln** zeigen nur die entscheidenden Ausschnitte, jeweils neben dem gelesenen Wert:
 Lieferschein – Nummer, Tournummer (Vorderseite), Unterschrift, Stempel; CMR – CMR-Zählung, TAs,
@@ -177,7 +185,8 @@ bestätigt (das Protokoll vermerkt „gesammelt bestätigt“). Unsichere Seiten
 entschieden sein, sonst bleibt der Knopf grau.
 
 **Boxen für das nächste Training**:
-- „vorhanden“, aber das Modell hat dort keine Box → Box ziehen (oder eine Modellbox anklicken).
+- „vorhanden“, aber das Modell hat dort keine Box → Box ziehen (`B`) oder eine Modellbox
+  anklicken – freiwillig wie bei Nummern (ohne Box: `box_missing`, im Label-Export „vorschlag“).
   Eine unsichere (gestrichelte) Modellbox gilt mit „vorhanden“ als bestätigt.
 - „fehlt“ → die Modellboxen dieser Klasse gelten als Fehlalarm (Anklicken behält eine).
 - Nummer selbst eingetragen (Lieferschein, Seite, CMR i/n, TA, Tournummer) und das Modell

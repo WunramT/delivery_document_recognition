@@ -170,6 +170,9 @@ def apply_decision(pages: list[dict], decision: dict) -> list[dict]:
                 q["ta"] = [{"ta": t["ta"], "excluded": bool(t.get("struck")), "box": t.get("box"),
                             "manual": t.get("src") == "person"} for t in d["ta_list"]
                            if re.fullmatch(r"\d{8}", t.get("ta") or "")]
+                # still unreadable = a row the person neither filled in nor struck out
+                q["ta_unread"] = [{"box": t.get("box")} for t in d["ta_list"]
+                                  if not t.get("struck") and not re.fullmatch(r"\d{8}", t.get("ta") or "")]
             q["ta"] = [dict(t, excluded=t.get("excluded") or t["ta"] in struck) for t in q.get("ta") or []]
         q["bulk"] = bool(d.get("bulk"))
         if d.get("boxes") is not None:

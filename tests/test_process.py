@@ -157,6 +157,14 @@ def test_apply_decision_ta_and_lieferschein():
     org = organize(pages, TOUR, RULES)
     assert org["ta"]["loaded"] == ["12283251", "12299999"] and org["ta"]["excluded"] == ["12288834"]
     assert org["ta"]["cmr_missing"] == [] and org["ta"]["ls_missing"] == ["12299999"]
+    # the person's list: an unread row filled in is no longer unread, an empty one still is
+    ll = page(1, "loading_list", tour=None)
+    ll["ta_unread"] = [{"box": [0.4, 0.3, 0.5, 0.32]}, {"box": [0.4, 0.5, 0.5, 0.52]}]
+    lst = [{"ta": "12302245", "box": [0.4, 0.3, 0.5, 0.32]}, {"ta": "", "box": [0.4, 0.5, 0.5, 0.52]}]
+    q = apply_decision([ll], {"pages": {"1": {"doc_type": "loading_list", "ta_list": lst}}})[0]
+    assert [t["ta"] for t in q["ta"]] == ["12302245"] and q["ta_unread"] == [{"box": [0.4, 0.5, 0.5, 0.52]}]
+    lst[1]["struck"] = True
+    assert apply_decision([ll], {"pages": {"1": {"doc_type": "loading_list", "ta_list": lst}}})[0]["ta_unread"] == []
 
 
 def test_tour_names():
@@ -392,7 +400,7 @@ def test_review_server_ocr_save_and_no_files_outside(tmp_path):
         calls.append((path.name, box, cls))
         return {"text": "Lieferschein 12283251", "value": "12283251"}
 
-    srv = make_server(run, read, 0, log=lambda m: None)
+    srv = make_server(run, read, 0, log=lambda m: None, finalize=lambda lg: (lg("[finalize] fertig"), 0)[1])
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{srv.server_address[1]}"
 
@@ -418,7 +426,9 @@ def test_review_server_ocr_save_and_no_files_outside(tmp_path):
         assert post("/api/ocr", {"n": 1, "box": [0.4, 0.2, 0.1, 0.25], "cls": "ls_nummer"})["ok"] is False
         assert post("/api/save", {"format": "fremd"})["ok"] is False
         r = post("/api/save", {"format": "docval-entscheidung", "reviewer": "A"})
-        assert r["ok"] and json.loads((run / "entscheidung.json").read_text())["reviewer"] == "A"
+        assert r["ok"] and r["finalize"] and json.loads((run / "entscheidung.json").read_text())["reviewer"] == "A"
+        r = post("/api/finalize", {"run": 1})                  # make finalize from the page
+        assert r["ok"] and r["log"] == ["[finalize] fertig"]
     finally:
         srv.shutdown()
 
