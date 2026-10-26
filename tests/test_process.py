@@ -264,6 +264,9 @@ def test_abholschein_discarded():
     pages = [page(1, "cmr", (1, 1)), page(2, "abholschein", tour=None), page(3, "lieferschein")]
     org = organize(pages, TOUR, RULES)
     assert org["discarded"] == [2] and org["complete"]
+    # a page the person marks as "Sonstiges" (driver's note ...) is discarded the same way
+    org = organize([page(1, "cmr", (1, 1)), page(2, "sonstiges", tour=None)], TOUR, RULES)
+    assert org["discarded"] == [2] and org["complete"]
     assert 2 not in org["cmr_order"] + org["ls_order"]
     assert "Abholschein" in render_check(codes(org)["discarded"], "de")
 
@@ -343,6 +346,10 @@ def test_label_export_uses_the_persons_boxes(tmp_path):
     assert [(a["image_id"], a["attributes"]["quelle"], a["bbox"][0]) for a in coco["annotations"]] == [(1, "person", 50.0)]
     rows = (tmp_path / "out" / "page_types.csv").read_text(encoding="utf-8-sig").splitlines()
     assert rows[1].endswith(";korrigiert") and rows[2].endswith(";vorschlag")
+    # a number typed in without its box: the page is not a reliable example
+    dec["pages"]["1"]["box_missing"] = True
+    build_export(R, dec, ["unterschrift", "stempel"], tmp_path, tmp_path / "out")
+    assert (tmp_path / "out" / "page_types.csv").read_text(encoding="utf-8-sig").splitlines()[1].endswith(";vorschlag")
 
 
 def test_following_lieferschein_page_takes_tour_of_front_page():
