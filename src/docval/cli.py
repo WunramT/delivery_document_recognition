@@ -200,6 +200,16 @@ def cmd_process(cfg) -> int:
     return run_process(cfg, a["input"], a.get("tour"), a.get("run"), log)
 
 
+def cmd_review(cfg) -> int:
+    from .process.serve import run_review
+
+    a = cfg.get("_args") or {}
+    if not a.get("run"):
+        log("FEHLER: --run <Name> angeben (Ordner unter artifacts/process/), z. B. make review RUN=503_01.09.2026_4000")
+        return 2
+    return run_review(cfg, a["run"], a.get("port"), log, not a.get("no_browser"))
+
+
 def cmd_finalize(cfg) -> int:
     from .process.finalize import run_finalize
 
@@ -229,7 +239,7 @@ def cmd_fetch(cfg) -> int:
 
 COMMANDS = {"split": cmd_split, "train": cmd_train, "train-final": cmd_train_final, "train-doctype": cmd_train_doctype,
             "export": cmd_export, "eval": cmd_eval, "report": cmd_report, "review-labels": cmd_review_labels, "relabel": cmd_relabel, "relabel-model": cmd_relabel_model, "compare-labels": cmd_compare_labels, "presentation": cmd_presentation, "vlm-compare": cmd_vlm_compare,
-            "process": cmd_process, "finalize": cmd_finalize, "label-scans": cmd_label_scans, "fetch-models": cmd_fetch}
+            "process": cmd_process, "review": cmd_review, "finalize": cmd_finalize, "label-scans": cmd_label_scans, "fetch-models": cmd_fetch}
 
 
 def main(argv=None) -> int:
@@ -246,6 +256,8 @@ def main(argv=None) -> int:
     ap.add_argument("--run", default=None, help="process: output name; finalize/label-scans: folder under artifacts/process/")
     ap.add_argument("--decision", default=None, help="finalize: decision file (default: <run>/entscheidung.json)")
     ap.add_argument("--force", action="store_true", help="finalize: also with unconfirmed pages / incomplete tour")
+    ap.add_argument("--port", type=int, default=None, help="review: port on 127.0.0.1 (default process.review_port)")
+    ap.add_argument("--no-browser", action="store_true", help="review: do not open the browser")
     args = ap.parse_args(argv)
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -257,7 +269,7 @@ def main(argv=None) -> int:
     cfg = apply_exports(cfg, log)
     cfg["_args"] = {"export": args.export, "old": args.old, "limit": args.limit, "views": args.views,
                     "input": args.input, "tour": args.tour, "run": args.run, "decision": args.decision,
-                    "force": args.force}
+                    "force": args.force, "port": args.port, "no_browser": args.no_browser}
     if args.split:
         cfg.setdefault("eval", {})["split"] = args.split
     if args.command != "fetch-models" and not os.environ.get("DOCVAL_ONLINE"):

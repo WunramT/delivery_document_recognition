@@ -26,8 +26,8 @@ from ..config import artifacts, resolve
 from ..detect.onnx_detector import OnnxDetector
 from ..doctype.rules import UNCERTAIN, combine, keyword_decision, keyword_scores
 from ..jsonutil import dumps
-from ..models import offline, setup_cache
-from ..ocr.onnx_ocr import pad_crop, pil_to_bgr
+from ..models import ocr_model_dir, offline, setup_cache
+from ..ocr.onnx_ocr import OcrEngine, pad_crop, pil_to_bgr
 from ..ocr.postprocess import parse_cmr_count
 from ..zones import MISSING, OK, UNCERTAIN as ZONE_UNCERTAIN, WRONG_POSITION, apply_overrides, check_page
 from ..zones.synthetic import to_rgb
@@ -155,6 +155,56 @@ def process_rules(cfg) -> dict:
     return rules
 
 
+class BoxReader:
+    """OCR of one box exactly as make process reads it - also used live by make review when the
+    person draws a box. read() returns {"text": OCR text, "value": parsed value or ""}:
+    ls_nummer / ta_nummer -> 8-digit numbers, seitenzahl / cmr_count -> "i/n",
+    tour_nummer -> the tour number if it fits the format."""
+
+    def __init__(self, cfg: dict, engine=None, mode: str | None = None):
+        if engine is None:   # only the primary engine (make review starts fast)
+            prim = cfg["ocr"].get("primary") or f"{next(iter(cfg['ocr']['engines']))}/det_rec"
+            name, mode = prim.split("/")
+            e = cfg["ocr"]["engines"][name]
+            engine = OcrEngine(name, ocr_model_dir(cfg, e["det"]), ocr_model_dir(cfg, e["rec"]),
+                               {"limit_side_len": cfg["ocr"].get("det_limit_side_len", 960)})
+        self.cfg, self.ocr, self.mode = cfg, engine, mode or "det_rec"
+
+    def crop(self, im, box):
+        return pad_crop(im, [box[0] * im.width, box[1] * im.height, box[2] * im.width, box[3] * im.height],
+                        self.cfg["ocr"]["crop_padding"])
+
+    def lines(self, im, box) -> list[str]:
+        """OCR lines inside a box (detection + recognition: a box can hold several lines, e.g.
+        "Zlecenie" above the TA, or several TAs on a CMR)."""
+        crop = pil_to_bgr(self.crop(im, box))
+        lines = [d["text"] for d in self.ocr.detect_recognize(crop)]
+        if not lines:  # very small box: recognition only
+            t, _ = self.ocr.recognize(crop)
+            lines = [t] if t else []
+        return lines
+
+    def read(self, im, box, cls: str) -> dict:
+        if cls == "tour_nummer":
+            from ..eval.run import ocr_tour
+            r = ocr_tour(self.ocr, self.crop(im, box), self.mode, self.cfg["ocr"],
+                         self.cfg["labels"]["tour_number"]["format_regex"])
+            return {"text": r["raw"], "value": r["text"] if r["valid_format"] else ""}
+        text = " ".join(self.lines(im, box))
+        if cls in ("ls_nummer", "ta_nummer"):
+            nums = numbers8(text)
+            value = (nums[0] if nums else "") if cls == "ls_nummer" else ", ".join(nums)
+        elif cls == "seitenzahl":
+            po = parse_page_of(text)
+            value = f"{po[0]}/{po[1]}" if po else ""
+        elif cls == "cmr_count":
+            c = parse_cmr_count(text)
+            value = f"{c[0]}/{c[1]}" if c else ""
+        else:
+            value = ""
+        return {"text": text[:120], "value": value}
+
+
 class Pipeline:
     """All models of one run, loaded once."""
 
@@ -176,6 +226,7 @@ class Pipeline:
         prim = cfg["ocr"].get("primary") or f"{next(iter(engines))}/det_rec"
         name, self.tour_mode = prim.split("/")
         self.ocr = engines[name]
+        self.reader = BoxReader(cfg, self.ocr, self.tour_mode)
         self.clf = None
         ccfg = cfg["doctype"]["classifier"]
         if ccfg.get("enabled") and artifacts(cfg, "doctype", "doctype.onnx").is_file():
@@ -266,15 +317,7 @@ class Pipeline:
         return {"text": t, "parsed": list(parsed) if parsed else None, "box": b}
 
     def box_lines(self, im, box) -> list[str]:
-        """OCR lines inside a detected box (detection + recognition: a box can hold several
-        lines, e.g. "Zlecenie" above the TA, or several TAs on a CMR)."""
-        crop = pil_to_bgr(pad_crop(im, [box[0] * im.width, box[1] * im.height, box[2] * im.width,
-                                        box[3] * im.height], self.cfg["ocr"]["crop_padding"]))
-        lines = [d["text"] for d in self.ocr.detect_recognize(crop)]
-        if not lines:  # very small box: recognition only
-            t, _ = self.ocr.recognize(crop)
-            lines = [t] if t else []
-        return lines
+        return self.reader.lines(im, box)
 
     def ta(self, im, dets) -> tuple[list[dict], list[dict]]:
         """TA numbers from the ta_nummer boxes (loading list: one per row, CMR: one box with all

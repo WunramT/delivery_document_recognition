@@ -112,7 +112,10 @@ make process SCANS=skany/503_01.09.2026.pdf            # PDF, obraz albo folder
 make process SCANS=skany/trasa503/ TOUR=503_01.09.2026  # numer trasy, jeśli nie ma go w nazwie
 ```
 
-Wynik: `artifacts/process/<trasa>/pruefung_pl.html` – otworzyć podwójnym kliknięciem (Chrome/Edge).
+Wynik: `artifacts/process/<trasa>/pruefung_pl.html`. Zalecane: `make review RUN=<trasa>` – otwiera stronę
+przez lokalny serwer: po narysowaniu ramki wokół numeru (dowód dostawy, strona, CMR i/n, trasa, TA) OCR
+od razu wpisuje numer do pola („OCR – sprawdzić”, `Enter` = przyjmij), a „Zapisz decyzję” zapisuje plik
+od razu w folderze trasy. Podwójne kliknięcie działa jak dotąd, tylko bez OCR na żywo.
 
 Asystent w pięciu krokach; kolejny krok otwiera się po potwierdzeniu poprzedniego, powrót jest
 zawsze możliwy:

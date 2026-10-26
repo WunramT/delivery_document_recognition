@@ -103,6 +103,9 @@ UI = {
         "page_draw": "Seitenzahl-Box zeichnen", "show_on_list": "auf der Ladeliste zeigen",
         "ta_no_cmr_s": "auf der Ladeliste, aber auf keinem CMR", "ta_extra_s": "auf CMR {page}, nicht auf der Ladeliste",
         "tav_hint": "Ladeliste zum Nachsehen – Mausrad zoomt, ziehen verschiebt",
+        "live_ocr": "Live-OCR an", "ocr_check": "OCR – bitte prüfen", "ocr_busy": "OCR liest …",
+        "ocr_none": "nicht erkannt: „{text}“", "saved_srv": "Gespeichert: {path} – weiter mit make finalize RUN={name}",
+        "save_failed": "Speichern über den Server fehlgeschlagen – die Datei wird stattdessen heruntergeladen.",
     },
     "pl": {
         "html_lang": "pl", "title": "Kontrola trasy", "save": "Zapisz decyzję", "discard": "odrzuć wszystko",
@@ -171,6 +174,9 @@ UI = {
         "page_draw": "narysuj ramkę numeru strony", "show_on_list": "pokaż na liście załadunkowej",
         "ta_no_cmr_s": "na liście załadunkowej, ale na żadnym CMR", "ta_extra_s": "na CMR {page}, nie ma na liście załadunkowej",
         "tav_hint": "Lista załadunkowa do sprawdzenia – kółko myszy = zoom, przeciąganie przesuwa",
+        "live_ocr": "OCR na żywo", "ocr_check": "OCR – sprawdzić", "ocr_busy": "OCR czyta …",
+        "ocr_none": "nie rozpoznano: „{text}“", "saved_srv": "Zapisano: {path} – dalej make finalize RUN={name}",
+        "save_failed": "Zapis przez serwer nie powiódł się – plik zostanie pobrany.",
     },
 }
 
@@ -310,6 +316,7 @@ details summary{cursor:pointer;margin:10px 0}
 .cmph{display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);align-items:center}
 #cmpb{flex:1;display:flex;gap:8px;padding:8px;min-height:0} .cpane{flex:1;display:flex;flex-direction:column;min-width:0}
 .cv{flex:1;min-height:0} .cf{padding:6px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ocrtag{font-size:11px;padding:0 6px;border-radius:4px;background:#e7f0ff;color:var(--sel);margin-left:4px}
 .tacheck{display:flex;gap:14px;align-items:flex-start} .tacheck .tal{width:470px;flex:none}
 .tav{flex:1;height:75vh;position:sticky;top:60px;min-width:300px} .tai{padding:8px 0;border-bottom:1px solid var(--line)}
 .sum{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0}
@@ -319,6 +326,7 @@ details summary{cursor:pointer;margin:10px 0}
   <h1 id="title"></h1>
   <div id="stepper"></div>
   <span style="flex:1"></span>
+  <span id="srv" class="pill ok" style="display:none"></span>
   <label>{{reviewer}} <input id="reviewer" autocomplete="name" style="width:140px"></label>
   <button id="discard">{{discard}}</button>
   <button id="save" class="primary">{{save}}</button>
@@ -692,9 +700,9 @@ function render1() {
 function llList(p) {
   const es = llEntries(p), po = llPageOf(p), iss = pageIssues(p).filter(x => x.step === 1);
   const read = p.page_read && p.page_read.text ? ` <span class="muted small">${T.ocr_read}: „${esc(p.page_read.text)}“</span>` : "";
-  return `<p>${T.ll_page} <input data-llpage="${p.n}" placeholder="1/3" style="width:70px" value="${esc(has(p, "page_of") ? S.pages[p.n].page_of : po ? po.join("/") : "")}">${read}</p>
+  return `<p>${T.ll_page} <input data-llpage="${p.n}" placeholder="1/3" style="width:70px" value="${esc(has(p, "page_of") ? S.pages[p.n].page_of : po ? po.join("/") : "")}">${read}${ocrNote(p, "page_of")}</p>
     ${iss.length ? `<p class="issues small">${iss.map(x => esc(x.text)).join(" · ")}</p>` : ""}<table>${es.map((e, i) => `<tr class="${e.struck ? "struck" : ""}"><td><input class="ta" data-ll="${p.n}" data-i="${i}" value="${esc(e.ta)}" placeholder="12345678"></td>
-    <td class="small ${!e.struck && !okTA(e.ta) ? "issues" : "muted"}">${e.struck ? T.struck : e.src === "person" ? T.ta_drawn : !okTA(e.ta) ? T.ta_unread : T.ta_read}</td>
+    <td class="small ${!e.struck && !okTA(e.ta) ? "issues" : "muted"}">${e.struck ? T.struck : e.ocr ? `<span class="ocrtag">${T.ocr_check}</span>` : e.src === "person" ? (e.ocrt != null && !e.ta ? esc(fmt(T.ocr_none, {text: e.ocrt})) : T.ta_drawn) : !okTA(e.ta) ? T.ta_unread : T.ta_read}</td>
     <td><button class="small" data-strike="${p.n}" data-i="${i}">${e.struck ? T.unstrike : T.strike}</button>${e.src === "person" ? ` <button class="small" data-delta="${p.n}" data-i="${i}">×</button>` : ""}</td></tr>`).join("")}</table>
     <p><button data-lldraw="${p.n}" data-cls="ta_nummer">${T.ta_draw}</button> <button data-lldraw="${p.n}" data-cls="seitenzahl">${T.page_draw}</button></p>`;
 }
@@ -705,7 +713,8 @@ function mountLL() {
       boxes: () => llBoxes(p),
       click: k => { if (!k.startsWith("e:")) return; const i = +k.split(":")[1]; const e = llEntries(p)[i]; if (e) { e.struck = !e.struck; changed(1); refresh1(p); } },
       draw: (box, cls) => { us(p).pb = (us(p).pb || []).concat([{cls, box}]); changed(1); const es = llEntries(p); refresh1(p);
-        if (cls === "ta_nummer") setTimeout(() => { const inp = document.querySelector(`input[data-ll="${p.n}"][data-i="${es.length - 1}"]`); if (inp) inp.focus(); }, 0); },
+        if (cls === "ta_nummer") setTimeout(() => { const inp = document.querySelector(`input[data-ll="${p.n}"][data-i="${es.length - 1}"]`); if (inp) inp.focus(); }, 0);
+        ocrBox(p, box, cls).then(() => { if (cls !== "ta_nummer") return; const inp = document.querySelector(`input[data-ll="${p.n}"][data-i="${es.length - 1}"]`); if (inp) { inp.focus(); inp.select(); } }); },
     });
     LV[p.n] = v; v.fit([0, 0, 1, 1], 0);
   }
@@ -949,7 +958,7 @@ function showOv(refit) {
     OV.viewer = new Viewer($("ovimg"), p, {
       boxes: () => ovBoxes(p),
       click: k => { const [kind, i] = k.split(":"); if (kind !== "d") return; const s = us(p); s.bx = s.bx || {}; s.bx[i] = !detInc(p, p.dets[+i], +i); edit(p); },
-      draw: (box, cls) => { const s = us(p); s.pb = (s.pb || []).concat([{cls, box}]); if (OBJ.includes(cls) && reviewable(p)) { s.v = s.v || {}; s.v[cls] = true; s.dec = true; } edit(p); },
+      draw: (box, cls) => { const s = us(p); s.pb = (s.pb || []).concat([{cls, box}]); if (OBJ.includes(cls) && reviewable(p)) { s.v = s.v || {}; s.v[cls] = true; s.dec = true; } edit(p); ocrBox(p, box, cls); },
     });
     const v = OV.viewer;
     requestAnimationFrame(() => v.fit(focusRegion(p), 0.04));
@@ -977,28 +986,29 @@ function sideHtml(p) {
   let h = `<h3 style="margin-top:0">${esc(cardTitle(p))}</h3><div class="muted small">${fmt(T.page, {n: p.n})} · ${esc(p.source)} · ${OV.idx + 1}/${OV.list.length}</div>`;
   h += `<div class="vbtns"><button data-fit="full">${T.v_full}</button><button data-fit="area">${T.v_area}</button>${REVIEW.includes(t) ? `<button data-fit="num">${T.v_num}</button>` : ""}</div>`;
   if (iss.length) h += `<div class="issues small">${iss.map(x => "• " + esc(x.text)).join("<br>")}</div>`;
+  if (OCRBUSY) h += `<div class="hint">${T.ocr_busy}</div>`;
   h += `<label>${T.doctype}</label><select data-f="doc_type">${D.doc_types.concat(t === "unsicher" ? ["unsicher"] : []).map(x => `<option value="${x}"${x === t ? " selected" : ""}>${esc(T.dt[x] || x)}</option>`).join("")}</select>`;
   if (REVIEW.includes(t)) {
     const read = p.tour && p.tour.raw ? ` – ${T.ocr_read}: „${esc(p.tour.raw)}“` : "";
-    h += `<label>${T.tour}${read}</label><input data-f="tour" placeholder="${esc(D.tour || "")}" value="${esc(has(p, "tour") ? s.tour : tourOf(p) || "")}" style="width:220px">`;
+    h += `<label>${T.tour}${read}</label><input data-f="tour" placeholder="${esc(D.tour || "")}" value="${esc(has(p, "tour") ? s.tour : tourOf(p) || "")}" style="width:220px">${ocrNote(p, "tour")}`;
     if (D.tour && tourOf(p) !== D.tour) h += ` <button data-tourthis="1">${esc(fmt(T.tour_this, {tour: D.tour}))}</button>`;
   }
   if (t === "loading_list") {
     const po = llPageOf(p), read = p.page_read && p.page_read.text ? ` – ${T.ocr_read}: „${esc(p.page_read.text)}“` : "";
-    h += `<label>${T.ll_page}${read}</label><input data-f="page_of" placeholder="1/3" style="width:80px" value="${esc(has(p, "page_of") ? s.page_of : po ? po.join("/") : "")}">`;
+    h += `<label>${T.ll_page}${read}</label><input data-f="page_of" placeholder="1/3" style="width:80px" value="${esc(has(p, "page_of") ? s.page_of : po ? po.join("/") : "")}">${ocrNote(p, "page_of")}`;
   }
   if (t === "lieferschein") {
     const read = p.ls_read && p.ls_read.text ? ` – ${T.ocr_read}: „${esc(p.ls_read.text)}“` : "";
     const pg = lsPage(p);
-    h += `<label>${T.ls_number}${read}</label><input class="num" data-f="ls" placeholder="12345678" value="${esc(has(p, "ls") ? s.ls : lsNumber(p) || "")}">`;
-    h += `<label>${T.ls_page}</label><input data-f="ls_page" placeholder="1/2" style="width:80px" value="${esc(has(p, "ls_page") ? s.ls_page : pg ? pg.join("/") : "")}">`;
+    h += `<label>${T.ls_number}${read}</label><input class="num" data-f="ls" placeholder="12345678" value="${esc(has(p, "ls") ? s.ls : lsNumber(p) || "")}">${ocrNote(p, "ls")}`;
+    h += `<label>${T.ls_page}</label><input data-f="ls_page" placeholder="1/2" style="width:80px" value="${esc(has(p, "ls_page") ? s.ls_page : pg ? pg.join("/") : "")}">${ocrNote(p, "ls_page")}`;
     if (p.carrier) h += `<div class="tag">${T.carrier}</div>`;
   }
   if (t === "cmr") {
     const read = p.cmr_count && p.cmr_count.text ? ` – ${T.ocr_read}: „${esc(p.cmr_count.text)}“` : "";
     const cc = cmrCount(p);
-    h += `<label>${T.cmr_count}${read}</label><input class="num" data-f="cmr" placeholder="3/13" value="${esc(has(p, "cmr") ? s.cmr : cc ? cc.join("/") : "")}">`;
-    h += `<label>${T.ta_field}</label><input data-f="ta" placeholder="12345678, 12345679" style="width:300px" value="${esc(has(p, "ta") ? s.ta : cmrTAs(p).join(", "))}">`;
+    h += `<label>${T.cmr_count}${read}</label><input class="num" data-f="cmr" placeholder="3/13" value="${esc(has(p, "cmr") ? s.cmr : cc ? cc.join("/") : "")}">${ocrNote(p, "cmr")}`;
+    h += `<label>${T.ta_field}</label><input data-f="ta" placeholder="12345678, 12345679" style="width:300px" value="${esc(has(p, "ta") ? s.ta : cmrTAs(p).join(", "))}">${ocrNote(p, "ta")}`;
   }
   if (REVIEW.includes(t) && OV.step !== 0) {
     h += `<h3>${T.h_obj}</h3>`;
@@ -1033,6 +1043,7 @@ function setField(p, f, v) {
   const s = us(p); v = (v || "").trim();
   if (f === "doc_type") { if (v === p.doc_type) delete s.doc_type; else s.doc_type = v; changed(0); if (OV) showOv(false); return; }
   if (v === "") delete s[f]; else s[f] = v;
+  if (s.ocrf) delete s.ocrf[f];
   edit(p);
 }
 function setObj(p, c, v) { const s = us(p); s.v = s.v || {}; s.v[c] = v; s.dec = true; edit(p); }
@@ -1057,6 +1068,62 @@ $("ovside").addEventListener("click", e => {
   else if (b.dataset.nav) nextOpen(+b.dataset.nav);
   else if (b.dataset.close) closeOv();
 });
+
+// ------------------------------------------------------------ live OCR (make review: page served by the local server)
+let SRV = false, OCRBUSY = 0;
+async function ping() {
+  if (!location.protocol.startsWith("http")) return;
+  try { SRV = !!(await (await fetch("/api/ping")).json()).ok; } catch (e) { SRV = false; }
+  const b = $("srv"); b.textContent = T.live_ocr; b.style.display = SRV ? "" : "none";
+}
+const OCR_CLS = ["ls_nummer", "seitenzahl", "cmr_count", "tour_nummer", "ta_nummer"];
+function ocrField(p, cls) {
+  const t = docType(p);
+  return {ls_nummer: "ls", cmr_count: "cmr", tour_nummer: "tour", seitenzahl: t === "loading_list" ? "page_of" : "ls_page", ta_nummer: "ta"}[cls];
+}
+async function ocrBox(p, box, cls) {
+  if (!SRV || !OCR_CLS.includes(cls)) return;
+  OCRBUSY++; afterOcr(p, null);
+  let res = null;
+  try {
+    const r = await fetch("/api/ocr", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({n: p.n, box, cls})});
+    res = await r.json();
+  } catch (e) { res = null; }
+  OCRBUSY--;
+  if (res && res.ok) applyOcr(p, box, cls, res);
+  afterOcr(p, cls);
+}
+function applyOcr(p, box, cls, res) {   // the read value goes into its field unless the person typed one
+  const s = us(p), v = res.value, t = docType(p);
+  s.ocrf = s.ocrf || {}; s.ocrt = s.ocrt || {};
+  if (cls === "ta_nummer" && t === "loading_list") {
+    const e = llEntries(p).find(x => sameBox(x.box, box));
+    if (e) { e.ocrt = res.text; if (v && (!e.ta || e.ocr)) { e.ta = v.split(", ")[0]; e.ocr = true; } }
+  } else if (cls === "ta_nummer") {
+    s.ocrt.ta = res.text;
+    if (v && t === "cmr") { const cur = cmrTAs(p), add = v.split(", ").filter(x => !cur.includes(x)); if (add.length) { s.ta = cur.concat(add).join(", "); s.ocrf.ta = true; } }
+  } else {
+    const f = ocrField(p, cls); s.ocrt[f] = res.text;
+    if (v && (!has(p, f) || s.ocrf[f])) { s[f] = v; s.ocrf[f] = true; }
+  }
+  changed(S.cur);
+}
+function afterOcr(p, cls) {
+  if (OV && ovPage() === p) {
+    showOv(false);
+    const f = cls && ocrField(p, cls), el = f && $("ovside").querySelector(`input[data-f="${f}"]`);
+    if (el) { el.focus(); el.select(); }
+  } else if (S.cur === 1 && LV[p.n]) {
+    refresh1(p);
+    if (cls === "seitenzahl") { const el = document.querySelector(`input[data-llpage="${p.n}"]`); if (el) { el.focus(); el.select(); } }
+  }
+}
+function ocrNote(p, f) {   // next to a field: read by OCR (check it) / not recognized
+  const s = S.pages[p.n] || {};
+  if ((s.ocrf || {})[f]) return `<span class="ocrtag">${T.ocr_check}</span>`;
+  if ((s.ocrt || {})[f] && !has(p, f)) return ` <span class="small issues">${esc(fmt(T.ocr_none, {text: s.ocrt[f]}))}</span>`;
+  return "";
+}
 
 // ------------------------------------------------------------ copies side by side
 let CV = null;
@@ -1115,8 +1182,8 @@ document.addEventListener("click", e => {
 document.addEventListener("change", e => {
   const el = e.target;
   if (el.closest("#ov")) return;
-  if (el.dataset.ll != null) { const p = byN[+el.dataset.ll], x = llEntries(p)[+el.dataset.i]; const v = parse8(el.value)[0] || el.value.replace(/\s/g, ""); x.ta = v; if (v && !okTA(v)) alert(T.bad_number); changed(1); refresh1(p); }
-  else if (el.dataset.llpage != null) { const p = byN[+el.dataset.llpage], v = el.value.trim(); if (v) us(p).page_of = v; else delete us(p).page_of; changed(1); refresh1(p); }
+  if (el.dataset.ll != null) { const p = byN[+el.dataset.ll], x = llEntries(p)[+el.dataset.i]; const v = parse8(el.value)[0] || el.value.replace(/\s/g, ""); x.ta = v; x.ocr = false; if (v && !okTA(v)) alert(T.bad_number); changed(1); refresh1(p); }
+  else if (el.dataset.llpage != null) { const p = byN[+el.dataset.llpage], v = el.value.trim(); if (v) us(p).page_of = v; else delete us(p).page_of; if (us(p).ocrf) delete us(p).ocrf.page_of; changed(1); refresh1(p); }
   else if (el.dataset.dt != null) { setField(byN[+el.dataset.dt], "doc_type", el.value); rerender(); }
   else if (el.id === "reviewer") { S.reviewer = el.value; persist(); if (S.cur === 4) rerender(); }
 });
@@ -1190,12 +1257,20 @@ async function save() {
     if (docType(p) === "loading_list") e.ta_list = llEntries(p).map(x => ({ta: (x.ta || "").replace(/\s/g, ""), box: x.box, struck: !!x.struck, src: x.src}));
     out.pages[p.n] = e;
   }
+  if (SRV) {
+    try {
+      const r = await (await fetch("/api/save", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(out)})).json();
+      if (r.ok) { notice(fmt(T.saved_srv, {path: r.path, name: D.name})); return; }
+    } catch (e) {}
+    alert(T.save_failed);
+  }
   if (await saveText("entscheidung.json", JSON.stringify(out, null, 1))) notice(fmt(T.saved, {name: D.name}));
 }
 $("save").onclick = save;
 $("discard").onclick = () => { if (!confirm(T.confirm_discard)) return; S = {reviewer: S.reviewer, pages: {}, steps: {}, accepted: {}, cur: 0}; persist(); notice(""); renderAll(); };
 
 $("reviewer").value = S.reviewer || "";
+ping();
 if (S.cur == null || !canEnter(S.cur)) { S.cur = 0; while (S.cur < 4 && stepDone(S.cur)) S.cur++; }
 renderAll();
 </script>

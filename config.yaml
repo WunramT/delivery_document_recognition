@@ -335,6 +335,8 @@ process:
   # it is newer than the evaluated one, else the evaluated one; final | eval force one of them.
   # The thresholds always come from the last make eval.
   model: auto
+  # make review: the review page on http://127.0.0.1:<port> with live OCR of drawn boxes
+  review_port: 8765
   # e-mail drafts (.eml, open in Outlook and send) created by make finalize
   # collective confirmations: which carrier a "bestaetigung" page belongs to (keywords in its
   # header text, same matching as the doc type keywords)

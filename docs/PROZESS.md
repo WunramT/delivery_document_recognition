@@ -88,6 +88,20 @@ Ergebnis in `artifacts/process/<Tour>/`:
 
 ### Prüfseite
 
+**Empfohlen: `make review RUN=<Tour>`** startet die Prüfseite über einen kleinen Server auf diesem
+Rechner (nur `127.0.0.1`, Port `process.review_port`, Standard 8765) und öffnet sie im Browser.
+Dann gilt:
+- **Live-OCR:** Wer eine Box um eine Nummer zieht (Lieferscheinnummer, Seitenzahl, CMR i/n,
+  Tournummer, TA), bekommt die Nummer sofort ins Feld geschrieben – gelesen mit derselben OCR und
+  denselben Regeln wie `make process`, markiert „OCR – bitte prüfen“. `Enter` übernimmt und geht
+  zur nächsten offenen Seite; abtippen nur noch, wenn die OCR nichts erkennt („nicht erkannt: …“).
+  Eine selbst getippte Nummer überschreibt die OCR nie.
+- **Speichern** schreibt `entscheidung.json` direkt in den Tour-Ordner – kein Dialog, nichts zu
+  verschieben.
+Beenden mit `Strg+C`. Per Doppelklick auf `pruefung.html` geht alles wie bisher, nur ohne
+Live-OCR (Nummern abtippen, Datei speichern und in den Ordner legen).
+
+
 Ein Assistent in fünf Schritten. Ein Schritt öffnet sich erst, wenn der vorige bestätigt ist;
 zurück geht immer. Eine spätere Änderung setzt die Bestätigung der folgenden Schritte zurück,
 die Einzelentscheidungen bleiben. „Bestätigen“ heißt „angesehen“, nicht „alles ok“ – Offenes

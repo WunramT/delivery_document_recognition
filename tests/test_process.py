@@ -359,3 +359,54 @@ def test_loading_list_page_number_entered_by_the_person():
     pages = apply_decision([ll1, ll2], {"pages": {"2": {"doc_type": "loading_list", "page_of": [2, 2]}}})
     assert pages[1]["page_of"] == [2, 2]
     assert not any(it["code"] == "item_ll_page" for it in organize(pages, TOUR, RULES)["missing_items"])
+
+
+def test_review_server_ocr_save_and_no_files_outside(tmp_path):
+    import threading
+    import urllib.error
+    import urllib.request
+
+    from docval.process.serve import make_server
+
+    run = tmp_path / "run"
+    (run / "seiten").mkdir(parents=True)
+    pages = [page(1, "lieferschein")]
+    Image.new("RGB", (100, 140), "white").save(run / pages[0]["image"])
+    (run / "ergebnis.json").write_text(json.dumps({"pages": pages}), encoding="utf-8")
+    (run / "pruefung.html").write_text("<html>ok</html>", encoding="utf-8")
+    (tmp_path / "geheim.txt").write_text("x", encoding="utf-8")
+    calls = []
+
+    def read(path, box, cls):
+        calls.append((path.name, box, cls))
+        return {"text": "Lieferschein 12283251", "value": "12283251"}
+
+    srv = make_server(run, read, 0, log=lambda m: None)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+    def post(path, obj):
+        req = urllib.request.Request(base + path, json.dumps(obj).encode(), {"Content-Type": "application/json"})
+        try:
+            return json.loads(urllib.request.urlopen(req).read())
+        except urllib.error.HTTPError as e:
+            return json.loads(e.read())
+
+    try:
+        assert json.loads(urllib.request.urlopen(base + "/api/ping").read())["ok"]
+        assert urllib.request.urlopen(base + "/").read() == b"<html>ok</html>"
+        assert urllib.request.urlopen(base + "/seiten/s001.png").read()[:4] == b"\x89PNG"
+        for bad in ("/../geheim.txt", "/%2e%2e/geheim.txt"):
+            try:
+                urllib.request.urlopen(base + bad)
+                raise AssertionError("file outside the run folder served")
+            except urllib.error.HTTPError as e:
+                assert e.code == 404
+        r = post("/api/ocr", {"n": 1, "box": [0.1, 0.2, 0.4, 0.25], "cls": "ls_nummer"})
+        assert r["value"] == "12283251" and calls == [("s001.png", [0.1, 0.2, 0.4, 0.25], "ls_nummer")]
+        assert post("/api/ocr", {"n": 1, "box": [0.4, 0.2, 0.1, 0.25], "cls": "ls_nummer"})["ok"] is False
+        assert post("/api/save", {"format": "fremd"})["ok"] is False
+        r = post("/api/save", {"format": "docval-entscheidung", "reviewer": "A"})
+        assert r["ok"] and json.loads((run / "entscheidung.json").read_text())["reviewer"] == "A"
+    finally:
+        srv.shutdown()
