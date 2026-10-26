@@ -390,7 +390,7 @@ ul.items li.fehler{background:var(--errbg)} ul.items li.hinweis{background:var(-
 .ll .list{width:500px;flex:none}
 .ll .rowcrop{margin:2px 0 4px} .ll tr.mark td{background:var(--warnbg)}
 .ll table{border-collapse:collapse;width:100%;table-layout:fixed} .ll td{padding:3px 4px;border-bottom:1px solid var(--line);overflow:hidden}
-.ll col.c1{width:126px} .ll col.c3{width:190px}
+.ll col.c1{width:126px} .ll col.c3{width:236px} .ll td:last-child{white-space:normal!important}
 .ll tr.struck input{text-decoration:line-through;color:var(--err)}
 .ll input.ta{width:110px}
 .vw{position:relative;overflow:hidden;width:100%;height:100%;background:#e9e9ee;border:1px solid var(--line);cursor:grab;user-select:none}
@@ -954,7 +954,11 @@ function mountLL() {
       inline: true,
       boxes: () => llBoxes(p),
       click: k => { if (!k.startsWith("e:")) return; const i = +k.split(":")[1]; const e = llEntries(p)[i]; if (e) { e.struck = !e.struck; changed(1); refresh1(p); } },
-      draw: (box, cls) => { us(p).pb = (us(p).pb || []).concat([{cls, box}]); changed(1); const es = llEntries(p); refresh1(p);
+      draw: (box, cls) => {
+        const ov = (a, b) => Math.min(a[2], b[2]) > Math.max(a[0], b[0]) && Math.min(a[3], b[3]) > Math.max(a[1], b[1]);
+        const hit = cls === "ta_nummer" && llEntries(p).find(e => e.found && !e.kept && e.box && ov(e.box, box));
+        if (hit) { hit.box = box; hit.kept = true; }
+        us(p).pb = (us(p).pb || []).concat([{cls, box}]); changed(1); const es = llEntries(p); refresh1(p);
         if (cls === "ta_nummer") setTimeout(() => { const inp = document.querySelector(`input[data-ll="${p.n}"][data-i="${es.length - 1}"]`); if (inp) inp.focus(); }, 0);
         ocrBox(p, box, cls).then(() => { if (cls !== "ta_nummer") return; const inp = document.querySelector(`input[data-ll="${p.n}"][data-i="${es.length - 1}"]`); if (inp) { inp.focus(); inp.select(); } }); },
     });
@@ -973,7 +977,10 @@ function llBoxes(p) {
   return out;
 }
 function refresh1(p) {
+  const a = document.activeElement, sel = a && a.matches && a.matches("#main input") ? (a.dataset.ll != null ? `input[data-ll="${a.dataset.ll}"][data-i="${a.dataset.i}"]` : a.dataset.llpage != null ? `input[data-llpage="${a.dataset.llpage}"]` : null) : null;
+  const val = a && a.value, pos = a && a.selectionStart;
   const l = $("lll" + p.n); if (l) l.innerHTML = llList(p);
+  if (sel && !document.activeElement.matches("#main input")) { const el = document.querySelector(sel); if (el) { if (el.value !== val && a.dataset.llpage != null) el.value = val; el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} } }
   const m = $("llmiss"); if (m) m.innerHTML = llMissHtml();
   showFerr();
   const hd = l && l.parentElement.previousElementSibling; if (hd && llPageOf(p)) hd.textContent = `${fmt(T.page, {n: p.n})} · ${llPageOf(p)[0]}/${llPageOf(p)[1]}`;
@@ -1101,7 +1108,7 @@ function zoomTA(n, i) {
 }
 
 // ------------------------------------------------------------ step 4: finish
-let NAMEMSG = false, FIN = null;   // FIN: {busy} | {ok, log, out}
+let NAMEMSG = false, FIN = S.fin || null;   // FIN: {busy} | {ok, log, out, files, protocol} (kept in S.fin)
 function render4() {
   const items = missingItems(), ic = {fehler: `<span class="lvl fehler">${T.lvl_err}</span>`, hinweis: `<span class="lvl hinweis">${T.lvl_hint}</span>`};
   const cmrN = D.pages.filter(p => docType(p) === "cmr" && archive(p) && !otherTour(p)).length;
@@ -1129,11 +1136,11 @@ function itemImages(key) {   // what the missing item is about, as pictures (cli
   const [kind, a, b] = key.split(":"), out = [];
   const link = (p, inner) => `<a data-open="${p.n}" data-step="${stepOf(p)}" title="${esc(fmt(T.page, {n: p.n}))}">${inner}</a>`;
   const small = p => `<div style="width:250px">${docType(p) === "cmr" ? cropRow(p, "cmr_count", (cmrCount(p) || []).join("/")) : cropRow(p, "ls_nummer", lsNumber(p) || "")}${objCrops(p)}</div>`
-    + `<div style="width:170px"><div class="muted small">${T.evidence} · ${fmt(T.page, {n: p.n})}</div>${thumbHtml(p, p.view || [0, 0.5, 1, 1])}</div>`;
+    + `<div><div class="muted small">${T.evidence} · ${fmt(T.page, {n: p.n})}</div>${cropHtml(p, p.view || [0, 0.5, 1, 1], 300, 170, 0)}</div>`;
   if (kind === "page") { const p = byN[+a]; out.push(link(p, tileBody(p) ? small(p) : thumbHtml(p, p.view || [0, 0, 1, 1]))); }
   else if (kind === "ls_doc") for (const p of lsByNumber()[a] || []) out.push(link(p, small(p)));
   else if (kind === "ls") { for (const p of lsByNumber()[a] || []) { const bb = bestBox(p, "ls_nummer"); if (bb) out.push(link(p, cropHtml(p, bb.box, 220, 44, 0.01))); }
-    const le = llEntryOf(a); if (le) out.push(`<div><div class="muted small">${T.row_on_list}</div>${link(le.p, cropHtml(le.p, nearBand(le.e.box), 420, 46, 0))}</div>`); }
+    const le = llEntryOf(a); if (le) out.push(`<div><div class="muted small">${T.row_on_list}</div>${link(le.p, cropHtml(le.p, rowCrop(le.e.box), 420, 60, 0))}</div>`); }
   else if (kind === "cmr") { const L = loaded(), cmrT = []; D.pages.filter(q => docType(q) === "cmr" && archive(q) && !otherTour(q)).forEach(q => cmrT.push(...cmrTAs(q)));
     const wo = L.filter(t => !cmrT.includes(t)).slice(0, 3);
     if (wo.length) out.push(`<div><div class="muted small">${T.ta_wo_cmr}</div>${wo.map(t => { const le = llEntryOf(t); return le ? link(le.p, cropHtml(le.p, nearBand(le.e.box), 420, 46, 0)) : "TA " + t; }).join("")}</div>`); }
@@ -1168,7 +1175,7 @@ function renderMain() {
 }
 function renderAll() { $("title").innerHTML = `<span class="tw">${esc(T.title)} </span>${esc(D.tour || D.name)}`; renderStepper(); renderMain(); }
 let OKSNAP = null;
-function go(k) { if (!canEnter(k)) { alert(T.step_locked); return; } S.cur = k; OKSNAP = null; persist(); renderAll(); window.scrollTo(0, 0); }
+function go(k) { if (!canEnter(k)) { alert(T.step_locked); return; } S.cur = k; OKSNAP = null; notice(""); persist(); renderAll(); window.scrollTo(0, 0); }
 function rerender() { const y = window.scrollY; if (OV) showOv(false); renderStepper(); renderMain(); window.scrollTo(0, y); }
 
 // ------------------------------------------------------------ zoomable viewer (wheel = zoom, drag = move, draw mode)
@@ -1577,7 +1584,7 @@ document.addEventListener("click", e => {
   else if (t.dataset.cmp != null) openCompare(t.dataset.cmp.split(",").map(Number));
   else if (t.dataset.tazoom != null) { const [n, i] = t.dataset.tazoom.split(":").map(Number); zoomTA(n, i); }
   else if (t.id === "save2") save();
-  else if (t.dataset.open != null) openPage(+t.dataset.open, +(t.dataset.step || S.cur));
+  else if (t.dataset.open != null) { QUIET = Date.now() + 1000; openPage(+t.dataset.open, +(t.dataset.step || S.cur)); }
   else return;
   e.preventDefault();
 });
@@ -1588,9 +1595,9 @@ document.addEventListener("change", e => {
     const p = byN[+el.dataset.ll], x = llEntries(p)[+el.dataset.i], raw = el.value.trim(), m = parse8(raw);
     if (raw && !(m.length === 1 && raw.replace(/\D/g, "").length === 8)) x.bad = raw;
     else { delete x.bad; const v = m[0] || ""; if (v !== x.ta) x.typed = !!v && v !== x.orig; x.ta = v; x.ocr = false; }
-    changed(1); refresh1(p);
+    changed(1); setTimeout(() => refresh1(p), 0);   // after the focus moved on (a click into the next field must land)
   }
-  else if (el.dataset.llpage != null) { const p = byN[+el.dataset.llpage]; setField(p, "page_of", el.value); if (!FERR[p.n + ":page_of"]) refresh1(p); }
+  else if (el.dataset.llpage != null) { const p = byN[+el.dataset.llpage]; setField(p, "page_of", el.value); if (!FERR[p.n + ":page_of"]) setTimeout(() => refresh1(p), 0); }
   else if (el.dataset.dt != null) { setField(byN[+el.dataset.dt], "doc_type", el.value); rerender(); }
   else if (el.id === "reviewer" || el.id === "reviewer2") { S.reviewer = el.value; $("reviewer").value = el.value; touched(); if (S.cur === 4) rerender(); }
 });
@@ -1599,7 +1606,8 @@ document.addEventListener("input", e => {
   const b = $("mconfirm"), v = e.target.value.trim(); if (b) { b.disabled = !v; b.title = v ? "" : T.name_first; }
   e.target.classList.toggle("need", !v);
 });
-document.addEventListener("focusin", e => { if (e.target.matches && e.target.matches("input.ta,input[data-f],input[data-llpage]")) setTimeout(() => e.target.select(), 0); });
+document.addEventListener("focusin", e => { if (e.target.matches && e.target.matches("input.ta,input[data-f],input[data-llpage]")) { e.target.select(); e.target.dataset.sel = "1"; } });
+document.addEventListener("mouseup", e => { if (e.target.dataset && e.target.dataset.sel) { e.preventDefault(); delete e.target.dataset.sel; } });
 document.addEventListener("toggle", e => { if (e.target.id === "all0") { S.open0 = e.target.open; persist(); } if (e.target.id === "okrows") { S.okrows = e.target.open; persist(); } }, true);
 document.addEventListener("keydown", e => {
   if (CV) { if (e.key === "Escape") { closeCompare(); e.preventDefault(); } return; }
@@ -1657,7 +1665,7 @@ async function save() {
   if (SRV) {
     try {
       const r = await (await fetch("/api/save", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(out)})).json();
-      if (r.ok) { FIN = null; done(fmt(T.saved_srv, {time})); S.saved.fin = !!r.finalize; persist(); rerender(); return; }
+      if (r.ok) { FIN = null; delete S.fin; done(fmt(T.saved_srv, {time})); S.saved.fin = !!r.finalize; persist(); rerender(); return; }
     } catch (e) {}
     alert(T.save_failed);
   }
@@ -1666,7 +1674,7 @@ async function save() {
 function finHtml() {   // what "Abschluss erzeugen" made: files, open points, protocol folded
   if (!FIN.ok) return `<div class="issues" style="margin-top:6px">${T.fin_fail}<pre class="small" style="white-space:pre-wrap">${esc(FIN.log.join("\n"))}</pre></div>`;
   const todo = (FIN.protocol.split(/\n\s*\n/).find(b => b.trim().startsWith(T.todo_head)) || "").split("\n").filter(l => /^\s*\d+\./.test(l)).map(l => l.replace(/^\s*\d+\.\s*/, ""));
-  return `<div style="margin-top:8px;color:var(--fg)"><b>✓ ${T.fin_title}</b>
+  return `<div style="margin-top:8px;color:var(--fg)"><b>✓ ${T.fin_title}${FIN.time ? " " + esc(FIN.time) : ""}</b>
     ${todo.length ? `<div style="margin-top:6px"><b>${esc(T.todo_head)}</b><ol style="margin:4px 0 0 18px;padding:0">${todo.map(l => `<li>${esc(l)}</li>`).join("")}</ol></div>` : ""}
     <div class="small" style="margin-top:4px">${T.fin_files} ${FIN.files.filter(f => f !== "protokoll.csv").map(f => `<span class="chip">${esc(f)}</span>`).join(" ")}</div>
     <details class="small"><summary>${T.fin_prot}</summary><pre style="white-space:pre-wrap">${esc(FIN.protocol)}</pre></details></div>`;
@@ -1675,6 +1683,7 @@ async function finalizeRun() {   // make finalize on the server: PDFs, mail draf
   FIN = {busy: true}; rerender();
   try { const r = await (await fetch("/api/finalize", {method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"})).json(); FIN = {ok: !!r.ok, log: (r.log || [r.error || "?"]).map(l => l.replace(/^\[finalize\]\s*/, "")), out: r.out || "", files: r.files || [], protocol: r.protocol || ""}; }
   catch (e) { FIN = {ok: false, log: [String(e)], out: ""}; }
+  if (FIN.ok) { FIN.time = new Date().toLocaleTimeString(T.html_lang === "pl" ? "pl-PL" : "de-DE", {hour: "2-digit", minute: "2-digit"}) + T.oclock; S.fin = FIN; persist(); }
   rerender();
 }
 function decision() {   // the content of entscheidung.json (without the time it is saved)
