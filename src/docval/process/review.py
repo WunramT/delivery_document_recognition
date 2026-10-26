@@ -65,21 +65,22 @@ UI = {
         "s3_intro": "CMR 1..n von links nach rechts, Kopien darunter. Stempel und Unterschrift nötig.",
         "cmr_missing": "CMR {i} fehlt", "cmr_conflict": "Widersprüchliche CMR-Gesamtzahl: {totals}",
         "ta_no_cmr": "TA ohne CMR", "ta_cmr_extra": "TA auf CMR, aber nicht auf der Ladeliste",
-        "s4_intro": "Was fehlt, steht hier noch einmal gesammelt. Jeder Punkt kann mit Grund trotzdem akzeptiert "
-                    "werden. Erst nach „Fehlliste bestätigen“ erzeugt make finalize die Mail-Entwürfe.",
+        "s4_intro": "Was fehlt, steht hier gesammelt – mit Bild (Klick öffnet die Seite). Jeder Punkt kann mit Grund "
+                    "trotzdem akzeptiert werden. Was nicht akzeptiert ist, geht nach der Bestätigung als Reklamation "
+                    "in die Mail-Entwürfe.",
         "sum_cmr": "CMR", "sum_ls": "Lieferscheine", "sum_struck": "gestrichene TAs", "sum_corr": "korrigierte Seiten",
         "sum_boxes": "gezeichnete Boxen", "reviewer": "Prüfer/in",
         "missing_none": "Nichts fehlt.", "accept": "trotzdem akzeptieren", "accepted": "akzeptiert",
         "undo": "zurücknehmen", "note": "Bemerkung", "cancel": "abbrechen", "choose": "– wählen –",
         "note_needed": "Bei „Sonstiges“ bitte eine Bemerkung eintragen.",
-        "confirm_missing": "Fehlliste bestätigen – Mail-Entwürfe freigeben", "missing_confirmed": "Fehlliste bestätigt",
+        "confirm_missing": "Fehlliste bestätigen ({n} Punkte → Mail-Entwürfe)", "missing_confirmed": "Fehlliste bestätigt",
         "missing_changed": "Die Liste hat sich seit der Bestätigung geändert – bitte erneut bestätigen.",
         "save_need_name": "Bitte zuerst Ihren Namen bei „Prüfer/in“ eintragen.",
         "save_open": "Noch nicht alle Schritte sind bestätigt ({steps}). Trotzdem speichern? (Der Abschluss geht "
                      "erst, wenn alle bestätigt sind.)",
-        "save_unconfirmed": "Die Fehlliste ist noch nicht bestätigt – make finalize erzeugt dann keine "
-                            "Mail-Entwürfe. Trotzdem speichern?",
-        "saved": "Gespeichert. Datei als entscheidung.json in den Ordner dieser Seite legen, dann: make finalize RUN={name}",
+        "save_unconfirmed": "Die Fehlliste ist noch nicht bestätigt – dann werden keine Mail-Entwürfe erzeugt. "
+                            "Trotzdem speichern?",
+        "saved": "Gespeichert um {time} (Download). Die Datei entscheidung.json in den Ordner dieser Seite legen.",
         "loaded": "Zwischenstand aus dem Browser geladen.", "confirm_discard": "Alle Eingaben auf dieser Seite verwerfen?",
         "page": "S. {n}", "doctype": "Dokumenttyp", "tour": "Tournummer", "tour_this": "= {tour}",
         "cmr_count": "CMR-Nr. (i/n)", "ls_number": "Lieferschein-Nr.", "ls_page": "Seite (i/n)", "ta_field": "TA",
@@ -104,12 +105,23 @@ UI = {
         "ta_no_cmr_s": "auf der Ladeliste, aber auf keinem CMR", "ta_extra_s": "auf CMR {page}, nicht auf der Ladeliste",
         "tav_hint": "Ladeliste zum Nachsehen – Mausrad zoomt, ziehen verschiebt",
         "live_ocr": "Live-OCR an", "ocr_check": "OCR – bitte prüfen", "ocr_busy": "OCR liest …",
-        "ocr_none": "nicht erkannt: „{text}“", "saved_srv": "Gespeichert: {path} – weiter mit make finalize RUN={name}",
+        "ocr_none": "nicht erkannt: „{text}“", "saved_srv": "Gespeichert um {time} – die Tour ist fertig geprüft.",
         "save_failed": "Speichern über den Server fehlgeschlagen – die Datei wird stattdessen heruntergeladen.",
-        "model_boxes": "Boxen des Modells", "box_on": "zählt", "box_off": "verworfen", "box_toggle": "umschalten",
+        "model_boxes": "Erkannte Boxen (ein-/ausschalten)", "box_on": "zählt", "box_off": "verworfen", "box_toggle": "umschalten",
         "ta_on_cmr": "TAs auf diesem CMR", "ta_ok": "auf der Ladeliste", "ta_bad": "nicht auf der Ladeliste",
         "ta_struck_s": "gestrichen", "peek_hint": "Vorschau – Klick öffnet die Seite zum Bearbeiten",
         "close_x": "Schließen",
+        "tech_next": "Für die Technik: make finalize RUN={name}", "ph_ta": "TA eintippen", "ph_num": "Nummer eintippen",
+        "ph_page": "z. B. 2/2", "ph_cmr": "z. B. 3/7", "ph_tour": "Tournummer eintippen", "ta_typed": "eingetippt",
+        "sure": "sicher", "unsure": "unsicher", "page_q": "S. {n} gelesen als „{text}“ – ist das Seite {i}/{total}?",
+        "page_is": "ja, S. {n} = {i}/{total}", "iss_lspage": "Seitenzahl eintragen", "one_page": "einseitig (1/1)",
+        "box_optional": "Box um die Nummer ist freiwillig – ohne Box zählt die Seite nicht als geprüftes Trainingsbeispiel.",
+        "all_done": "In diesem Schritt ist nichts mehr offen – jetzt „Schritt bestätigen und weiter“.",
+        "draw_banner": "Box um „{cls}“ ziehen – Esc bricht ab", "ok_rows": "{n} TAs ohne Befund – anzeigen",
+        "carrier_ok": "Sammelbestätigung geprüft", "carrier_done": "geprüft ✓", "iss_carrier": "Hermes/DHL: Sammelbestätigung prüfen",
+        "fin_name": "Ihr Name", "fin_list": "Fehlliste bestätigen", "fin_save": "Speichern",
+        "saved_title": "Gespeichert", "name_ph": "Ihr Name", "nothing_left": "Keine offenen Punkte mehr.",
+        "suggestion": "Vorschlag",
     },
     "pl": {
         "html_lang": "pl", "title": "Kontrola trasy", "save": "Zapisz decyzję", "discard": "odrzuć wszystko",
@@ -139,22 +151,22 @@ UI = {
         "s3_intro": "CMR 1..n od lewej do prawej, kopie pod spodem. Wymagane pieczątka i podpis.",
         "cmr_missing": "brak CMR {i}", "cmr_conflict": "Sprzeczna łączna liczba CMR: {totals}",
         "ta_no_cmr": "TA bez CMR", "ta_cmr_extra": "TA na CMR, ale nie na liście załadunkowej",
-        "s4_intro": "Tu zebrane są wszystkie braki. Każdy punkt można zaakceptować z powodem. Dopiero po "
-                    "„Potwierdź listę braków” make finalize utworzy szkice e-maili.",
+        "s4_intro": "Tu zebrane są wszystkie braki – z obrazem (kliknięcie otwiera stronę). Każdy punkt można "
+                    "zaakceptować z powodem. Niezaakceptowane po potwierdzeniu trafią jako reklamacja do szkiców e-maili.",
         "sum_cmr": "CMR", "sum_ls": "dowody dostawy", "sum_struck": "skreślone TA", "sum_corr": "poprawione strony",
         "sum_boxes": "narysowane ramki", "reviewer": "Sprawdzający",
         "missing_none": "Niczego nie brakuje.", "accept": "mimo to zaakceptuj", "accepted": "zaakceptowano",
         "undo": "cofnij", "note": "uwaga", "cancel": "anuluj", "choose": "– wybierz –",
         "note_needed": "Przy „Inne” proszę wpisać uwagę.",
-        "confirm_missing": "Potwierdź listę braków – zwolnij szkice e-maili",
+        "confirm_missing": "Potwierdź listę braków ({n} pkt → szkice e-maili)",
         "missing_confirmed": "Lista braków potwierdzona",
         "missing_changed": "Lista zmieniła się od potwierdzenia – proszę potwierdzić ponownie.",
         "save_need_name": "Najpierw wpisz swoje imię i nazwisko w polu „Sprawdzający”.",
         "save_open": "Nie wszystkie kroki są potwierdzone ({steps}). Zapisać mimo to? (Zamknięcie jest możliwe "
                      "dopiero po potwierdzeniu wszystkich.)",
-        "save_unconfirmed": "Lista braków nie jest potwierdzona – make finalize nie utworzy szkiców e-maili. "
+        "save_unconfirmed": "Lista braków nie jest potwierdzona – szkice e-maili nie zostaną utworzone. "
                             "Zapisać mimo to?",
-        "saved": "Zapisano. Plik entscheidung.json umieść w folderze tej strony, potem: make finalize RUN={name}",
+        "saved": "Zapisano o {time} (pobrano). Plik entscheidung.json umieść w folderze tej strony.",
         "loaded": "Wczytano zapisany stan z przeglądarki.", "confirm_discard": "Odrzucić wszystkie wpisy na tej stronie?",
         "page": "str. {n}", "doctype": "Typ dokumentu", "tour": "Numer trasy", "tour_this": "= {tour}",
         "cmr_count": "nr CMR (i/n)", "ls_number": "nr dowodu dostawy", "ls_page": "strona (i/n)", "ta_field": "TA",
@@ -179,14 +191,32 @@ UI = {
         "ta_no_cmr_s": "na liście załadunkowej, ale na żadnym CMR", "ta_extra_s": "na CMR {page}, nie ma na liście załadunkowej",
         "tav_hint": "Lista załadunkowa do sprawdzenia – kółko myszy = zoom, przeciąganie przesuwa",
         "live_ocr": "OCR na żywo", "ocr_check": "OCR – sprawdzić", "ocr_busy": "OCR czyta …",
-        "ocr_none": "nie rozpoznano: „{text}“", "saved_srv": "Zapisano: {path} – dalej make finalize RUN={name}",
+        "ocr_none": "nie rozpoznano: „{text}“", "saved_srv": "Zapisano o {time} – trasa sprawdzona.",
         "save_failed": "Zapis przez serwer nie powiódł się – plik zostanie pobrany.",
-        "model_boxes": "Ramki modelu", "box_on": "liczy się", "box_off": "odrzucona", "box_toggle": "przełącz",
+        "model_boxes": "Rozpoznane ramki (wł./wył.)", "box_on": "liczy się", "box_off": "odrzucona", "box_toggle": "przełącz",
         "ta_on_cmr": "TA na tym CMR", "ta_ok": "na liście załadunkowej", "ta_bad": "nie ma na liście załadunkowej",
         "ta_struck_s": "skreślone", "peek_hint": "Podgląd – kliknięcie otwiera stronę do edycji",
         "close_x": "Zamknij",
+        "tech_next": "Dla działu IT: make finalize RUN={name}", "ph_ta": "wpisz TA", "ph_num": "wpisz numer",
+        "ph_page": "np. 2/2", "ph_cmr": "np. 3/7", "ph_tour": "wpisz numer trasy", "ta_typed": "wpisano",
+        "sure": "pewne", "unsure": "niepewne", "page_q": "str. {n} odczytano jako „{text}“ – czy to strona {i}/{total}?",
+        "page_is": "tak, str. {n} = {i}/{total}", "iss_lspage": "wpisz numer strony", "one_page": "jednostronicowy (1/1)",
+        "box_optional": "Ramka wokół numeru jest dobrowolna – bez ramki strona nie liczy się jako sprawdzony przykład do treningu.",
+        "all_done": "W tym kroku nic nie zostało – teraz „Potwierdź krok i dalej”.",
+        "draw_banner": "Zaznacz ramkę „{cls}” – Esc anuluje", "ok_rows": "{n} TA bez uwag – pokaż",
+        "carrier_ok": "potwierdzenie zbiorcze sprawdzone", "carrier_done": "sprawdzone ✓",
+        "iss_carrier": "Hermes/DHL: sprawdzić potwierdzenie zbiorcze",
+        "fin_name": "Imię i nazwisko", "fin_list": "Potwierdź listę braków", "fin_save": "Zapisz",
+        "saved_title": "Zapisano", "name_ph": "imię i nazwisko", "nothing_left": "Brak otwartych punktów.",
+        "suggestion": "propozycja",
     },
 }
+
+DT_EXTRA = {"de": {"loading_list": "Ladeliste", "sonstiges": "Sonstiges – verwerfen", "unsicher": "unklar"},
+            "pl": {"sonstiges": "inne – odrzucić", "unsicher": "niejasne"}}
+# reasons offered per missing item: something extra on the tour vs. something missing
+REASONS_EXTRA = ["zuladung", "abgesprochen", "sonstiges"]
+REASONS_MISSING = ["nachgereicht", "abgesprochen", "storniert", "sonstiges"]
 
 # what the page needs of a page record (OCR texts of the header etc. stay in ergebnis.json)
 PAGE_KEYS = ("n", "id", "image", "source", "w", "h", "doc_type", "doc_reason", "dets", "masked", "proposals",
@@ -198,7 +228,8 @@ def page_data(result: dict, lang: str) -> dict:
     classes = result["classes"]
     return {
         "name": result["name"], "tour": result["tour"], "created": result["created"],
-        "rules": result["rules"], "doc_types": result["doc_types"], "ta_validated": bool(result.get("ta_validated")),
+        "rules": result["rules"], "doc_types": [*result["doc_types"], *(["sonstiges"] if "sonstiges" not in result["doc_types"] else [])],
+        "reasons_extra": REASONS_EXTRA, "reasons_missing": REASONS_MISSING, "ta_validated": bool(result.get("ta_validated")),
         "thr": result["thresholds"]["accept"], "classes": classes,
         "colors": {c: CLASS_COLORS[i % len(CLASS_COLORS)] for i, c in enumerate(classes)},
         "pages": [{k: p.get(k) for k in PAGE_KEYS} for p in result["pages"]],
@@ -207,7 +238,8 @@ def page_data(result: dict, lang: str) -> dict:
 
 def write_review(out_dir: Path, result: dict, lang: str = "de") -> Path:
     t = UI[lang]
-    js_t = dict(t, cls=CLASS_NAMES[lang], dt=DOC_TYPE_NAMES[lang], reasons=REASONS[lang],
+    dt = dict(DOC_TYPE_NAMES[lang], **DT_EXTRA[lang])
+    js_t = dict(t, cls=CLASS_NAMES[lang], dt=dt, reasons=REASONS[lang],
                 items={k: v for k, v in MSG[lang].items() if k.startswith("item_")}, pages_list=MSG[lang]["pages"])
     page = TEMPLATE
     for k, v in t.items():
@@ -276,11 +308,16 @@ h2{font-size:17px;margin:14px 0 6px} h3{font-size:15px;margin:14px 0 6px}
 .tag{font-size:12px;padding:0 6px;border-radius:4px;background:var(--warnbg);color:var(--warn);display:inline-block;margin-top:3px}
 a.lnk,a[data-open]{cursor:pointer;color:var(--sel)}
 .acc{color:var(--ok);font-size:12px} .accbtn{font-size:12px;padding:1px 8px;margin-top:4px}
-.accform{display:inline-flex;gap:4px;flex-wrap:wrap;margin-top:4px} .accform input{width:150px}
-ul.items{list-style:none;padding:0;margin:0} ul.items li{padding:5px 10px;border-radius:6px;margin-bottom:4px}
+.accw{position:relative;display:inline-block}
+.accform{position:absolute;z-index:8;left:0;top:calc(100% + 4px);width:280px;display:flex;flex-direction:column;gap:6px;padding:10px;
+  background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.2);color:var(--fg);cursor:default}
+.accform select,.accform input{width:100%} .accform .btns{display:flex;gap:6px;justify-content:flex-end}
+input.need,select.need{border:2px solid var(--err);background:var(--errbg)}
+ul.items{list-style:none;padding:0;margin:0} ul.items li{padding:8px 10px;border-radius:6px;margin-bottom:6px;display:flex;gap:14px;align-items:flex-start}
+ul.items .itx{width:440px;flex:none} ul.items .mi{margin-top:0}
 ul.items li.fehler{background:var(--errbg)} ul.items li.hinweis{background:var(--warnbg)} ul.items li.ok{background:var(--okbg)}
 .ll{display:flex;gap:14px;align-items:flex-start;margin-bottom:20px}
-.ll .vbox{flex:1;height:78vh;min-width:300px}
+.ll .vbox{flex:1;height:66vh;min-width:300px}
 .ll .list{width:380px;flex:none}
 .ll table{border-collapse:collapse;width:100%} .ll td{padding:3px 4px;border-bottom:1px solid var(--line)}
 .ll tr.struck input{text-decoration:line-through;color:var(--err)}
@@ -290,11 +327,16 @@ ul.items li.fehler{background:var(--errbg)} ul.items li.hinweis{background:var(-
 .vin{position:absolute;left:0;top:0;transform-origin:0 0}
 .vin img{display:block;width:100%;height:100%;pointer-events:none}
 .vin .b{position:absolute;border:3px solid;cursor:pointer}
-.vin .b span{position:absolute;left:-3px;top:-20px;color:#fff;font-size:13px;padding:0 4px;white-space:nowrap;border-radius:2px}
+.vin .b span{position:absolute;left:-3px;bottom:100%;color:#fff;font-size:12px;padding:0 4px;white-space:nowrap;border-radius:2px;
+  transform:scale(var(--ls,1));transform-origin:0 100%;opacity:.9}
 .vin .b.weak{border-style:dashed;border-width:2px;opacity:.75}
 .vin .b.rej{border-style:dashed;border-color:var(--err)!important;opacity:.8}
 .vin .b.rej span{background:var(--err)!important}
-.vin .b.struck{background:repeating-linear-gradient(-20deg,transparent 0 8px,rgba(201,42,42,.35) 8px 11px)}
+.vin .b.struck{border-color:var(--err)!important;background:repeating-linear-gradient(-20deg,transparent 0 8px,rgba(201,42,42,.55) 8px 12px)}
+.vin .b.struck span{background:var(--err)!important}
+.vw .dban{display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:3;background:var(--sel);color:#fff;
+  padding:6px 16px;border-radius:18px;font-weight:600;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.25);white-space:nowrap}
+.vw.drawing{outline:3px solid var(--sel);outline-offset:-3px} .vw.drawing .dban{display:block}
 .vin .b.person{border-width:4px}
 .vin .tmp{position:absolute;border:2px dashed #000;background:rgba(31,111,235,.15)}
 .vin .mask{position:absolute;pointer-events:none;background:repeating-linear-gradient(45deg,rgba(110,110,115,.35) 0 6px,transparent 6px 12px)}
@@ -329,7 +371,21 @@ details summary{cursor:pointer;margin:10px 0}
 .cr{padding:2px 6px} .cl{display:flex;justify-content:space-between;gap:6px;font-size:11px;color:var(--muted)} .cl b{color:var(--fg);font-size:12px}
 .crop{position:relative;overflow:hidden;border:1px solid var(--line);background:var(--panel)} .crop img{position:absolute;max-width:none;pointer-events:none}
 .nocrop{height:22px;border:1px dashed var(--line);color:var(--muted);text-align:center;font-size:12px;line-height:20px}
-.objs{display:flex;gap:6px;padding:2px 6px 4px} .objs .oc{flex:1;min-width:0}
+.objs{display:flex;gap:6px;padding:2px 6px 4px} .objs .oc{flex:1;min-width:0;overflow:hidden}
+.tile select{width:100%}
+.ph.q{border-color:var(--warn);background:var(--warnbg);color:var(--fg)} .ph button{margin-top:6px;font-size:12px}
+#cmrgrid{flex-wrap:nowrap;overflow-x:auto;padding-bottom:10px}
+#toast{display:none;position:fixed;right:20px;bottom:20px;z-index:40;background:var(--ok);color:#fff;padding:12px 18px;border-radius:10px;
+  box-shadow:0 8px 28px rgba(0,0,0,.25);font-weight:600} #toast.on{display:block}
+.fin{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap;margin:16px 0}
+.fin .fs{display:flex;gap:8px;align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.fin .fs.ok{border-color:var(--ok);background:var(--okbg)}
+.fin .no{display:inline-block;width:22px;height:22px;border-radius:11px;background:var(--muted);color:#fff;font-size:12px;line-height:22px;text-align:center;flex:none}
+.fin .fs.ok .no{background:var(--ok)}
+.savedbox{padding:12px 16px;border:2px solid var(--ok);border-radius:8px;background:var(--okbg);color:var(--ok);margin:10px 0}
+.savedbox .muted{margin-top:4px}
+#notice .x{float:right;cursor:pointer;padding:0 6px}
+@media (max-width:1500px){#stepper .lbl{display:none} #stepper .cur .lbl{display:inline} header label input{width:110px!important}}
 .exp .ex{display:flex;gap:6px;align-items:center;margin:3px 0} .exp .nm{width:130px} .exp .sw{width:10px;height:10px;border-radius:2px;flex:none}
 .exp button{font-size:12px;padding:1px 8px} .exp button.on{background:var(--sel);color:#fff;border-color:var(--sel)}
 #cmp{display:none;position:fixed;inset:0;z-index:30;background:#fff;flex-direction:column} #cmp.on{display:flex}
@@ -347,13 +403,14 @@ details summary{cursor:pointer;margin:10px 0}
   <div id="stepper"></div>
   <span style="flex:1"></span>
   <span id="srv" class="pill ok" style="display:none"></span>
-  <label>{{reviewer}} <input id="reviewer" autocomplete="name" style="width:140px"></label>
-  <button id="discard">{{discard}}</button>
-  <button id="save" class="primary">{{save}}</button>
+  <label>{{reviewer}} <input id="reviewer" autocomplete="name" placeholder="{{name_ph}}" style="width:140px"></label>
+  <button id="discard" class="small">{{discard}}</button>
+  <button id="save">{{save}}</button>
 </header>
 <div id="notice"></div>
 <main id="main"></main>
 <div id="ov"><button id="ovx" title="Esc">✕</button><div id="ovbox"><div id="ovimg"></div><div id="ovside"></div></div></div>
+<div id="toast"></div>
 <div id="peek"><div class="ph2" id="peekt"></div><div class="pv" id="peekv"></div></div>
 <div id="cmp"><div class="cmph"><b id="cmpt"></b><span style="flex:1"></span><button data-cmpfit="full"></button><button data-cmpfit="area"></button><button data-cmpclose="1"></button></div><div id="cmpb"></div></div>
 <script>
@@ -367,10 +424,16 @@ const SINGLE = ["tour_nummer", "cmr_count", "ls_nummer", "seitenzahl"];
 const byN = {}; D.pages.forEach(p => byN[p.n] = p);
 const KEY = "docval-pruefung2:" + D.name + ":" + D.created;
 let S = {reviewer: "", pages: {}, steps: {}, accepted: {}, cur: null};
-try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && s.pages) { S = Object.assign(S, s); notice(T.loaded); } } catch (e) {}
+try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && s.pages) { S = Object.assign(S, s); notice(T.loaded, 5000); } } catch (e) {}
 let dirty = true, G = null, TM = null;
 function persist() { dirty = true; TM = null; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
-function notice(msg) { const n = $("notice"); n.textContent = msg; n.style.display = msg ? "block" : "none"; }
+var NT = null;
+function notice(msg, ms) {
+  const n = $("notice"); clearTimeout(NT);
+  n.innerHTML = msg ? `<span class="x" title="${esc(T.close_x)}" onclick="notice('')">✕</span>${esc(msg)}` : ""; n.style.display = msg ? "block" : "none";
+  if (msg && ms) NT = setTimeout(() => notice(""), ms);
+}
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); setTimeout(() => t.classList.remove("on"), 5000); }
 function imgRetry(img) {   // a page image that did not load (busy disk/server): try twice more, then say so
   const k = +(img.dataset.retry || 0);
   if (k < 2) { img.dataset.retry = k + 1; const src = img.getAttribute("src"); setTimeout(() => { img.src = src.split("?")[0] + "?r=" + (k + 1); }, 400 * (k + 1)); }
@@ -511,30 +574,24 @@ function pageIssues(p) {   // [{step, text, box}]
   const add = (step, text, box) => out.push({step, text, box});
   const needBox = (step, cls) => add(step, fmt(T.iss_box, {cls: T.cls[cls] || cls}), cls);
   if (t === "unsicher" || !t) add(0, T.iss_doctype);
-  if (REVIEW.includes(t)) {
-    if (!tourOf(p)) add(0, T.iss_tour);
-    if (has(p, "tour") && !hasPos(p, "tour_nummer")) needBox(0, "tour_nummer");
-  }
+  if (REVIEW.includes(t) && !tourOf(p)) add(0, T.iss_tour);
   if (otherTour(p)) return out;
-  if (t === "loading_list") {
-    if (!llPageOf(p) && llPages().length > 1) add(1, T.iss_page);
-    if (has(p, "page_of") && !hasPos(p, "seitenzahl")) needBox(1, "seitenzahl");
-  }
+  if (t === "loading_list" && !llPageOf(p) && llPages().length > 1) add(1, T.iss_page);
   if (t === "lieferschein") {
     if (!lsNumber(p)) add(2, T.iss_ls);
-    else if (has(p, "ls") && !hasPos(p, "ls_nummer")) needBox(2, "ls_nummer");
-    if (has(p, "ls_page") && !hasPos(p, "seitenzahl")) needBox(2, "seitenzahl");
+    if (!lsPage(p)) add(2, T.iss_lspage);
+    if (p.carrier && !(S.carrier || {})[p.n]) add(2, T.iss_carrier);
   }
-  if (t === "cmr") {
-    if (!cmrCount(p)) add(3, T.iss_cmr);
-    else if (has(p, "cmr") && !hasPos(p, "cmr_count")) needBox(3, "cmr_count");
-    if (has(p, "ta") && cmrTAs(p).length && !hasPos(p, "ta_nummer")) needBox(3, "ta_nummer");
-  }
+  if (t === "cmr" && !cmrCount(p)) add(3, T.iss_cmr);
   if (REVIEW.includes(t) && archive(p)) {
     if (unitValid(p) === null && valid(p) === null) add(stepOf(p), T.iss_decide);
     for (const c of rule(p).require) if (val(p, c) === true && !hasPos(p, c)) needBox(stepOf(p), c);
   }
   return out;
+}
+const TYPED = {tour: "tour_nummer", page_of: "seitenzahl", ls: "ls_nummer", ls_page: "seitenzahl", cmr: "cmr_count", ta: "ta_nummer"};
+function boxMissing(p) {   // numbers the person typed in without a box around them
+  return Object.keys(TYPED).filter(f => has(p, f) && !hasPos(p, TYPED[f]) && !(f === "ta" && !cmrTAs(p).length));
 }
 function stepIssues(k) {
   const out = [];
@@ -547,13 +604,15 @@ function problemPages() {
     || ["abholschein", "bestaetigung"].includes(docType(p)) || (REVIEW.includes(docType(p)) && !tourOf(p) && !has(p, "tour")));
 }
 function stepDone(k) {
+  if (k === 4) return !!S.saved;
   if (stepIssues(k).length) return false;
   if (k === 0 && !problemPages().length) return true;
   if (k === 1 && !llPages().length) return true;
   return !!S.steps[k];
 }
 const canEnter = k => { for (let j = 0; j < k; j++) if (!stepDone(j)) return false; return true; };
-function changed(k) { for (let j = k + 1; j <= 4; j++) S.steps[j] = false; persist(); }
+function changed(k) { for (let j = k + 1; j <= 4; j++) S.steps[j] = false; delete S.saved; persist(); }
+function touched() { delete S.saved; persist(); }
 function pageConfirmed(p) { return stepDone(0) && stepDone(Math.min(stepOf(p), 3)); }
 
 // ------------------------------------------------------------ missing list (mirrors organize.py / finalize.py)
@@ -583,7 +642,7 @@ function missingItems() {
   const ll = llPages();
   if (ll.length) {
     const pos = ll.map(llPageOf), total = Math.max(0, ...pos.filter(Boolean).map(x => x[1]));
-    for (const i of missingPages(pos)) add("ll:" + i, "item_ll_page", "fehler", {i, total});
+    if (pos.every(Boolean)) for (const i of missingPages(pos)) add("ll:" + i, "item_ll_page", "fehler", {i, total});
     const L = loaded();
     if (L.length) {
       const lvl = D.ta_validated ? "fehler" : "hinweis", ex = struckTAs(), cmrT = [];
@@ -618,8 +677,10 @@ let accOpen = null;
 function accHtml(key) {
   const a = (S.accepted || {})[key];
   if (a) return `<div class="acc">✓ ${T.accepted}: ${esc(T.reasons[a.reason] || a.reason)}${a.note ? " – " + esc(a.note) : ""} <a class="lnk" data-unacc="${esc(key)}">${T.undo}</a></div>`;
-  if (accOpen === key) return `<div class="accform"><select data-accr><option value="">${T.choose}</option>${Object.entries(T.reasons).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select><input data-accn placeholder="${esc(T.note)}"><button data-accok="${esc(key)}">OK</button><button data-acccancel="1">${T.cancel}</button></div>`;
-  return `<button class="accbtn" data-acc="${esc(key)}">${T.accept}</button>`;
+  const rs = /_extra:/.test(key) ? D.reasons_extra : D.reasons_missing;
+  const form = accOpen !== key ? "" : `<div class="accform"><select data-accr><option value="">${T.choose}</option>${rs.map(k => `<option value="${k}">${esc(T.reasons[k] || k)}</option>`).join("")}</select>
+    <input data-accn placeholder="${esc(T.note)}"><div class="btns"><button data-acccancel="1">${T.cancel}</button><button class="primary" data-accok="${esc(key)}">OK</button></div></div>`;
+  return `<span class="accw"><button class="accbtn" data-acc="${esc(key)}">${T.accept}</button>${form}</span>`;
 }
 
 // ------------------------------------------------------------ tiles
@@ -635,7 +696,8 @@ function bestBox(p, cls) {
   return fb.length ? (fb.find(b => b.src === "person") || fb.reduce((a, b) => (b.score || 0) > (a.score || 0) ? b : a)) : null;
 }
 function cropHtml(p, box, w, maxH, pad) {   // one part of the page, w px wide (narrower if it would be too high)
-  const x1 = Math.max(0, box[0] - pad), y1 = Math.max(0, box[1] - pad * 1.5), x2 = Math.min(1, box[2] + pad), y2 = Math.min(1, box[3] + pad * 1.5);
+  const py = pad ? Math.max(pad * 1.5, (box[3] - box[1]) * 0.15) : 0;
+  const x1 = Math.max(0, box[0] - pad), y1 = Math.max(0, box[1] - py), x2 = Math.min(1, box[2] + pad), y2 = Math.min(1, box[3] + py);
   const rw = x2 - x1, rh = y2 - y1, ar = (rh * p.h) / (rw * p.w);
   if (w * ar > maxH) w = maxH / ar;
   const sc = w / rw, ih = sc * p.h / p.w;
@@ -671,8 +733,8 @@ function taChips(p, big) {   // TAs of a CMR, each against the loading list
   return `<div class="tachips">` + tas.map(t => { const c = !L.length ? "" : L.includes(t) ? "ok" : st.includes(t) ? "" : "bad";
     return `<span class="chip ${c}${big ? " big" : ""}" title="${esc(!L.length ? "" : L.includes(t) ? T.ta_ok : st.includes(t) ? T.ta_struck_s : T.ta_bad)}">${t}${st.includes(t) ? " (" + T.ta_struck_s + ")" : ""}</span>`; }).join("") + `</div>`;
 }
-function stIcons(p) {
-  return rule(p).require.map(c => { const v = val(p, c); return `<span class="st ${v === true ? "y" : v === false ? "n" : "q"}" title="${esc(T.cls[c])}">${(T.cls[c] || c)[0].toUpperCase()}${v === true ? "✓" : v === false ? "✗" : "?"}</span>`; }).join(" ");
+function stIcons(p, full) {
+  return rule(p).require.map(c => { const v = val(p, c); return `<span class="st ${v === true ? "y" : v === false ? "n" : "q"}" title="${esc(T.cls[c])}">${full ? esc(T.cls[c] || c) + " " : (T.cls[c] || c)[0].toUpperCase()}${v === true ? "✓" : v === false ? "✗" : "?"}</span>`; }).join(full ? " · " : " ");
 }
 function tileHtml(p, step, opts = {}) {
   const iss = pageIssues(p).filter(x => x.step === step);
@@ -684,7 +746,7 @@ function tileHtml(p, step, opts = {}) {
   const body = full ? null : tileBody(p);
   if (body) foot = opts.foot || "";
   if (body && !archive(p)) foot += ` <span class="muted">${T.dup}</span>`;
-  return `<div class="${cls}${body ? " t2" : ""}" tabindex="0" data-open="${p.n}" data-step="${step}"><div class="th"><b>${esc(opts.label || cardTitle(p))}</b><span class="muted">${fmt(T.page, {n: p.n})}</span></div>
+  return `<div class="${cls}${body ? " t2" : ""}" tabindex="0" role="button" aria-label="${esc(cardTitle(p) + ", " + fmt(T.page, {n: p.n}))}" data-open="${p.n}" data-step="${step}"><div class="th"><b>${esc(opts.label || cardTitle(p))}</b><span class="muted">${fmt(T.page, {n: p.n})}</span></div>
     ${body || thumbHtml(p, full ? [0, 0, 1, 1] : (p.view || [0, 0, 1, 1]))}<div class="tf">${foot}${iss.length ? `<span class="issues">· ${esc(iss[0].text)}${iss.length > 1 ? " +" + (iss.length - 1) : ""}</span>` : ""}</div></div>`;
 }
 const phHtml = (text, key) => `<div class="ph${key && (S.accepted || {})[key] ? " acc" : ""}">${esc(text)}${key ? accHtml(key) : ""}</div>`;
@@ -713,7 +775,7 @@ function render0() {
   const by = {};
   for (const p of D.pages) (by[docType(p)] = by[docType(p)] || []).push(p);
   for (const t of Object.keys(by)) {
-    h += `<h3>${esc(T.dt[t] || t)} (${by[t].length})</h3><div class="tiles">` + by[t].map(p => `<div class="tile" style="width:130px" tabindex="0" data-open="${p.n}" data-step="0">
+    h += `<h3>${esc(T.dt[t] || t)} (${by[t].length})</h3><div class="tiles">` + by[t].map(p => `<div class="tile" style="width:160px" tabindex="0" data-open="${p.n}" data-step="0">
       <div class="th"><span>${fmt(T.page, {n: p.n})}</span></div>${thumbHtml(p, [0, 0, 1, 1])}<div class="tf"><select data-dt="${p.n}">${D.doc_types.concat(t === "unsicher" ? ["unsicher"] : []).map(x => `<option value="${x}"${x === t ? " selected" : ""}>${esc(T.dt[x] || x)}</option>`).join("")}</select></div></div>`).join("") + `</div>`;
   }
   return h + `</details>` + confirmBar(0);
@@ -726,20 +788,26 @@ function render1() {
   let h = `<h2>1 · ${T.steps[1]}</h2>`;
   if (!ll.length) return h + `<p>${T.s1_none}</p>` + confirmBar(1);
   h += `<p class="muted">${T.s1_intro}</p>`;
-  const pos = ll.map(llPageOf), total = Math.max(0, ...pos.filter(Boolean).map(x => x[1]));
-  const miss = missingPages(pos);
-  if (miss.length) h += `<div class="tiles">${miss.map(i => phHtml(fmt(T.ll_missing, {i, n: total}), "ll:" + i)).join("")}</div>`;
+  h += `<div id="llmiss">${llMissHtml()}</div>`;
   for (const p of ll) h += `<h3>${fmt(T.page, {n: p.n})}${llPageOf(p) ? ` · ${llPageOf(p)[0]}/${llPageOf(p)[1]}` : ""}</h3>
     <div class="ll"><div class="vbox" id="llv${p.n}"></div><div class="list" id="lll${p.n}">${llList(p)}</div></div>`;
   h += `<p id="llsum"><b>${fmt(T.loaded_n, {n: loaded().length})}</b> · ${fmt(T.struck_n, {n: struckTAs().length})}</p>`;
   return h + confirmBar(1);
 }
+function llMissHtml() {   // a missing page - or the question whether a page with an unread number is that page
+  const ll = llPages(), pos = ll.map(llPageOf), total = Math.max(0, ...pos.filter(Boolean).map(x => x[1])), miss = missingPages(pos);
+  if (!miss.length) return "";
+  const unk = ll.filter(p => !llPageOf(p));
+  if (unk.length) return `<div class="tiles">` + unk.map(p => miss.map(i => pageQ(p, (p.page_read || {}).text, i, total, "page_of")).join("")).join("") + `</div>`;
+  return `<div class="tiles">${miss.map(i => phHtml(fmt(T.ll_missing, {i, n: total}), "ll:" + i)).join("")}</div>`;
+}
+const pageQ = (p, text, i, total, f) => `<div class="ph q">${esc(fmt(T.page_q, {n: p.n, text: text || "?", i, total}))}<br><button data-setpage="${p.n}" data-f="${f}" data-v="${i}/${total}">${esc(fmt(T.page_is, {n: p.n, i, total}))}</button></div>`;
 function llList(p) {
   const es = llEntries(p), po = llPageOf(p), iss = pageIssues(p).filter(x => x.step === 1);
   const read = p.page_read && p.page_read.text ? ` <span class="muted small">${T.ocr_read}: „${esc(p.page_read.text)}“</span>` : "";
-  return `<p>${T.ll_page} <input data-llpage="${p.n}" placeholder="1/3" style="width:70px" value="${esc(has(p, "page_of") ? S.pages[p.n].page_of : po ? po.join("/") : "")}">${read}${ocrNote(p, "page_of")}</p>
-    ${iss.length ? `<p class="issues small">${iss.map(x => esc(x.text)).join(" · ")}</p>` : ""}<table>${es.map((e, i) => `<tr class="${e.struck ? "struck" : ""}"><td><input class="ta" data-ll="${p.n}" data-i="${i}" value="${esc(e.ta)}" placeholder="12345678"></td>
-    <td class="small ${!e.struck && !okTA(e.ta) ? "issues" : "muted"}">${e.struck ? T.struck : e.ocr ? `<span class="ocrtag">${T.ocr_check}</span>` : e.src === "person" ? (e.ocrt != null && !e.ta ? esc(fmt(T.ocr_none, {text: e.ocrt})) : T.ta_drawn) : !okTA(e.ta) ? T.ta_unread : T.ta_read}</td>
+  return `<p>${T.ll_page} <input data-llpage="${p.n}" placeholder="${esc(T.ph_page)}" class="${!po && llPages().length > 1 ? "need" : ""}" style="width:90px" value="${esc(has(p, "page_of") ? S.pages[p.n].page_of : po ? po.join("/") : "")}">${read}${ocrNote(p, "page_of")}</p>
+    ${iss.length ? `<p class="issues small">${iss.map(x => esc(x.text)).join(" · ")}</p>` : ""}<table>${es.map((e, i) => `<tr class="${e.struck ? "struck" : ""}"><td><input class="ta${!e.struck && !okTA(e.ta) ? " need" : ""}" data-ll="${p.n}" data-i="${i}" value="${esc(e.ta)}" placeholder="${esc(T.ph_ta)}"></td>
+    <td class="small ${!e.struck && !okTA(e.ta) ? "issues" : "muted"}">${e.struck ? T.struck : e.ocr ? `<span class="ocrtag">${T.ocr_check}</span>` : e.typed ? T.ta_typed : e.src === "person" ? (OCRBUSY && !e.ta ? T.ocr_busy : e.ocrt != null && !e.ta ? esc(fmt(T.ocr_none, {text: e.ocrt})) : T.ta_drawn) : !okTA(e.ta) ? T.ta_unread : T.ta_read}</td>
     <td><button class="small" data-strike="${p.n}" data-i="${i}">${e.struck ? T.unstrike : T.strike}</button>${e.src === "person" ? ` <button class="small" data-delta="${p.n}" data-i="${i}">×</button>` : ""}</td></tr>`).join("")}</table>
     <p><button data-lldraw="${p.n}" data-cls="ta_nummer">${T.ta_draw}</button> <button data-lldraw="${p.n}" data-cls="seitenzahl">${T.page_draw}</button></p>`;
 }
@@ -764,6 +832,7 @@ function llBoxes(p) {
 }
 function refresh1(p) {
   const l = $("lll" + p.n); if (l) l.innerHTML = llList(p);
+  const m = $("llmiss"); if (m) m.innerHTML = llMissHtml();
   const hd = l && l.parentElement.previousElementSibling; if (hd && llPageOf(p)) hd.textContent = `${fmt(T.page, {n: p.n})} · ${llPageOf(p)[0]}/${llPageOf(p)[1]}`;
   if (LV[p.n]) LV[p.n].render();
   renderStepper();
@@ -779,21 +848,30 @@ function lsRowCells(num, pages) {
   let h = "";
   for (let i = 1; i <= n; i++) {
     const col = (byI[i] || []).sort((a, b) => (archive(b) ? 1 : 0) - (archive(a) ? 1 : 0));
-    h += `<div class="col"><div class="ch">${i}/${n}${col.length > 1 ? ` · <a class="lnk" data-cmp="${col.map(q => q.n).join(",")}">${T.compare}</a>` : ""}</div>` + (col.length ? col.map(p => tileHtml(p, 2, {label: `${num} · ${i}/${n}`})).join("") : phHtml(fmt(T.page_missing, {i}), `ls:${num}:${i}`)) + `</div>`;
+    h += `<div class="col"><div class="ch">${i}/${n}${col.length > 1 ? ` · <a class="lnk" data-cmp="${col.map(q => q.n).join(",")}">${T.compare}</a>` : ""}</div>` + (col.length ? col.map(p => tileHtml(p, 2, {label: `${num} · ${i}/${n}`})).join("")
+      : extra.length ? extra.map(p => pageQ(p, (p.page_read || {}).text, i, n, "ls_page")).join("") : phHtml(fmt(T.page_missing, {i}), `ls:${num}:${i}`)) + `</div>`;
   }
-  for (const p of extra) h += `<div class="col"><div class="ch">?</div>${tileHtml(p, 2)}</div>`;
+  for (const p of extra) h += `<div class="col"><div class="ch">?</div>${tileHtml(p, 2)}${n ? "" : `<button class="small" data-setpage="${p.n}" data-f="ls_page" data-v="1/1">${T.one_page}</button>`}</div>`;
   return h;
 }
-function lsRow(label, num, pages, accKey) {
+function lsRow(label, num, pages, accKey, extraKey) {
   const v = pages.length ? docValid(num) : null;
   let lab = `<b>${esc(label)}</b><br>`;
   const le = llEntryOf(num);
   if (le) lab += `<a data-tazoom="${le.p.n}:${le.i}" title="${esc(T.show_on_list)}">${cropHtml(le.p, le.e.box, 196, 40, 0.02)}</a>`;
   if (pages.length) lab += `<span class="pill ${v === true ? "ok" : v === false ? "bad" : "open"}">${v === true ? T.valid : v === false ? T.invalid : T.open}</span>`;
   if (v === false) lab += accHtml("ls_doc:" + num);
-  if (pages.some(p => p.carrier)) lab += `<br><span class="tag">${T.carrier}</span>`;
+  if (extraKey) lab += `<br>${accHtml(extraKey)}`;
+  const car = pages.filter(p => p.carrier);
+  if (car.length) lab += `<br><span class="tag">${T.carrier}</span> ` + (car.every(p => (S.carrier || {})[p.n]) ? `<span class="acc">${T.carrier_done}</span>`
+    : `<button class="small" data-carrier="${car.map(p => p.n).join(",")}">${T.carrier_ok}</button>`);
   const cells = pages.length ? lsRowCells(num, pages) : phHtml(T.no_ls, accKey);
   return `<div class="row"><div class="lab">${lab}</div><div class="cells">${cells}</div></div>`;
+}
+function lsRowOk(num, pages) {   // nothing to look at: valid, all pages there and read, nothing open
+  if (!pages.length || docValid(num) !== true) return false;
+  const pgs = pages.map(lsPage);
+  return pgs.every(Boolean) && !missingPages(pgs).length && !pages.some(p => pageIssues(p).some(x => x.step === 2));
 }
 function render2() {
   let h = `<h2>2 · ${T.steps[2]}</h2>`;
@@ -804,9 +882,11 @@ function render2() {
   for (const p of all) { const num = lsNumber(p); if (num) (byNum[num] = byNum[num] || []).push(p); }
   const L = loaded(), struck = struckTAs();
   if (llPages().length) {
-    for (const ta of L) h += lsRow("TA " + ta, ta, byNum[ta] || [], "ta_ls:" + ta);
+    const ok = L.filter(ta => lsRowOk(ta, byNum[ta] || []));
+    for (const ta of L) if (!ok.includes(ta)) h += lsRow("TA " + ta, ta, byNum[ta] || [], "ta_ls:" + ta);
+    if (ok.length) h += `<details id="okrows"${S.okrows ? " open" : ""}><summary>${fmt(T.ok_rows, {n: ok.length})}</summary>${ok.map(ta => lsRow("TA " + ta, ta, byNum[ta], "ta_ls:" + ta)).join("")}</details>`;
     const extra = Object.keys(byNum).filter(n => !L.includes(n) && !struck.includes(n));
-    if (extra.length) h += `<h3>${T.s2_extra}</h3>` + extra.map(n => lsRow(n, n, byNum[n]) + `<div>${accHtml("ta_ls_extra:" + n)}</div>`).join("");
+    if (extra.length) h += `<h3>${T.s2_extra}</h3>` + extra.map(n => lsRow(n, n, byNum[n], null, "ta_ls_extra:" + n)).join("");
     const st = Object.keys(byNum).filter(n => struck.includes(n));
     if (st.length) h += `<details><summary>${T.s2_struck} (${st.length})</summary>${st.map(n => lsRow(n, n, byNum[n])).join("")}</details>`;
   } else {
@@ -823,10 +903,10 @@ function render3() {
   if (ci.unread.length) h += `<h3 class="issues">${T.s3_unread}</h3><div class="tiles">${ci.unread.map(p => tileHtml(p, 3, {full: true})).join("")}</div>`;
   h += `<p class="muted">${T.s3_intro}</p>`;
   if (ci.tot.size > 1) h += `<p class="issues">${fmt(T.cmr_conflict, {totals: [...ci.tot].map(t => "/" + t).join(", ")})}</p>`;
-  h += `<div class="cells">`;
+  h += `<div class="cells" id="cmrgrid">`;
   for (let i = 1; i <= ci.N; i++) {
     const col = (ci.by[i] || []).slice().sort((a, b) => (archive(b) ? 1 : 0) - (archive(a) ? 1 : 0));
-    h += `<div class="col"><div class="ch">${i}/${[...ci.tot].join("|") || "?"}${col.length > 1 ? ` · <a class="lnk" data-cmp="${col.map(q => q.n).join(",")}">${T.compare}</a>` : ""}</div>` + (col.length ? col.map(p => tileHtml(p, 3)).join("") : phHtml(fmt(T.cmr_missing, {i}), ci.tot.size === 1 ? "cmr:" + i : null)) + `</div>`;
+    h += `<div class="col"><div class="ch">${i}/${[...ci.tot].join("|") || "?"}${col.length > 1 ? ` · <a class="lnk" data-cmp="${col.map(q => q.n).join(",")}">${T.compare}</a>` : ""}</div>` + (col.length ? col.map(p => tileHtml(p, 3, {foot: archive(p) && valid(p) === false ? accHtml("page:" + p.n) : ""})).join("") : phHtml(fmt(T.cmr_missing, {i}), ci.tot.size === 1 ? "cmr:" + i : null)) + `</div>`;
   }
   h += `</div>`;
   if (L.length) {
@@ -843,7 +923,7 @@ function render3() {
         const c = D.pages.find(q => docType(q) === "cmr" && archive(q) && !otherTour(q) && cmrTAs(q).includes(t)), b = c && bestBox(c, "ta_nummer");
         h += `<div class="tai"><b>TA ${t}</b> – ${fmt(T.ta_extra_s, {page: c ? `<a data-open="${c.n}" data-step="3">${fmt(T.page, {n: c.n})}</a>` : "?"})}${b ? `<br>${cropHtml(c, b.box, 460, 50, 0.006)}` : ""}${accHtml("ta_cmr_extra:" + t)}</div>`;
       }
-      h += `</div><div><p class="muted small">${T.tav_hint}</p><div class="tav" id="tav"></div></div></div>`;
+      h += `</div><div><p class="muted small">${T.tav_hint} ${llPages().length > 1 ? llPages().map(p => `<button class="small" data-tavp="${p.n}">${fmt(T.page, {n: p.n})}</button>`).join(" ") : ""}</p><div class="tav" id="tav"></div></div></div>`;
     }
   }
   return h + confirmBar(3);
@@ -878,20 +958,23 @@ function render4() {
   let h = `<h2>4 · ${T.steps[4]}</h2><div class="sum"><div><b>${cmrN}</b>${T.sum_cmr}</div><div><b>${lsN}</b>${T.sum_ls}</div>
     <div><b>${struckTAs().length}</b>${T.sum_struck}</div><div><b>${corr}</b>${T.sum_corr}</div><div><b>${boxes}</b>${T.sum_boxes}</div></div>
     <p class="muted">${T.s4_intro}</p>`;
-  h += items.length ? `<ul class="items">` + items.map(x => `<li class="${x.accepted ? "ok" : x.level}">${x.accepted ? "✓" : ic[x.level]} ${x.go ? `<a data-open="${x.go}" data-step="${stepOf(byN[x.go])}">${esc(x.text)}</a>` : esc(x.text)}${accHtml(x.key)}${itemImages(x.key)}</li>`).join("") + `</ul>`
+  h += items.length ? `<ul class="items">` + items.map(x => `<li class="${x.accepted ? "ok" : x.level}"><div class="itx">${x.accepted ? "✓" : ic[x.level]} ${x.go ? `<a data-open="${x.go}" data-step="${stepOf(byN[x.go])}">${esc(x.text)}</a>` : esc(x.text)}<br>${accHtml(x.key)}</div>${itemImages(x.key)}</li>`).join("") + `</ul>`
     : `<p style="color:var(--ok)">✓ ${T.missing_none}</p>`;
-  if (items.length) h += `<div class="bar">` + (missingConfirmed(items) ? `<span class="pill ok">✓ ${T.missing_confirmed}</span> <a class="lnk" data-mreset="1">${T.undo}</a>`
-    : `<button class="primary" id="mconfirm">${T.confirm_missing}</button>` + (S.missing_keys ? ` <span class="small" style="color:var(--warn)">${T.missing_changed}</span>` : "")) + `</div>`;
-  h += `<div class="bar"><span class="muted small">${T.reviewer}: ${S.reviewer ? esc(S.reviewer) : "–"}</span>
-    <span style="flex:1"></span><button class="primary" id="save2">${T.save}</button></div>`;
+  const mconf = missingConfirmed(items), name = (S.reviewer || "").trim(), nOpen = items.filter(x => !x.accepted).length;
+  h += `<div class="fin"><div class="fs${name ? " ok" : ""}"><span class="no">1</span>${T.fin_name} <input id="reviewer2" autocomplete="name" placeholder="${esc(T.name_ph)}" class="${name ? "" : "need"}" value="${esc(S.reviewer || "")}" style="width:170px"></div>
+    <div class="fs${mconf ? " ok" : ""}"><span class="no">2</span>${!items.length ? T.nothing_left : mconf ? `✓ ${T.missing_confirmed} <a class="lnk" data-mreset="1">${T.undo}</a>`
+      : `<button id="mconfirm">${fmt(T.confirm_missing, {n: nOpen})}</button>` + (S.missing_keys ? ` <span class="small" style="color:var(--warn)">${T.missing_changed}</span>` : "")}</div>
+    <div class="fs${S.saved ? " ok" : ""}"><span class="no">3</span><button class="primary" id="save2">${T.save}</button></div></div>`;
+  if (S.saved) h += `<div class="savedbox" id="savedbox">✓ <b>${T.saved_title}</b> – ${esc(S.saved.msg)}<div class="muted small">${esc(fmt(T.tech_next, {name: D.name}))}</div></div>`;
   return h;
 }
 
 function itemImages(key) {   // what the missing item is about, as pictures (click = the page)
   const [kind, a, b] = key.split(":"), out = [];
   const link = (p, inner) => `<a data-open="${p.n}" data-step="${stepOf(p)}" title="${esc(fmt(T.page, {n: p.n}))}">${inner}</a>`;
-  if (kind === "page") { const p = byN[+a]; out.push(link(p, tileBody(p) ? `<div style="width:250px">${tileBody(p)}</div>` : thumbHtml(p, p.view || [0, 0, 1, 1]))); }
-  else if (kind === "ls_doc") for (const p of lsByNumber()[a] || []) out.push(link(p, `<div style="width:250px">${tileBody(p)}</div>`));
+  const small = p => `<div style="width:250px">${docType(p) === "cmr" ? cropRow(p, "cmr_count", (cmrCount(p) || []).join("/")) : cropRow(p, "ls_nummer", lsNumber(p) || "")}${objCrops(p)}</div>`;
+  if (kind === "page") { const p = byN[+a]; out.push(link(p, tileBody(p) ? small(p) : thumbHtml(p, p.view || [0, 0, 1, 1]))); }
+  else if (kind === "ls_doc") for (const p of lsByNumber()[a] || []) out.push(link(p, small(p)));
   else if (kind === "ls") for (const p of lsByNumber()[a] || []) { const bb = bestBox(p, "seitenzahl") || bestBox(p, "ls_nummer"); if (bb) out.push(link(p, cropHtml(p, bb.box, 200, 50, 0.01))); }
   else if (kind === "ll") for (const p of llPages()) out.push(link(p, `<div style="width:90px">${thumbHtml(p, [0, 0, 1, 1])}</div>`));
   else if (kind === "ta_cmr" || kind === "ta_ls") { const le = llEntryOf(a); if (le) out.push(link(le.p, cropHtml(le.p, nearBand(le.e.box), 420, 50, 0))); }
@@ -903,10 +986,11 @@ function itemImages(key) {   // what the missing item is about, as pictures (cli
 // ------------------------------------------------------------ rendering
 function renderStepper() {
   $("stepper").innerHTML = T.steps.map((s, k) => `<button data-step-go="${k}" class="${k === S.cur ? "cur " : ""}${stepDone(k) ? "done" : ""}"${canEnter(k) ? "" : " disabled"}>
-    <span class="no">${stepDone(k) ? "✓" : k}</span>${esc(s)}</button>`).join("");
+    <span class="no">${stepDone(k) ? "✓" : k}</span><span class="lbl">${esc(s)}</span></button>`).join("");
 }
 function renderMain() {
   for (const k in LV) delete LV[k];
+  hidePeek();
   $("main").innerHTML = [render0, render1, render2, render3, render4][S.cur]();
   if (S.cur === 1) mountLL();
   if (S.cur === 3) mountTA();
@@ -919,15 +1003,15 @@ function rerender() { const y = window.scrollY; if (OV) showOv(false); renderSte
 class Viewer {
   constructor(el, p, cb) {
     this.el = el; this.p = p; this.cb = cb; this.s = 1; this.tx = 0; this.ty = 0; this.drawCls = null;
-    el.innerHTML = `<div class="vw"><div class="vin" style="width:${p.w}px;height:${p.h}px"><img src="${esc(p.image)}" alt="" onerror="imgRetry(this)"><div class="ovl"></div></div></div>`;
-    this.vw = el.querySelector(".vw"); this.vin = el.querySelector(".vin"); this.ovl = el.querySelector(".ovl");
+    el.innerHTML = `<div class="vw"><div class="dban"></div><div class="vin" style="width:${p.w}px;height:${p.h}px"><img src="${esc(p.image)}" alt="${esc(fmt(T.page, {n: p.n}))}" onerror="imgRetry(this)"><div class="ovl"></div></div></div>`;
+    this.vw = el.querySelector(".vw"); this.vin = el.querySelector(".vin"); this.ovl = el.querySelector(".ovl"); this.ban = el.querySelector(".dban");
     this.vw.addEventListener("wheel", e => { e.preventDefault(); const r = this.vw.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
       this.tx = mx - (mx - this.tx) * f; this.ty = my - (my - this.ty) * f; this.s *= f; this.apply(); }, {passive: false});
     this.vw.addEventListener("mousedown", e => this.down(e));
     this.move = e => this.mv(e); this.upf = e => this.up(e);
     this.render();
   }
-  apply() { this.vin.style.transform = `translate(${this.tx}px,${this.ty}px) scale(${this.s})`; }
+  apply() { this.vin.style.transform = `translate(${this.tx}px,${this.ty}px) scale(${this.s})`; this.vin.style.setProperty("--ls", 1 / this.s); }
   fit(reg, pad = 0.02) {
     const r = this.vw.getBoundingClientRect(), W = this.p.w, H = this.p.h;
     if (!r.width || !r.height) return;
@@ -936,7 +1020,7 @@ class Viewer {
     this.tx = r.width / 2 - (x1 + x2) / 2 * W * this.s; this.ty = r.height / 2 - (y1 + y2) / 2 * H * this.s; this.apply();
   }
   norm(e) { const r = this.vin.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; }
-  startDraw(cls) { this.drawCls = cls; this.vw.classList.add("drawing"); }
+  startDraw(cls) { this.drawCls = cls; this.ban.textContent = fmt(T.draw_banner, {cls: T.cls[cls] || cls}); this.vw.classList.add("drawing"); }
   cancelDraw() { this.drawCls = null; this.vw.classList.remove("drawing"); if (this.tmp) { this.tmp.remove(); this.tmp = null; } }
   down(e) {
     if (e.button !== 0) return;
@@ -996,7 +1080,7 @@ function ovBoxes(p) {
   const out = [];
   p.dets.forEach((d, i) => {
     const inc = detInc(p, d, i), sure = d.score >= thrOf(d.cls);
-    out.push({key: "d:" + i, box: d.box, cls: d.cls, label: `${T.cls[d.cls] || d.cls} ${d.score.toFixed(2)}${inc ? "" : sure ? " ✗" : ""}`, style: inc ? "" : sure ? "rej" : "weak"});
+    out.push({key: "d:" + i, box: d.box, cls: d.cls, label: `${T.cls[d.cls] || d.cls}${sure ? "" : " ?"}${inc ? "" : sure ? " ✗" : ""}`, style: inc ? "" : sure ? "rej" : "weak"});
   });
   ((S.pages[p.n] || {}).pb || []).forEach((b, i) => out.push({key: "p:" + i, box: b.box, cls: b.cls, label: (T.cls[b.cls] || b.cls) + " ✎", person: true}));
   return out;
@@ -1039,42 +1123,43 @@ function defaultDrawCls(p) {
 }
 function sideHtml(p) {
   const t = docType(p), s = S.pages[p.n] || {}, iss = pageIssues(p);
-  let h = `<h3 style="margin-top:0">${esc(cardTitle(p))}</h3><div class="muted small">${fmt(T.page, {n: p.n})} · ${esc(p.source)} · ${OV.idx + 1}/${OV.list.length}</div>`;
+  let h = `<h3 style="margin-top:0">${esc(cardTitle(p))}</h3><div class="muted small">${fmt(T.page, {n: p.n})} · ${esc(p.source)}</div>`;
   h += `<div class="vbtns"><button data-fit="full">${T.v_full}</button><button data-fit="area">${T.v_area}</button>${REVIEW.includes(t) ? `<button data-fit="num">${T.v_num}</button>` : ""}</div>`;
   if (iss.length) h += `<div class="issues small">${iss.map(x => "• " + esc(x.text)).join("<br>")}</div>`;
   if (OCRBUSY) h += `<div class="hint">${T.ocr_busy}</div>`;
   h += `<label>${T.doctype}</label><select data-f="doc_type">${D.doc_types.concat(t === "unsicher" ? ["unsicher"] : []).map(x => `<option value="${x}"${x === t ? " selected" : ""}>${esc(T.dt[x] || x)}</option>`).join("")}</select>`;
   if (REVIEW.includes(t)) {
     const read = p.tour && p.tour.raw ? ` – ${T.ocr_read}: „${esc(p.tour.raw)}“` : "";
-    h += `<label>${T.tour}${read}</label><input data-f="tour" placeholder="${esc(D.tour || "")}" value="${esc(has(p, "tour") ? s.tour : tourOf(p) || "")}" style="width:220px">${ocrNote(p, "tour")}`;
+    h += `<label>${T.tour}${read}</label><input data-f="tour" placeholder="${esc(T.ph_tour)}" class="${tourOf(p) ? "" : "need"}" value="${esc(has(p, "tour") ? s.tour : tourOf(p) || "")}" style="width:220px">${ocrNote(p, "tour")}`;
     if (D.tour && tourOf(p) !== D.tour) h += ` <button data-tourthis="1">${esc(fmt(T.tour_this, {tour: D.tour}))}</button>`;
   }
   if (t === "loading_list") {
     const po = llPageOf(p), read = p.page_read && p.page_read.text ? ` – ${T.ocr_read}: „${esc(p.page_read.text)}“` : "";
-    h += `<label>${T.ll_page}${read}</label><input data-f="page_of" placeholder="1/3" style="width:80px" value="${esc(has(p, "page_of") ? s.page_of : po ? po.join("/") : "")}">${ocrNote(p, "page_of")}`;
+    h += `<label>${T.ll_page}${read}</label><input data-f="page_of" placeholder="${esc(T.ph_page)}" class="${po || llPages().length < 2 ? "" : "need"}" style="width:90px" value="${esc(has(p, "page_of") ? s.page_of : po ? po.join("/") : "")}">${ocrNote(p, "page_of")}`;
   }
   if (t === "lieferschein") {
     const read = p.ls_read && p.ls_read.text ? ` – ${T.ocr_read}: „${esc(p.ls_read.text)}“` : "";
     const pg = lsPage(p);
-    h += `<label>${T.ls_number}${read}</label><input class="num" data-f="ls" placeholder="12345678" value="${esc(has(p, "ls") ? s.ls : lsNumber(p) || "")}">${ocrNote(p, "ls")}`;
-    h += `<label>${T.ls_page}</label><input data-f="ls_page" placeholder="1/2" style="width:80px" value="${esc(has(p, "ls_page") ? s.ls_page : pg ? pg.join("/") : "")}">${ocrNote(p, "ls_page")}`;
-    if (p.carrier) h += `<div class="tag">${T.carrier}</div>`;
+    h += `<label>${T.ls_number}${read}</label><input class="num${lsNumber(p) ? "" : " need"}" data-f="ls" placeholder="${esc(T.ph_num)}" value="${esc(has(p, "ls") ? s.ls : lsNumber(p) || "")}">${ocrNote(p, "ls")}`;
+    h += `<label>${T.ls_page}</label><input data-f="ls_page" placeholder="${esc(T.ph_page)}" class="${pg ? "" : "need"}" style="width:90px" value="${esc(has(p, "ls_page") ? s.ls_page : pg ? pg.join("/") : "")}">${ocrNote(p, "ls_page")}${pg ? "" : ` <button class="small" data-setpage="${p.n}" data-f="ls_page" data-v="1/1">${T.one_page}</button>`}`;
+    if (p.carrier) h += `<div class="tag">${T.carrier}</div> ` + ((S.carrier || {})[p.n] ? `<span class="acc">${T.carrier_done}</span>` : `<button class="small" data-carrier="${p.n}">${T.carrier_ok}</button>`);
   }
   if (t === "cmr") {
     const read = p.cmr_count && p.cmr_count.text ? ` – ${T.ocr_read}: „${esc(p.cmr_count.text)}“` : "";
     const cc = cmrCount(p);
-    h += `<label>${T.cmr_count}${read}</label><input class="num" data-f="cmr" placeholder="3/13" value="${esc(has(p, "cmr") ? s.cmr : cc ? cc.join("/") : "")}">${ocrNote(p, "cmr")}`;
+    h += `<label>${T.cmr_count}${read}</label><input class="num${cc ? "" : " need"}" data-f="cmr" placeholder="${esc(T.ph_cmr)}" value="${esc(has(p, "cmr") ? s.cmr : cc ? cc.join("/") : "")}">${ocrNote(p, "cmr")}`;
     h += `<label>${T.ta_on_cmr}</label>${taChips(p, true)}`;
     const tb = bestBox(p, "ta_nummer"); if (tb) h += cropHtml(p, tb.box, 370, 90, 0.008);
-    h += `<input data-f="ta" placeholder="12345678, 12345679" style="width:370px;margin-top:4px" value="${esc(has(p, "ta") ? s.ta : cmrTAs(p).join(", "))}">${ocrNote(p, "ta")}`;
+    h += `<input data-f="ta" placeholder="${esc(T.ph_ta)}" style="width:370px;margin-top:4px" value="${esc(has(p, "ta") ? s.ta : cmrTAs(p).join(", "))}">${ocrNote(p, "ta")}`;
   }
+  if (boxMissing(p).length) h += `<div class="muted small" style="margin-top:6px">${T.box_optional}</div>`;
   if (REVIEW.includes(t) && OV.step !== 0) {
     h += `<h3>${T.h_obj}</h3>`;
     for (const c of rule(p).require) {
       const v = val(p, c), pr = proposal(p, c), sc = (p.scores || {})[c] || 0;
       h += `<div class="obj"><span class="nm" style="color:${D.colors[c]}">${esc(T.cls[c] || c)}</span>
         <button class="y${v === true ? " on" : ""}" data-obj="${c}" data-v="1">✓ ${T.present}</button><button class="n${v === false ? " on" : ""}" data-obj="${c}" data-v="0">✗ ${T.absent}</button>
-        <span class="muted small">${T.model}: ${pr === true ? "✓" : pr === false ? "✗" : "?"}${sc ? " " + sc.toFixed(2) : ""}</span></div>`;
+        <span class="muted small" title="${sc ? sc.toFixed(2) : ""}">${T.suggestion}: ${pr === true ? "✓" : pr === false ? "✗" : "?"}${sc ? " (" + (sc >= thrOf(c) ? T.sure : T.unsure) + ")" : ""}</span></div>`;
       if (v === true && !hasPos(p, c)) h += `<div class="hint">${T.hint_draw}</div>`;
       if (v === false && p.dets.some(d => d.cls === c)) h += `<div class="muted small">${T.hint_reject}</div>`;
     }
@@ -1091,9 +1176,9 @@ function sideHtml(p) {
   }).join("") + `</div>`;
   const rest = D.classes.filter(c => !ex.includes(c));
   if (rest.length) h += `<details class="small"><summary>${T.other_cls}</summary>${rest.map(c => `<button data-drawc="${c}">${esc(T.cls[c] || c)}</button>`).join(" ")}</details>`;
-  if (p.dets.length) h += `<details class="small"${p.dets.length <= 8 ? " open" : ""}><summary>${T.model_boxes} (${p.dets.length})</summary>` + p.dets.map((d, i) => {
+  if (p.dets.length) h += `<details class="small"${overlapping(p) ? " open" : ""}><summary>${T.model_boxes} (${p.dets.length})</summary>` + p.dets.map((d, i) => {
     const inc = detInc(p, d, i);
-    return `<div class="mb${inc ? "" : " off"}"><span class="sw" style="background:${D.colors[d.cls] || "#000"}"></span><span class="nm">${esc(T.cls[d.cls] || d.cls)} ${d.score.toFixed(2)}</span>
+    return `<div class="mb${inc ? "" : " off"}"><span class="sw" style="background:${D.colors[d.cls] || "#000"}"></span><span class="nm" title="${d.score.toFixed(2)}">${esc(T.cls[d.cls] || d.cls)} (${d.score >= thrOf(d.cls) ? T.sure : T.unsure})</span>
       <span class="${inc ? "acc" : "muted"}">${inc ? T.box_on : T.box_off}</span><button data-togdet="${i}">${T.box_toggle}</button></div>`;
   }).join("") + `</details>`;
   const pb = s.pb || [];
@@ -1101,6 +1186,11 @@ function sideHtml(p) {
   h += `<div class="nav"><button data-nav="-1">${T.prev}</button><button data-nav="1">${T.next}</button><button data-close="1">${T.close}</button></div><p class="muted small">${T.keys}</p>`;
   return h;
 }
+function overlapping(p) {   // two boxes on the same spot: show the list to switch each one
+  const iou = (a, b) => { const w = Math.min(a[2], b[2]) - Math.max(a[0], b[0]), h = Math.min(a[3], b[3]) - Math.max(a[1], b[1]); if (w <= 0 || h <= 0) return 0; const i = w * h; return i / ((a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - i); };
+  return p.dets.some((d, i) => p.dets.some((e, j) => j > i && iou(d.box, e.box) > 0.4));
+}
+function setPage(p, f, v) { us(p)[f] = v; if (us(p).ocrf) delete us(p).ocrf[f]; changed(f === "page_of" ? 1 : 2); }
 function edit(p) { changed(S.cur); if (OV) showOv(false); }
 function setField(p, f, v) {
   const s = us(p); v = (v || "").trim();
@@ -1113,12 +1203,18 @@ function setObj(p, c, v) { const s = us(p); s.v = s.v || {}; s.v[c] = v; s.dec =
 function nextOpen(dir = 1) {
   if (!OV) return;
   for (let k = OV.idx + dir; k >= 0 && k < OV.list.length; k += dir) if (pageIssues(byN[OV.list[k]]).some(x => x.step === OV.step)) { OV.idx = k; showOv(true); return; }
+  if (OV.step < 4 && !stepIssues(OV.step).length) {
+    closeOv(); notice(T.all_done, 6000);
+    const b = document.querySelector(`[data-confirm="${S.cur}"]`); if (b) { b.scrollIntoView({block: "center"}); b.focus(); }
+    return;
+  }
   if (OV.idx + dir >= 0 && OV.idx + dir < OV.list.length) { OV.idx += dir; showOv(true); } else closeOv();
 }
 $("ov").addEventListener("mousedown", e => { if (e.target.id === "ov") closeOv(); });
 $("ovx").addEventListener("click", () => closeOv());
 $("ovside").addEventListener("change", e => {
   const p = ovPage(), f = e.target.dataset.f; if (!p || !f) return;
+  if (e.target.tagName === "INPUT" && e.target.value === e.target.defaultValue) return;   // Enter/Esc without a change
   setField(p, f, e.target.value);
 });
 $("ovside").addEventListener("click", e => {
@@ -1131,6 +1227,8 @@ $("ovside").addEventListener("click", e => {
   else if (b.dataset.delpb != null) { const s = us(p); s.pb.splice(+b.dataset.delpb, 1); edit(p); }
   else if (b.dataset.drawc) { OV.viewer.startDraw(b.dataset.drawc); $("ovside").innerHTML = sideHtml(p); }
   else if (b.dataset.cmp) openCompare(b.dataset.cmp.split(",").map(Number));
+  else if (b.dataset.setpage) { setPage(p, b.dataset.f, b.dataset.v); showOv(false); }
+  else if (b.dataset.carrier) { S.carrier = S.carrier || {}; S.carrier[p.n] = true; edit(p); }
   else if (b.dataset.nav) nextOpen(+b.dataset.nav);
   else if (b.dataset.close) closeOv();
 });
@@ -1224,7 +1322,7 @@ function openCompare(ns) {
 }
 function renderCompare() {
   for (const n of CV.ns) { const p = byN[n];
-    $("cf" + n).innerHTML = `<b>${esc(cardTitle(p))}</b> <span class="muted">${fmt(T.page, {n})}</span> ${reviewable(p) ? stIcons(p) : ""}
+    $("cf" + n).innerHTML = `<b>${esc(cardTitle(p))}</b> <span class="muted">${fmt(T.page, {n})}</span> ${reviewable(p) ? stIcons(p, true) : ""}
       ${archive(p) ? `<span class="pill ok">${T.archived}</span>` : `<button data-cmparch="${n}">${T.archive_this}</button>`}`; }
   CV.viewers.forEach(v => v.render());
 }
@@ -1238,8 +1336,8 @@ $("cmp").addEventListener("click", e => {
 
 // ------------------------------------------------------------ events on the main page
 document.addEventListener("click", e => {
-  if (e.target.closest("select,input") || e.target.closest("#ov") || e.target.closest("#cmp")) return;
-  const t = e.target.closest("[data-acc],[data-accok],[data-acccancel],[data-unacc],[data-mreset],#mconfirm,[data-confirm],[data-step-go],[data-strike],[data-delta],[data-lldraw],[data-cmp],[data-tazoom],#save2,[data-open]");
+  if (e.target.closest("select,input,.accform") && !e.target.closest("button") || e.target.closest("#ov") || e.target.closest("#cmp")) return;
+  const t = e.target.closest("[data-acc],[data-accok],[data-acccancel],[data-unacc],[data-mreset],#mconfirm,[data-confirm],[data-step-go],[data-strike],[data-delta],[data-lldraw],[data-cmp],[data-tazoom],[data-tavp],[data-setpage],[data-carrier],#save2,[data-open]");
   if (!t) return;
   if (t.dataset.acc != null) { accOpen = t.dataset.acc; rerender(); }
   else if (t.dataset.acccancel != null) { accOpen = null; rerender(); }
@@ -1247,11 +1345,14 @@ document.addEventListener("click", e => {
     const f = t.closest(".accform"), reason = f.querySelector("[data-accr]").value, note = f.querySelector("[data-accn]").value.trim();
     if (!reason) { f.querySelector("[data-accr]").focus(); return; }
     if (reason === "sonstiges" && !note) { alert(T.note_needed); f.querySelector("[data-accn]").focus(); return; }
-    S.accepted = S.accepted || {}; S.accepted[t.dataset.accok] = {reason, note}; accOpen = null; persist(); rerender();
+    S.accepted = S.accepted || {}; S.accepted[t.dataset.accok] = {reason, note}; accOpen = null; touched(); rerender();
   }
-  else if (t.dataset.unacc != null) { delete S.accepted[t.dataset.unacc]; persist(); rerender(); }
-  else if (t.dataset.mreset != null) { delete S.missing_keys; persist(); rerender(); }
-  else if (t.id === "mconfirm") { S.missing_keys = missingKeys(missingItems()); persist(); rerender(); }
+  else if (t.dataset.unacc != null) { delete S.accepted[t.dataset.unacc]; touched(); rerender(); }
+  else if (t.dataset.mreset != null) { delete S.missing_keys; touched(); rerender(); }
+  else if (t.id === "mconfirm") { S.missing_keys = missingKeys(missingItems()); touched(); rerender(); }
+  else if (t.dataset.tavp != null) mountTA(+t.dataset.tavp);
+  else if (t.dataset.setpage != null) { setPage(byN[+t.dataset.setpage], t.dataset.f, t.dataset.v); rerender(); }
+  else if (t.dataset.carrier != null) { S.carrier = S.carrier || {}; t.dataset.carrier.split(",").forEach(n => S.carrier[n] = true); changed(2); rerender(); }
   else if (t.dataset.confirm != null) { const k = +t.dataset.confirm; if (stepIssues(k).length) return; S.steps[k] = true; changed(k); go(k + 1); }
   else if (t.dataset.stepGo != null) go(+t.dataset.stepGo);
   else if (t.dataset.strike != null) { const p = byN[+t.dataset.strike], x = llEntries(p)[+t.dataset.i]; x.struck = !x.struck; changed(1); refresh1(p); }
@@ -1267,19 +1368,19 @@ document.addEventListener("click", e => {
 document.addEventListener("change", e => {
   const el = e.target;
   if (el.closest("#ov")) return;
-  if (el.dataset.ll != null) { const p = byN[+el.dataset.ll], x = llEntries(p)[+el.dataset.i]; const v = parse8(el.value)[0] || el.value.replace(/\s/g, ""); x.ta = v; x.ocr = false; if (v && !okTA(v)) alert(T.bad_number); changed(1); refresh1(p); }
+  if (el.dataset.ll != null) { const p = byN[+el.dataset.ll], x = llEntries(p)[+el.dataset.i]; const v = parse8(el.value)[0] || el.value.replace(/\s/g, ""); if (v !== x.ta) x.typed = !!v; x.ta = v; x.ocr = false; if (v && !okTA(v)) alert(T.bad_number); changed(1); refresh1(p); }
   else if (el.dataset.llpage != null) { const p = byN[+el.dataset.llpage], v = el.value.trim(); if (v) us(p).page_of = v; else delete us(p).page_of; if (us(p).ocrf) delete us(p).ocrf.page_of; changed(1); refresh1(p); }
   else if (el.dataset.dt != null) { setField(byN[+el.dataset.dt], "doc_type", el.value); rerender(); }
-  else if (el.id === "reviewer") { S.reviewer = el.value; persist(); if (S.cur === 4) rerender(); }
+  else if (el.id === "reviewer" || el.id === "reviewer2") { S.reviewer = el.value; $("reviewer").value = el.value; touched(); if (S.cur === 4) rerender(); }
 });
-document.addEventListener("toggle", e => { if (e.target.id === "all0") { S.open0 = e.target.open; persist(); } }, true);
+document.addEventListener("toggle", e => { if (e.target.id === "all0") { S.open0 = e.target.open; persist(); } if (e.target.id === "okrows") { S.okrows = e.target.open; persist(); } }, true);
 document.addEventListener("keydown", e => {
   if (CV) { if (e.key === "Escape") { closeCompare(); e.preventDefault(); } return; }
   if (OV) {
     const p = ovPage();
     if (e.target.matches("input,select")) {
       if (e.key === "Enter") { e.target.dispatchEvent(new Event("change", {bubbles: true})); e.preventDefault(); nextOpen(1); }
-      else if (e.key === "Escape") e.target.blur();
+      else if (e.key === "Escape") { e.target.dispatchEvent(new Event("change", {bubbles: true})); e.preventDefault(); closeOv(); }
       return;
     }
     const k = e.key.toLowerCase();
@@ -1318,19 +1419,20 @@ async function saveText(name, text) {
   return true;
 }
 async function save() {
-  if (!(S.reviewer || "").trim()) { alert(T.save_need_name); $("reviewer").focus(); return; }
+  if (!(S.reviewer || "").trim()) { notice(T.save_need_name, 6000); const r = $("reviewer2") || $("reviewer"); r.classList.add("need"); r.focus(); return; }
   const openSteps = [0, 1, 2, 3].filter(k => !stepDone(k));
   if (openSteps.length && !confirm(fmt(T.save_open, {steps: openSteps.map(k => T.steps[k]).join(", ")}))) return;
   const items = missingItems(), mconf = missingConfirmed(items);
   if (!mconf && !confirm(T.save_unconfirmed)) return;
   const out = {format: "docval-entscheidung", version: 2, name: D.name, tour: D.tour, ergebnis_created: D.created,
-    reviewer: S.reviewer.trim(), saved: new Date().toISOString(), steps: [0, 1, 2, 3, 4].map(stepDone),
+    reviewer: S.reviewer.trim(), saved: new Date().toISOString(), steps: [0, 1, 2, 3].map(stepDone).concat([true]),
     open: D.pages.filter(p => reviewable(p) && !pageConfirmed(p)).length, pages: {},
     accepted: S.accepted || {}, missing_keys: missingKeys(items), missing_confirmed: mconf};
   for (const p of D.pages) {
     const s = S.pages[p.n] || {}, fb = finalBoxes(p);
     const e = {doc_type: docType(p), archive: archive(p), archive_set: true, confirmed: pageConfirmed(p),
-      bulk: reviewable(p) && !s.dec, corrected: corrected(p), boxes: fb.pos, rejected: fb.neg};
+      bulk: reviewable(p) && !s.dec, corrected: corrected(p), boxes: fb.pos, rejected: fb.neg, box_missing: boxMissing(p).length > 0};
+    if (p.carrier) e.carrier_checked = !!(S.carrier || {})[p.n];
     if (reviewable(p)) {
       for (const c of OBJ) e[c] = val(p, c);
       e.valid = unitValid(p);
@@ -1340,17 +1442,20 @@ async function save() {
     if (docType(p) === "lieferschein") { e.ls_number = lsNumber(p); e.ls_page = lsPage(p); }
     if (docType(p) === "cmr" && has(p, "ta")) e.ta = cmrTAs(p);
     if (docType(p) === "loading_list") e.page_of = llPageOf(p);
-    if (docType(p) === "loading_list") e.ta_list = llEntries(p).map(x => ({ta: (x.ta || "").replace(/\s/g, ""), box: x.box, struck: !!x.struck, src: x.src}));
+    if (docType(p) === "loading_list") e.ta_list = llEntries(p).map(x => ({ta: (x.ta || "").replace(/\s/g, ""), box: x.box, struck: !!x.struck, src: x.src, typed: !!x.typed}));
     out.pages[p.n] = e;
   }
+  const time = new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+  const done = msg => { notice(""); S.saved = {at: out.saved, msg}; persist(); toast("✓ " + msg); if (S.cur !== 4 && canEnter(4)) go(4); else rerender();
+    const b = $("savedbox"); if (b) b.scrollIntoView({block: "center"}); };
   if (SRV) {
     try {
       const r = await (await fetch("/api/save", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(out)})).json();
-      if (r.ok) { notice(fmt(T.saved_srv, {path: r.path, name: D.name})); return; }
+      if (r.ok) { done(fmt(T.saved_srv, {time})); return; }
     } catch (e) {}
     alert(T.save_failed);
   }
-  if (await saveText("entscheidung.json", JSON.stringify(out, null, 1))) notice(fmt(T.saved, {name: D.name}));
+  if (await saveText("entscheidung.json", JSON.stringify(out, null, 1))) done(fmt(T.saved, {time}));
 }
 $("save").onclick = save;
 $("discard").onclick = () => { if (!confirm(T.confirm_discard)) return; S = {reviewer: S.reviewer, pages: {}, steps: {}, accepted: {}, cur: 0}; persist(); notice(""); renderAll(); };

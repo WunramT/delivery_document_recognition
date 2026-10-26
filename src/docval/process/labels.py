@@ -54,7 +54,7 @@ def build_export(R: dict, decision: dict | None, classes: list[str], src: Path, 
         shutil.copy2(src / p["image"], out / fn)
         coco["images"].append({"id": p["n"], "file_name": fn, "width": p["w"], "height": p["h"]})
         doc_type = (dpages.get(str(p["n"])) or {}).get("doc_type") or p["doc_type"]
-        doc_type = doc_type if doc_type in KNOWN_TYPES else ""
+        doc_type = doc_type if doc_type in KNOWN_TYPES and doc_type != "sonstiges" else ""   # sonstiges: no classifier class
         changes = []
         dp = dpages.get(str(p["n"])) or {}
         if dp.get("boxes") is not None:
@@ -78,7 +78,8 @@ def build_export(R: dict, decision: dict | None, classes: list[str], src: Path, 
             changes.append({"action": "hinzugefügt", "cls": b["cls"], "score": b.get("score")})
             aid += 1
         src_pdf, _, src_page = p["source"].partition("#")
-        checked = "" if not dp else "korrigiert" if dp.get("corrected") else "vorschlag"
+        # a number typed in without its box: the page's boxes are incomplete -> not reliable
+        checked = "" if not dp else "korrigiert" if dp.get("corrected") and not dp.get("box_missing") else "vorschlag"
         rows.append([fn, doc_type, src_pdf, src_page or "1", checked])
         meta[p["n"]] = {"split": "-", "doc_type": doc_type, "changes": changes, "orig": []}
     (out / COCO_NAME).write_text(json.dumps(coco, indent=1, ensure_ascii=False), encoding="utf-8")

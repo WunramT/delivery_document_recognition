@@ -109,29 +109,40 @@ lässt sich mit Grund „trotzdem akzeptieren“.
 
 0. **Seiten zuordnen** (entfällt, wenn nichts unklar ist): Dokumenttyp unsicher, Tournummer
    nicht gelesen, andere Tour (Zuladung), Abholschein, Sammelbestätigung. Darunter, eingeklappt,
-   alle Seiten nach Typ – der Typ jeder Seite ist dort änderbar.
+   alle Seiten nach Typ – der Typ jeder Seite ist dort änderbar. Typ „Sonstiges – verwerfen“
+   für Seiten, die nicht zur Prüfung gehören (z. B. Notiz des Fahrers): wird wie ein
+   Abholschein verworfen.
 1. **Ladeliste**: jede Seite groß mit ihren TA-Boxen. Klick auf eine Box streicht die TA
    (nicht verladen), nochmal = zurück. Unlesbare TA eintippen. Fehlt eine TA ganz: „TA-Box
    zeichnen“, Box um die Zeile ziehen, Nummer eintragen (eine in Schritt 0 gezogene TA-Box steht
    hier schon in der Liste). Seitenzahl „i/n“ je Seite eintragbar, wenn sie nicht gelesen wurde
    (bei mehreren Seiten Pflicht). Fehlende Ladelisten-Seite: Platzhalter mit „trotzdem
-   akzeptieren“. Alles Weitere beruht auf dieser Liste.
+   akzeptieren“ – solange eine Seite ohne gelesene Seitenzahl da ist, stattdessen die Frage
+   „S. 2 gelesen als ‚2l2‘ – ist das Seite 2/2?“ (ein Klick trägt sie ein). Eingetippte TAs
+   heißen „eingetippt“, nicht „gelesen“. Alles Weitere beruht auf dieser Liste.
 2. **Lieferscheine**: zuerst die, deren Nummer nicht gelesen wurde (Nummer eintragen). Dann je
    TA der Ladeliste eine Zeile: Seiten 1..n von links nach rechts, Kopien darunter (die beste
    oben, „diese archivieren“ tauscht), fehlende Seite als roter Platzhalter, „kein
    Lieferschein“, wenn es zur TA keinen gibt. Lieferscheine, deren Nummer nicht auf der
-   Ladeliste steht, am Ende; die zu gestrichenen TAs eingeklappt. Neben jeder TA der Ausschnitt
+   Ladeliste steht, am Ende; die zu gestrichenen TAs eingeklappt; TAs ohne Befund (gültig,
+   alle Seiten da) eingeklappt unter „n TAs ohne Befund – anzeigen“. Lieferschein ohne gelesene
+   Seitenzahl = offener Punkt („einseitig (1/1)“ bzw. „ist das Seite 2/2?“ mit einem Klick). Neben jeder TA der Ausschnitt
    ihrer Zeile auf der Ladeliste (Klick zeigt die Ladeliste). Die Tournummer steht nur auf der Vorderseite: Folgeseiten übernehmen die Tour der Seite mit derselben Lieferscheinnummer (sonst zählen sie zur Tour). **Regel je Lieferschein:**
    Stempel oder Unterschrift auf einer seiner Seiten genügt. Hermes/DHL in der Lieferanschrift:
-   Schild „Sammelbestätigung prüfen“ – die Person entscheidet (ggf. trotzdem akzeptieren).
+   Schild „Sammelbestätigung prüfen“ – offener Punkt, bis die Person „Sammelbestätigung
+   geprüft“ klickt (ggf. trotzdem akzeptieren).
 3. **CMR**: zuerst die mit unlesbarer Zählung, dann CMR 1..n von links nach rechts, Kopien
    darunter, fehlende Nummer als Platzhalter. Auf jeder Kachel die TAs des CMR (grün = auf der
    Ladeliste, rot = nicht); darunter „TA ohne CMR“ und „TA auf CMR, nicht auf der Ladeliste“ –
    jeweils mit dem Ausschnitt der Ladelisten-Zeile bzw. des CMR, rechts daneben die Ladeliste
    zum Nachsehen („auf der Ladeliste zeigen“ zoomt hin).
-4. **Abschluss**: Zusammenfassung, Fehlliste mit „trotzdem akzeptieren“, **„Fehlliste
-   bestätigen“** (erst dann erzeugt `make finalize` die Mail-Entwürfe), **„Entscheidung
-   speichern“** → `entscheidung.json` in den Ordner der Prüfseite.
+4. **Abschluss**: Zusammenfassung, Fehlliste – je Punkt mit Bild (Klick öffnet die Seite) und
+   „trotzdem akzeptieren“ (Gründe passend zum Punkt: bei Fehlendem nachgereicht / abgesprochen /
+   storniert, bei Zusätzlichem Zuladung / abgesprochen; immer Sonstiges mit Bemerkung). Unten
+   drei nummerierte Felder: ① Name, ② **„Fehlliste bestätigen (n Punkte → Mail-Entwürfe)“**
+   (erst dann erzeugt `make finalize` die Mail-Entwürfe), ③ **„Entscheidung speichern“** →
+   `entscheidung.json` in den Ordner der Prüfseite. Danach grüne Meldung „Gespeichert um …“,
+   Schritt 4 bekommt ✓ (bis zur nächsten Änderung).
 
 **Kacheln** zeigen nur die entscheidenden Ausschnitte, jeweils neben dem gelesenen Wert:
 Lieferschein – Nummer, Tournummer (Vorderseite), Unterschrift, Stempel; CMR – CMR-Zählung, TAs,
@@ -142,7 +153,15 @@ die **große Ansicht**: links die Seite – Mausrad zoomt, Ziehen verschiebt, be
 die Nummer bzw. den Prüfbereich gezoomt –, rechts Typ, Tournummer, Nummern und „vorhanden“ /
 „fehlt“, darunter „Normalerweise auf dieser Seite“: die Objekte, die der Dokumenttyp hat, mit
 Status (✓ gefunden / – fehlt) und je einem Knopf „Box zeichnen“. Fehlt eine Nummer, steht der Cursor schon im Feld; `Enter` = weiter zur nächsten offenen
-Seite. Tasten: `1` Unterschrift, `2` Stempel, `B` Box zeichnen, `←`/`→`, `Esc`.
+Seite; ist im Schritt nichts mehr offen, schließt die Ansicht und der Knopf „Schritt bestätigen“
+hat den Fokus. Tasten: `1` Unterschrift, `2` Stempel, `B` Box zeichnen, `←`/`→`, `Esc`
+(schließt immer, auch aus einem Feld; Klick neben die Ansicht oder ✕ ebenso). Zum kurzen
+Nachsehen reicht es, mit der Maus über eine Kachel zu fahren (oder `Leertaste` auf einer Kachel):
+die ganze Seite erscheint als Vorschau, ohne etwas zu öffnen. Liegen zwei erkannte Boxen
+übereinander, öffnet sich die Liste „Erkannte Boxen“ – dort jede einzeln ein-/ausschalten;
+Klick auf übereinanderliegende Boxen im Bild wechselt reihum. Im Zeichenmodus zeigt ein blauer
+Rahmen mit „Box um … ziehen – Esc bricht ab“, dass er aktiv ist. Statt Wahrscheinlichkeiten
+zeigt die Seite „sicher“ / „unsicher“ (Zahl als Tooltip).
 
 **Schritt bestätigen**: Seiten, auf denen das Modell sicher war, gelten mit dem Schritt als
 bestätigt (das Protokoll vermerkt „gesammelt bestätigt“). Unsichere Seiten müssen einzeln
@@ -153,8 +172,9 @@ entschieden sein, sonst bleibt der Knopf grau.
   Eine unsichere (gestrichelte) Modellbox gilt mit „vorhanden“ als bestätigt.
 - „fehlt“ → die Modellboxen dieser Klasse gelten als Fehlalarm (Anklicken behält eine).
 - Nummer selbst eingetragen (Lieferschein, Seite, CMR i/n, TA, Tournummer) und das Modell
-  hatte dort keine Box → Box ziehen. Hat es die Box gefunden und nur falsch gelesen, reicht
-  die Nummer.
+  hatte dort keine Box → Box ziehen ist **freiwillig** (mit Live-OCR trägt die Box die Nummer
+  gleich selbst ein). Ohne Box gilt die Seite im Label-Export nur als „vorschlag“, nicht als
+  „korrigiert“ (`box_missing` in `entscheidung.json`).
 
 Der Name der prüfenden Person steht oben in der Kopfzeile (für jeden Schritt sichtbar); „Entscheidung speichern“ geht jederzeit, auch zwischendurch. Der Zwischenstand bleibt im Browser erhalten.
 

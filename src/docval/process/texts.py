@@ -10,7 +10,7 @@ MSG = {
     "de": {
         "doctype_ok": "Dokumenttyp: {n} Seiten erkannt – {cmr} CMR, {ls} Lieferscheine, {ll} Ladeliste",
         "doctype_unclear": "Dokumenttyp unsicher: {pages} – bitte unten zuordnen",
-        "discarded": "Abholscheine (nicht Teil der Prüfung, werden verworfen): {pages}",
+        "discarded": "Abholscheine / Sonstiges (nicht Teil der Prüfung, werden verworfen): {pages}",
         "tour_ok": "Tournummer {tour} auf allen CMR/Lieferscheinen gelesen",
         "tour_unread": "Tournummer nicht sicher gelesen: {pages} – zählt zu Tour {tour}, bitte prüfen",
         "tour_other": "Andere Tour (Zuladung): {items} – zur richtigen Tour legen",
@@ -58,7 +58,7 @@ MSG = {
         "doctype_ok": "Typ dokumentu: rozpoznano {n} stron – CMR: {cmr}, dowody dostawy: {ls}, "
                       "lista załadunkowa: {ll}",
         "doctype_unclear": "Typ dokumentu niepewny: {pages} – przypisać poniżej",
-        "discarded": "Dowody odbioru (Abholschein, poza kontrolą, odrzucone): {pages}",
+        "discarded": "Dowody odbioru (Abholschein) / inne (poza kontrolą, odrzucone): {pages}",
         "tour_ok": "Numer trasy {tour} odczytany na wszystkich CMR/dowodach dostawy",
         "tour_unread": "Numer trasy odczytany niepewnie: {pages} – liczone do trasy {tour}, sprawdzić",
         "tour_other": "Inna trasa (doładunek): {items} – dołączyć do właściwej trasy",
@@ -108,9 +108,11 @@ MSG = {
 # reasons for "trotzdem akzeptieren" (review page + protocol)
 REASONS = {
     "de": {"nachgereicht": "Dokument wird nachgereicht", "abgesprochen": "Mit Fachbereich/Kunde abgesprochen",
-           "storniert": "Auftrag storniert / nicht geliefert", "sonstiges": "Sonstiges"},
+           "storniert": "Auftrag storniert / nicht geliefert", "zuladung": "Zuladung / andere Tour",
+           "sonstiges": "Sonstiges"},
     "pl": {"nachgereicht": "Dokument zostanie dosłany", "abgesprochen": "Uzgodnione z działem/klientem",
-           "storniert": "Zlecenie anulowane / niedostarczone", "sonstiges": "Inne"},
+           "storniert": "Zlecenie anulowane / niedostarczone", "zuladung": "Doładunek / inna trasa",
+           "sonstiges": "Inne"},
 }
 
 
