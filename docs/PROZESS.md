@@ -103,8 +103,12 @@ Live-OCR (Nummern abtippen, Datei speichern und in den Ordner legen).
 
 
 Ein Assistent in fünf Schritten. Ein Schritt öffnet sich erst, wenn der vorige bestätigt ist;
-zurück geht immer. Eine spätere Änderung setzt die Bestätigung der folgenden Schritte zurück,
-die Einzelentscheidungen bleiben. „Bestätigen“ heißt „angesehen“, nicht „alles ok“ – Offenes
+zurück geht immer. Eine Bestätigung gilt, solange das Ergebnis des Schritts gleich bleibt (verladene/gestrichene
+TAs, Nummern, gültig/ungültig, Archivkopie): ändert eine Korrektur es, zeigt der Schritt „!“ und
+eine Meldung nennt die neu zu bestätigenden Schritte; wird die Änderung zurückgenommen, gilt die
+Bestätigung wieder. Ebenso „Gespeichert“: ändert sich danach etwas, steht „Gespeicherter Stand
+veraltet“ in der Kopfzeile. Die Leiste mit „Noch offen“ und „Schritt bestätigen“ bleibt unten
+am Bildschirm stehen. „Bestätigen“ heißt „angesehen“, nicht „alles ok“ – Offenes
 lässt sich mit Grund „trotzdem akzeptieren“.
 
 0. **Seiten zuordnen** (entfällt, wenn nichts unklar ist): Dokumenttyp unsicher, Tournummer
@@ -119,7 +123,12 @@ lässt sich mit Grund „trotzdem akzeptieren“.
    (bei mehreren Seiten Pflicht). Fehlende Ladelisten-Seite: Platzhalter mit „trotzdem
    akzeptieren“ – solange eine Seite ohne gelesene Seitenzahl da ist, stattdessen die Frage
    „S. 2 gelesen als ‚2l2‘ – ist das Seite 2/2?“ (ein Klick trägt sie ein). Eingetippte TAs
-   heißen „eingetippt“, nicht „gelesen“. Alles Weitere beruht auf dieser Liste.
+   heißen „eingetippt“, nicht „gelesen“; eine ungültige Eingabe (nicht 8 Ziffern) bleibt rot im
+   Feld stehen und wird nicht übernommen („↺ gelesener Wert“ holt die gelesene Nummer zurück).
+   Unter jeder TA der Ausschnitt ihrer Zeile (Klick zoomt die Ladeliste hin). Farbige
+   Handvermerke in der Zeile (rot durchgestrichen, „nie jedzie“ – `pen_mark` in `run.py`, nur
+   farbige Tinte) markieren die Zeile „Handvermerk – gestrichen?“: offener Punkt, bis die Person
+   „streichen“ oder „behalten“ klickt. Alles Weitere beruht auf dieser Liste.
 2. **Lieferscheine**: zuerst die, deren Nummer nicht gelesen wurde (Nummer eintragen). Dann je
    TA der Ladeliste eine Zeile: Seiten 1..n von links nach rechts, Kopien darunter (die beste
    oben, „diese archivieren“ tauscht), fehlende Seite als roter Platzhalter, „kein

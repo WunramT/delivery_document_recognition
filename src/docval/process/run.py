@@ -155,6 +155,19 @@ def process_rules(cfg) -> dict:
     return rules
 
 
+def pen_mark(im, box, band: float = 0.012, min_frac: float = 0.002) -> bool:
+    """Coloured ink (pen, marker) in the row of a loading-list TA: the list is printed in black,
+    a struck-out row or a note like "nie jedzie" is mostly written in colour. Only a hint - a
+    row struck out in black is not found."""
+    import numpy as np
+
+    y1, y2 = max(0.0, box[1] - band), min(1.0, box[3] + band)
+    a = np.asarray(im.convert("RGB").crop((0, int(y1 * im.height), im.width, max(int(y1 * im.height) + 1, int(y2 * im.height)))),
+                   dtype=np.int16)
+    sat = (a.max(2) - a.min(2) > 90) & (a.max(2) > 80)
+    return bool(sat.mean() >= min_frac)
+
+
 class BoxReader:
     """OCR of one box exactly as make process reads it - also used live by make review when the
     person draws a box. read() returns {"text": OCR text, "value": parsed value or ""}:
@@ -385,6 +398,9 @@ class Pipeline:
         rec["proposal"] = props.get(dt_["doc_type"], {}).get("classes", {})
         t = dt_["doc_type"]
         rec["ta"], rec["ta_unread"] = self.ta(im, dets) if t in ("loading_list", "cmr", UNCERTAIN) else ([], [])
+        if t == "loading_list":   # pen in the row (struck out, "nie jedzie"): the person decides
+            for x in rec["ta"] + rec["ta_unread"]:
+                x["mark"] = pen_mark(im, x["box"])
         ls = self.ls_number(im, dets) if t in ("lieferschein", UNCERTAIN) else None
         po = self.page_of(im, dets) if t in ("lieferschein", "loading_list", UNCERTAIN) else None
         rec["ls_read"], rec["page_read"] = ls, po
