@@ -7,7 +7,7 @@ from PIL import Image
 from docval.process.finalize import apply_decision, run_finalize
 from docval.process.organize import organize, page_valid
 from docval.process.review import write_review
-from docval.process.run import normalize_tour, numbers8, parse_page_of, tour_from_name
+from docval.process.run import normalize_tour, numbers8, parse_page_of, pen_mark, tour_from_name
 from docval.process.texts import render_check
 
 TOUR = "503/01.09.2026/4000"
@@ -421,3 +421,16 @@ def test_review_server_ocr_save_and_no_files_outside(tmp_path):
         assert r["ok"] and json.loads((run / "entscheidung.json").read_text())["reviewer"] == "A"
     finally:
         srv.shutdown()
+
+
+def test_pen_mark_on_loading_list_row():
+    from PIL import ImageDraw
+
+    im = Image.new("RGB", (1241, 1754), "white")
+    d = ImageDraw.Draw(im)
+    d.text((560, 500), "Zlecenie 12294456", fill="black")
+    box = [560 / 1241, 495 / 1754, 700 / 1241, 520 / 1754]
+    assert not pen_mark(im, box)                                    # printed in black: nothing
+    d.line([(90, 505), (1150, 515)], fill=(200, 20, 20), width=5)   # struck out in red
+    assert pen_mark(im, box)
+    assert not pen_mark(im, [box[0], 0.6, box[2], 0.62])            # another row: untouched
