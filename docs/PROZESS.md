@@ -102,6 +102,20 @@ Beenden mit `Strg+C`. Per Doppelklick auf `pruefung.html` geht alles wie bisher,
 Live-OCR (Nummern abtippen, Datei speichern und in den Ordner legen).
 
 
+Gestaltung: Designsystem **Footnote** (footnote@1.0.0, vendored als
+`src/docval/process/footnote.css`) – Papier, Tinte, Textmarker: die Farbe des Markers ist die
+Bedeutung (grün gültig, rot fehlt/ungültig, orange offen, cyan akzeptiert), immer mit dem Wort
+daneben. Schriften (Source Serif 4, JetBrains Mono, Caveat) kommen von Google Fonts; ohne
+Internet fällt die Seite auf Georgia/Monospace zurück und funktioniert unverändert.
+
+**Geführt:** Jeder Schritt beginnt mit einem Blatt „Was jetzt?“ – wie viele Punkte offen sind,
+welcher als Nächstes kommt, und ein großer Knopf „Ersten offenen Punkt öffnen“ (ist nichts mehr
+offen: „Schritt bestätigen und weiter“). Die große Ansicht zeigt oben „Zu tun auf dieser Seite“:
+je offenem Punkt eine Karte mit eigenen großen Knöpfen (Box um die Nummer ziehen, einseitig 1/1,
+Tournummer übernehmen, vorhanden/fehlt …); alle übrigen Angaben stehen eingeklappt darunter. Ist
+die Seite erledigt: „Nächste offene Seite →“. Im Abschluss führt das Blatt durch
+① Name → ② Fehlliste bestätigen → ③ Speichern → ④ Abschluss erzeugen.
+
 Ein Assistent in fünf Schritten. Ein Schritt öffnet sich erst, wenn der vorige bestätigt ist;
 zurück geht immer. Eine Bestätigung gilt, solange das Ergebnis des Schritts gleich bleibt (verladene/gestrichene
 TAs, Nummern, gültig/ungültig, Archivkopie): ändert eine Korrektur es, zeigt der Schritt „!“ und
