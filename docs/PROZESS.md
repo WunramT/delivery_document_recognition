@@ -125,6 +125,19 @@ veraltet“ in der Kopfzeile. Die Leiste mit „Noch offen“ und „Schritt bes
 am Bildschirm stehen. „Bestätigen“ heißt „angesehen“, nicht „alles ok“ – Offenes
 lässt sich mit Grund „trotzdem akzeptieren“.
 
+**Pflicht-Prüfungen** (damit nicht einfach durchbestätigt wird):
+- Schritt 0, **Unterschrift & Stempel**: jede CMR-/Lieferschein-Seite, auf der das Modell eine
+  Unterschrift oder einen Stempel nicht sicher gefunden hat, als große Karte mit dem Prüfbereich;
+  je Objekt „✓ vorhanden“ / „✗ fehlt“ – auch wenn die Antwort dem Modell entspricht, muss sie
+  einmal gegeben werden (`objects_checked` in `entscheidung.json`). Gerade nicht erkannte
+  Unterschriften auf CMR fallen so vor dem eigentlichen Abgleich auf.
+- Schritt 2, **Lieferscheine ohne Unterschrift**: Lieferscheine ohne Unterschrift auf allen
+  Seiten (gültig nur durch den Stempel) stehen als Gruppe oben und werden als Gruppe bestätigt
+  (`no_signature_confirmed`); kommt einer dazu, ist die Gruppe neu zu bestätigen.
+- Schritt 2/3, **Doppelte Seiten**: jede Gruppe gleicher Nummer groß nebeneinander, die
+  archivierte Kopie grün markiert, „diese archivieren“ tauscht; die Auswahl wird je Gruppe
+  bestätigt (`duplicates_confirmed`).
+
 0. **Seiten zuordnen** (entfällt, wenn nichts unklar ist): Dokumenttyp unsicher, Tournummer
    nicht gelesen, andere Tour (Zuladung), Abholschein, Sammelbestätigung. Darunter, eingeklappt,
    alle Seiten nach Typ – der Typ jeder Seite ist dort änderbar. Typ „Sonstiges – verwerfen“
