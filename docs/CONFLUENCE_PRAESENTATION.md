@@ -208,6 +208,7 @@ Papierstapel ──scannen──► Verarbeitung (lokal) ──► Prüfseite im
 ## 10. Der Mensch in der Schleife
 
 * Die Prüfseite führt in fünf Schritten durch die Tour: Seiten zuordnen → Ladeliste → Lieferscheine → CMR → Abschluss.
+* Geführt: Jeder Schritt beginnt mit „Was jetzt?“ – wie viel offen ist und ein Knopf zum ersten offenen Punkt.
 * Gezeigt werden nur die entscheidenden **Ausschnitte** neben dem gelesenen Wert – kein Blättern durch 100 Seiten.
 * Sichere Seiten werden gesammelt bestätigt, unsichere einzeln.
 * Fehlt etwas: „trotzdem akzeptieren“ nur mit Grund – steht im Protokoll.
@@ -215,7 +216,7 @@ Papierstapel ──scannen──► Verarbeitung (lokal) ──► Prüfseite im
 
 > 📷 **Bild einfügen:** Prüfseite, Schritt „CMR“ mit Kacheln (TAs grün/rot, Ausschnitte Stempel/Unterschrift) – **Quelle:** Screenshot von `make review RUN=<Tour>`
 
-> 📷 **Bild einfügen:** Prüfseite, große Ansicht einer Seite mit „Normalerweise auf dieser Seite“ – **Quelle:** wie oben, Kachel anklicken
+> 📷 **Bild einfügen:** Prüfseite, große Ansicht einer Seite mit den Karten „Zu tun auf dieser Seite“ – **Quelle:** wie oben, Kachel anklicken
 
 > 📷 **Bild einfügen:** Prüfseite, Schritt „Abschluss“ mit Fehlliste – **Quelle:** wie oben
 
