@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>COCO-Labels ansehen</title>
+<!-- Offline per Doppelklick öffnen (Chrome/Edge). Bilder und Labels werden nur im Browser gelesen, nichts wird hochgeladen. -->
+<style>
+  :root {
+    --bg: #f6f6f4; --panel: #ffffff; --ink: #1d1d1b; --ink2: #5b5b57; --line: #dddcd6;
+    --accent: #2457c5; --missing: #ecebe6; --w: 260px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161615; --panel: #20201e; --ink: #ecebe6; --ink2: #a5a49d; --line: #3a3a36;
+            --accent: #7ea2ff; --missing: #2a2a27; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  header { padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  h1 { font-size: 17px; margin: 0 0 8px; }
+  .pick { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn { display: inline-block; padding: 6px 12px; border: 1px solid var(--accent); border-radius: 6px; color: var(--accent);
+         background: transparent; cursor: pointer; font: inherit; }
+  .btn.set { background: var(--accent); color: var(--panel); }
+  .btn.secondary { border-style: dashed; }
+  #status { margin-top: 8px; color: var(--ink2); }
+  #status details { display: inline; }
+  #status summary { display: inline; cursor: pointer; color: var(--accent); }
+  #status ul { margin: 4px 0; max-height: 160px; overflow: auto; }
+  .layout { display: flex; align-items: flex-start; }
+  aside { width: 250px; flex: none; padding: 12px 16px; position: sticky; top: 92px; max-height: calc(100vh - 92px); overflow: auto; }
+  aside h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink2); margin: 14px 0 6px; }
+  aside label { display: flex; align-items: center; gap: 6px; margin: 3px 0; cursor: pointer; }
+  aside select, aside input[type=search] { width: 100%; font: inherit; padding: 4px; background: var(--panel); color: var(--ink);
+                                           border: 1px solid var(--line); border-radius: 4px; }
+  .sw { width: 12px; height: 12px; border-radius: 2px; flex: none; }
+  .n { color: var(--ink2); margin-left: auto; font-variant-numeric: tabular-nums; }
+  main { flex: 1; padding: 12px 16px 40px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--w), 1fr)); gap: 12px; }
+  .empty { grid-column: 1 / -1; color: var(--ink2); padding: 40px 0; }
+  figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; cursor: pointer; }
+  figure:hover { border-color: var(--accent); }
+  .view { position: relative; background: var(--missing); }
+  .view img { display: block; width: 100%; height: 100%; }
+  .view svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .view .miss { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--ink2); }
+  figcaption { padding: 6px 8px; font-size: 12px; }
+  figcaption .fn { word-break: break-all; }
+  .badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .b { padding: 0 5px; border-radius: 3px; font-size: 11px; border: 1px solid var(--line); }
+  .b.neu { border-color: #16a34a; color: #16a34a; }
+  .b.entfernt { border-color: #dc2626; color: #dc2626; }
+  .b.geaendert { border-color: #ca8a04; color: #ca8a04; }
+  #modal { position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 10; display: flex; }
+  #modal[hidden] { display: none; }
+  #mview { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 12px; }
+  #mview .view { flex: none; }
+  #mview.fit .view img { max-height: calc(100vh - 24px); max-width: calc(100vw - 380px); width: auto; height: auto; }
+  #mview.zoom { align-items: flex-start; justify-content: flex-start; }
+  #mview.zoom .view img { width: auto; height: auto; max-width: none; }
+  #mside { width: 340px; flex: none; background: var(--panel); padding: 12px 14px; overflow: auto; }
+  #mside .fn { word-break: break-all; font-weight: 600; }
+  #mside table { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 12px; }
+  #mside td { padding: 3px 4px; border-top: 1px solid var(--line); vertical-align: top; }
+  #mside .keys { color: var(--ink2); font-size: 12px; margin-top: 10px; }
+  .row { display: flex; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
+  kbd { border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>COCO-Labels ansehen</h1>
+  <div class="pick">
+    <label class="btn" id="dirBtn">Bilder-Ordner wählen<input type="file" id="dir" webkitdirectory multiple hidden></label>
+    <label class="btn" id="cocoBtn">COCO-Datei wählen<input type="file" id="coco" accept=".json,application/json" hidden></label>
+    <label class="btn secondary" id="oldBtn">Vergleich: ältere COCO-Datei (optional)<input type="file" id="cocoOld" accept=".json,application/json" hidden></label>
+  </div>
+  <div id="status">Bilder-Ordner und COCO-Datei wählen. Liegt eine <code>*.coco.json</code> im Ordner, wird sie automatisch genommen.</div>
+</header>
+<div class="layout">
+  <aside>
+    <h2>Klassen</h2>
+    <div id="classes"><span class="n">–</span></div>
+    <h2>Bilder</h2>
+    <select id="has"><option value="">alle Bilder</option></select>
+    <label><input type="checkbox" id="onlyDiff" disabled> nur Bilder mit Unterschieden</label>
+    <input type="search" id="q" placeholder="Dateiname enthält …">
+    <h2>Anzeige</h2>
+    <label><input type="checkbox" id="showBoxes" checked> Boxen <span class="n"><kbd>L</kbd></span></label>
+    <label><input type="checkbox" id="showText" checked> Klassennamen <span class="n"><kbd>T</kbd></span></label>
+    <label>Größe <input type="range" id="size" min="160" max="700" step="20" value="260"></label>
+    <div id="legendDiff" hidden>
+      <h2>Vergleich</h2>
+      <div class="badges"><span class="b neu">neu</span><span class="b geaendert">geändert</span><span class="b entfernt">entfernt</span></div>
+      <p style="color:var(--ink2);font-size:12px">Gleiche Klasse und IoU ≥ 0,3 gilt als dieselbe Box; unter IoU 0,8 als „geändert“. Entfernte Boxen gestrichelt.</p>
+    </div>
+  </aside>
+  <main id="grid"><div class="empty">Noch nichts geladen.</div></main>
+</div>
+<div id="modal" hidden>
+  <div id="mview" class="fit"></div>
+  <div id="mside"></div>
+</div>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const NS = "http://www.w3.org/2000/svg";
+const IMG_RE = /\.(png|jpe?g|webp|bmp|gif)$/i;
+const coll = new Intl.Collator("de", { numeric: true });
+const COLORS = { unterschrift: "#2563eb", stempel: "#dc2626", tour_nummer: "#16a34a", cmr_count: "#9333ea",
+                 ta_nummer: "#ea580c", ls_nummer: "#0891b2", seitenzahl: "#ca8a04" };
+const AMBIG = Symbol("mehrdeutig");
+
+const S = {
+  files: new Map(), nFiles: 0, main: null, old: null, mainName: "", oldName: "",
+  pages: [], view: [], classes: [], hidden: new Set(), urls: new Map(), cur: -1,
+};
+
+const norm = p => String(p || "").replace(/\\/g, "/").replace(/^(\.\/)+/, "").toLowerCase();
+const base = p => norm(p).split("/").pop();
+const stem = p => base(p).replace(/\.[^.]+$/, "");
+
+function color(cat) {
+  if (COLORS[cat]) return COLORS[cat];
+  let h = 0;
+  for (const c of String(cat)) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `hsl(${h} 70% 45%)`;
+}
+
+// every path tail points to its file ("x.png", "images/x.png", "425/images/x.png", ...);
+// a tail shared by two files is ambiguous and needs a longer one
+function indexPaths(map, path, value) {
+  const parts = norm(path).split("/");
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const k = parts.slice(i).join("/");
+    map.set(k, map.has(k) && map.get(k) !== value ? AMBIG : value);
+  }
+  const st = "#stem:" + stem(path);
+  map.set(st, map.has(st) && map.get(st) !== value ? AMBIG : value);
+}
+
+function lookup(map, path) {
+  const parts = norm(path).split("/");
+  for (let i = 0; i < parts.length; i++) {
+    const v = map.get(parts.slice(i).join("/"));
+    if (v && v !== AMBIG) return v;
+  }
+  const v = map.get("#stem:" + stem(path));
+  return v && v !== AMBIG ? v : null;
+}
+
+function parseCoco(j) {
+  const cats = new Map((j.categories || []).map(c => [c.id, c.name]));
+  const anns = new Map();
+  for (const a of j.annotations || []) {
+    if (!Array.isArray(a.bbox) || a.bbox.length < 4) continue;
+    const l = anns.get(a.image_id) || [];
+    l.push({ cat: cats.get(a.category_id) ?? String(a.category_id), bbox: a.bbox.map(Number), score: a.score, id: a.id });
+    anns.set(a.image_id, l);
+  }
+  const images = (j.images || []).map(im => ({ id: im.id, file_name: im.file_name, width: im.width, height: im.height,
+                                               anns: anns.get(im.id) || [] }));
+  const byPath = new Map();
+  for (const im of images) indexPaths(byPath, im.file_name, im);
+  return { cats: [...new Set(cats.values())], images, byPath, nAnn: [...anns.values()].reduce((s, l) => s + l.length, 0) };
+}
+
+async function readCoco(file) {
+  try {
+    return parseCoco(JSON.parse(await file.text()));
+  } catch (e) {
+    alert(`${file.name} ist keine lesbare COCO-Datei: ${e.message}`);
+    return null;
+  }
+}
+
+function iou(a, b) {
+  const ix = Math.max(0, Math.min(a[0] + a[2], b[0] + b[2]) - Math.max(a[0], b[0]));
+  const iy = Math.max(0, Math.min(a[1] + a[3], b[1] + b[3]) - Math.max(a[1], b[1]));
+  const i = ix * iy, u = a[2] * a[3] + b[2] * b[3] - i;
+  return u > 0 ? i / u : 0;
+}
+
+// pair new and old boxes of the same class, best IoU first
+function diff(p) {
+  const pairs = [];
+  p.anns.forEach((a, i) => p.old.forEach((b, j) => {
+    if (a.cat !== b.cat) return;
+    const v = iou(a.bbox, b.bbox);
+    if (v >= 0.3) pairs.push([v, i, j]);
+  }));
+  pairs.sort((x, y) => y[0] - x[0]);
+  const ui = new Set(), uj = new Set();
+  p.states = p.anns.map(() => "neu");
+  for (const [v, i, j] of pairs) {
+    if (ui.has(i) || uj.has(j)) continue;
+    ui.add(i); uj.add(j);
+    p.states[i] = v >= 0.8 ? "gleich" : "geändert";
+  }
+  p.removed = p.old.filter((_, j) => !uj.has(j));
+}
+
+function rebuild() {
+  for (const u of S.urls.values()) URL.revokeObjectURL(u);
+  S.urls.clear();
+  if (!S.main) { status(); render(); return; }
+  S.pages = S.main.images.map(im => {
+    const p = { im, file: lookup(S.files, im.file_name), anns: im.anns, old: null, states: null, removed: [] };
+    if (S.old) {
+      const o = lookup(S.old.byPath, im.file_name);
+      p.old = o ? o.anns : [];
+      p.oldMissing = !o;
+      diff(p);
+    }
+    return p;
+  }).sort((a, b) => coll.compare(a.im.file_name, b.im.file_name));
+  const cats = new Set(S.main.cats);
+  if (S.old) S.old.cats.forEach(c => cats.add(c));
+  S.pages.forEach(p => p.anns.forEach(a => cats.add(a.cat)));
+  S.classes = [...cats];
+  buildFilters();
+  status();
+  render();
+}
+
+function status() {
+  const el = $("#status");
+  el.textContent = "";
+  const parts = [];
+  if (S.nFiles) parts.push(`Ordner: ${S.nFiles} Bilder`);
+  if (S.main) parts.push(`COCO ${S.mainName}: ${S.main.images.length} Bilder, ${S.main.nAnn} Labels`);
+  if (S.old) parts.push(`Vergleich ${S.oldName}: ${S.old.images.length} Bilder, ${S.old.nAnn} Labels`);
+  el.append(parts.join(" · ") || "Bilder-Ordner und COCO-Datei wählen.");
+  if (!S.main) return;
+  const missing = S.pages.filter(p => !p.file);
+  if (S.nFiles && missing.length) addList(el, `${missing.length} Bilder nicht im Ordner`, missing.map(p => p.im.file_name));
+  if (S.old) {
+    const oldMissing = S.pages.filter(p => p.oldMissing);
+    if (oldMissing.length) addList(el, `${oldMissing.length} Bilder fehlen in der Vergleichsdatei`, oldMissing.map(p => p.im.file_name));
+    const onlyOld = S.old.images.filter(im => !lookup(S.main.byPath, im.file_name));
+    if (onlyOld.length) addList(el, `${onlyOld.length} Bilder nur in der Vergleichsdatei`, onlyOld.map(im => im.file_name));
+  }
+}
+
+function addList(el, title, names) {
+  const d = document.createElement("details");
+  const s = document.createElement("summary");
+  s.textContent = title;
+  const ul = document.createElement("ul");
+  for (const n of names) { const li = document.createElement("li"); li.textContent = n; ul.append(li); }
+  d.append(s, ul);
+  el.append(" · ", d);
+}
+
+function buildFilters() {
+  const box = $("#classes");
+  box.textContent = "";
+  for (const c of S.classes) {
+    const n = S.pages.reduce((s, p) => s + p.anns.filter(a => a.cat === c).length, 0);
+    const l = document.createElement("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = !S.hidden.has(c);
+    cb.onchange = () => { cb.checked ? S.hidden.delete(c) : S.hidden.add(c); render(); };
+    const sw = document.createElement("span"); sw.className = "sw"; sw.style.background = color(c);
+    const t = document.createElement("span"); t.textContent = c;
+    const cnt = document.createElement("span"); cnt.className = "n"; cnt.textContent = n;
+    l.append(cb, sw, t, cnt);
+    box.append(l);
+  }
+  const sel = $("#has"), prev = sel.value;
+  sel.textContent = "";
+  sel.append(new Option("alle Bilder", ""));
+  for (const c of S.classes) sel.append(new Option(`mit ${c}`, "mit:" + c));
+  for (const c of S.classes) sel.append(new Option(`ohne ${c}`, "ohne:" + c));
+  sel.value = [...sel.options].some(o => o.value === prev) ? prev : "";
+  $("#onlyDiff").disabled = !S.old;
+  if (!S.old) $("#onlyDiff").checked = false;
+  $("#legendDiff").hidden = !S.old;
+}
+
+function diffCounts(p) {
+  const c = { neu: 0, "geändert": 0, entfernt: 0 };
+  if (!p.states) return c;
+  p.anns.forEach((a, i) => { if (!S.hidden.has(a.cat) && p.states[i] !== "gleich") c[p.states[i]]++; });
+  p.removed.forEach(a => { if (!S.hidden.has(a.cat)) c.entfernt++; });
+  return c;
+}
+
+function filtered() {
+  const [mode, cls] = $("#has").value.split(":");
+  const q = norm($("#q").value.trim());
+  const onlyDiff = $("#onlyDiff").checked;
+  return S.pages.filter(p => {
+    if (q && !norm(p.im.file_name).includes(q)) return false;
+    if (mode === "mit" && !p.anns.some(a => a.cat === cls)) return false;
+    if (mode === "ohne" && p.anns.some(a => a.cat === cls)) return false;
+    if (onlyDiff) { const c = diffCounts(p); if (!c.neu && !c["geändert"] && !c.entfernt) return false; }
+    return true;
+  });
+}
+
+function url(file) {
+  if (!S.urls.has(file)) S.urls.set(file, URL.createObjectURL(file));
+  return S.urls.get(file);
+}
+
+const lazy = new IntersectionObserver(entries => {
+  for (const e of entries) {
+    if (!e.isIntersecting) continue;
+    const img = e.target;
+    img.src = img.dataset.src;
+    lazy.unobserve(img);
+  }
+}, { rootMargin: "800px" });
+
+function svgEl(name, attrs) {
+  const e = document.createElementNS(NS, name);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+}
+
+function draw(svg, p) {
+  const W = p.im.width || p.nw, H = p.im.height || p.nh;
+  svg.textContent = "";
+  if (!W || !H) return;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+  if (!$("#showBoxes").checked) return;
+  const fs = Math.max(W, H) * 0.014;
+  const add = (a, state) => {
+    if (S.hidden.has(a.cat)) return;
+    const [x, y, w, h] = a.bbox, col = color(a.cat), changed = state && state !== "gleich";
+    const r = svgEl("rect", { x, y, width: w, height: h, fill: col, "fill-opacity": state === "entfernt" ? 0 : 0.1,
+                              stroke: col, "stroke-width": changed ? 3 : 2, "vector-effect": "non-scaling-stroke" });
+    if (state === "entfernt") r.setAttribute("stroke-dasharray", "6 4");
+    svg.append(r);
+    if (!$("#showText").checked) return;
+    const t = svgEl("text", { x, y: y > fs * 1.2 ? y - fs * 0.3 : y + h + fs, "font-size": fs, fill: col,
+                              stroke: "#fff", "stroke-width": fs * 0.22, "paint-order": "stroke", "font-family": "system-ui, sans-serif",
+                              "font-weight": changed ? 700 : 400 });
+    t.textContent = (changed ? state + ": " : "") + a.cat + (a.score != null ? " " + Number(a.score).toFixed(2) : "");
+    svg.append(t);
+  };
+  p.anns.forEach((a, i) => add(a, p.states ? p.states[i] : null));
+  p.removed.forEach(a => add(a, "entfernt"));
+}
+
+// image + box overlay; the box keeps the page's aspect ratio before the image is loaded
+function makeView(p, eager) {
+  const v = document.createElement("div");
+  v.className = "view";
+  const svg = document.createElementNS(NS, "svg");
+  const W = p.im.width || p.nw, H = p.im.height || p.nh;
+  if (p.file) {
+    const img = document.createElement("img");
+    img.alt = p.im.file_name;
+    img.decoding = "async";
+    img.onload = () => {
+      if (!p.nw) { p.nw = img.naturalWidth; p.nh = img.naturalHeight; draw(svg, p); }
+    };
+    if (eager) img.src = url(p.file); else { img.dataset.src = url(p.file); lazy.observe(img); }
+    v.append(img);
+  } else {
+    const m = document.createElement("div");
+    m.className = "miss";
+    m.textContent = S.nFiles ? "Bild nicht im Ordner" : "Bilder-Ordner wählen";
+    v.append(m);
+  }
+  if (!eager || !p.file) v.style.aspectRatio = W && H ? `${W} / ${H}` : "1241 / 1754";
+  v.append(svg);
+  draw(svg, p);
+  return v;
+}
+
+function badges(p) {
+  const b = document.createElement("div");
+  b.className = "badges";
+  const counts = {};
+  p.anns.forEach(a => { if (!S.hidden.has(a.cat)) counts[a.cat] = (counts[a.cat] || 0) + 1; });
+  for (const [c, n] of Object.entries(counts)) {
+    const s = document.createElement("span"); s.className = "b"; s.style.color = color(c);
+    s.textContent = `${c} ${n}`; b.append(s);
+  }
+  if (p.states) {
+    const c = diffCounts(p);
+    for (const [k, cls] of [["neu", "neu"], ["geändert", "geaendert"], ["entfernt", "entfernt"]]) {
+      if (!c[k]) continue;
+      const s = document.createElement("span"); s.className = "b " + cls; s.textContent = `${c[k]} ${k}`; b.append(s);
+    }
+    if (p.oldMissing) { const s = document.createElement("span"); s.className = "b entfernt"; s.textContent = "nicht in Vergleich"; b.append(s); }
+  }
+  return b;
+}
+
+function render() {
+  const grid = $("#grid");
+  grid.textContent = "";
+  lazy.disconnect();
+  if (!S.main) { grid.innerHTML = '<div class="empty">Noch keine COCO-Datei geladen.</div>'; return; }
+  S.view = filtered();
+  if (!S.view.length) { grid.innerHTML = '<div class="empty">Kein Bild passt zum Filter.</div>'; return; }
+  S.view.forEach((p, idx) => {
+    const f = document.createElement("figure");
+    const cap = document.createElement("figcaption");
+    const fn = document.createElement("div"); fn.className = "fn"; fn.textContent = p.im.file_name;
+    cap.append(fn, badges(p));
+    f.append(makeView(p, false), cap);
+    f.onclick = () => openModal(idx);
+    grid.append(f);
+  });
+  const st = $("#status");
+  const shown = st.querySelector(".shown") || st.appendChild(Object.assign(document.createElement("span"), { className: "shown" }));
+  shown.textContent = ` · angezeigt: ${S.view.length} von ${S.pages.length}`;
+}
+
+function openModal(idx) {
+  S.cur = idx;
+  const p = S.view[idx];
+  const mv = $("#mview");
+  mv.textContent = "";
+  mv.append(makeView(p, true));
+  const side = $("#mside");
+  side.textContent = "";
+  const fn = document.createElement("div"); fn.className = "fn"; fn.textContent = p.im.file_name;
+  const meta = document.createElement("div");
+  meta.style.color = "var(--ink2)";
+  meta.textContent = `${idx + 1} von ${S.view.length} · ${p.im.width || p.nw || "?"} × ${p.im.height || p.nh || "?"} px · id ${p.im.id}`;
+  const row = document.createElement("div"); row.className = "row";
+  const btn = (t, fnc) => { const b = document.createElement("button"); b.className = "btn"; b.textContent = t; b.onclick = fnc; return b; };
+  row.append(btn("← zurück", () => step(-1)), btn("weiter →", () => step(1)), btn("Zoom", toggleZoom), btn("✕ schließen", closeModal));
+  side.append(fn, meta, row, badges(p));
+  const tbl = document.createElement("table");
+  const rows = p.anns.map((a, i) => [a, p.states ? p.states[i] : ""]).concat(p.removed.map(a => [a, "entfernt"]));
+  for (const [a, state] of rows) {
+    if (S.hidden.has(a.cat)) continue;
+    const tr = document.createElement("tr");
+    const td = t => { const d = document.createElement("td"); d.textContent = t; tr.append(d); return d; };
+    td(a.cat).style.color = color(a.cat);
+    td(a.bbox.map(v => Math.round(v)).join(", "));
+    td([state && state !== "gleich" ? state : "", a.score != null ? "Score " + Number(a.score).toFixed(2) : ""].filter(Boolean).join(" · "));
+    tbl.append(tr);
+  }
+  side.append(tbl);
+  const keys = document.createElement("div"); keys.className = "keys";
+  keys.innerHTML = "<kbd>←</kbd>/<kbd>→</kbd> Bild · <kbd>Z</kbd> Zoom · <kbd>L</kbd> Boxen · <kbd>T</kbd> Namen · <kbd>Esc</kbd> schließen";
+  side.append(keys);
+  $("#modal").hidden = false;
+}
+
+function step(d) {
+  if (!S.view.length) return;
+  openModal((S.cur + d + S.view.length) % S.view.length);
+}
+function toggleZoom() { const mv = $("#mview"); mv.classList.toggle("zoom"); mv.classList.toggle("fit"); }
+function closeModal() { $("#modal").hidden = true; S.cur = -1; }
+
+$("#modal").addEventListener("click", e => { if (e.target.id === "mview") closeModal(); });
+document.addEventListener("keydown", e => {
+  if (e.target.matches("input[type=search]")) return;
+  const k = e.key.toLowerCase();
+  if (k === "l" || k === "t") {
+    const cb = $(k === "l" ? "#showBoxes" : "#showText");
+    cb.checked = !cb.checked; cb.dispatchEvent(new Event("change"));
+    return;
+  }
+  if ($("#modal").hidden) return;
+  if (e.key === "Escape") closeModal();
+  else if (e.key === "ArrowRight") step(1);
+  else if (e.key === "ArrowLeft") step(-1);
+  else if (k === "z") toggleZoom();
+});
+
+$("#dir").onchange = async e => {
+  S.files = new Map();
+  S.nFiles = 0;
+  let cocoFile = null;
+  for (const f of e.target.files) {
+    const rel = f.webkitRelativePath || f.name;
+    if (IMG_RE.test(f.name)) { indexPaths(S.files, rel, f); S.nFiles++; }
+    else if (!cocoFile && /coco.*\.json$/i.test(f.name)) cocoFile = f;
+  }
+  $("#dirBtn").classList.toggle("set", S.nFiles > 0);
+  if (cocoFile && !S.main) {
+    S.main = await readCoco(cocoFile);
+    S.mainName = cocoFile.webkitRelativePath || cocoFile.name;
+    $("#cocoBtn").classList.toggle("set", !!S.main);
+  }
+  rebuild();
+};
+$("#coco").onchange = async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  S.main = await readCoco(f);
+  S.mainName = f.name;
+  $("#cocoBtn").classList.toggle("set", !!S.main);
+  rebuild();
+};
+$("#cocoOld").onchange = async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  S.old = await readCoco(f);
+  S.oldName = f.name;
+  $("#oldBtn").classList.toggle("set", !!S.old);
+  rebuild();
+};
+for (const id of ["#has", "#onlyDiff"]) $(id).onchange = render;
+$("#q").oninput = render;
+for (const id of ["#showBoxes", "#showText"]) $(id).onchange = () => { render(); if (S.cur >= 0) openModal(S.cur); };
+$("#size").oninput = e => document.documentElement.style.setProperty("--w", e.target.value + "px");
+</script>
+</body>
+</html>
