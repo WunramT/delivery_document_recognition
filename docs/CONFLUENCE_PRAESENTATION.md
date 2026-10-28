@@ -129,6 +129,19 @@ Mit 42 Testseiten lässt sich ein Ziel von 98 % statistisch nicht nachweisen. 19
 
 > 📷 Bild einfügen: Folie „Beispiel Härtetest: Unterschrift entfernt“. Quelle: wie oben
 
+
+### So wird gemessen – und warum gute Labels so wichtig sind
+
+* Das Modell liefert je Objekt eine **Box** und einen **Score** (wie sicher es ist). Verglichen wird mit der Box, die ein Mensch gezogen hat, dem **Label**.
+* **IoU** (Überlappung geteilt durch gemeinsame Fläche) misst, wie gut beide Boxen passen. Ab **IoU ≥ 0,5** zählt ein Treffer.
+* **Recall** = wie viel von dem, was da ist, gefunden wird. **Precision** = wie viel von dem Gefundenen stimmt. Für uns zählt vor allem der Recall: Ein übersehener Stempel wird zur falschen Reklamation, eine unsichere Box nur zu einem Klick für die Person.
+* **Ungenaue Labels machen richtige Treffer zu Fehlern:** Eine Tournummer ist auf dem Modellbild nur ca. 8 Pixel hoch. Ist die Label-Box 3 Pixel verrutscht, sinkt die IoU auf ca. 0,45, und der richtige Treffer zählt als „übersehen“.
+* **Fehlende Labels schaden doppelt:** In der Bewertung zählt ein richtig gefundener Stempel als Fehlalarm, im Training lernt das Modell „hier ist kein Stempel“.
+* **Uneinheitliche Boxen** (mal mit „Zlecenie“, mal ohne) bringen dem Modell zwei Varianten halb bei.
+* **Wenige Daten verstärken das:** Bei 42 Testseiten verschiebt ein einziges falsches Label den Recall um mehrere Prozentpunkte.
+
+> Merksatz: Das Modell kann nur so gut werden – und nur so gut gemessen werden – wie die Labels. Eng um das Objekt, immer gleich gezogen, nichts vergessen. Jede Korrektur auf der Prüfseite wird zum nächsten Trainingsbeispiel.
+
 ---
 
 ## 7. Probleme in den echten Daten und was wir dagegen tun
