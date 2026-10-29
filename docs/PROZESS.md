@@ -102,6 +102,20 @@ Beenden mit `Strg+C`. Per Doppelklick auf `pruefung.html` geht alles wie bisher,
 Live-OCR (Nummern abtippen, Datei speichern und in den Ordner legen).
 
 
+Gestaltung: Designsystem **Footnote** (footnote@1.0.0, vendored als
+`src/docval/process/footnote.css`) – Papier, Tinte, Textmarker: die Farbe des Markers ist die
+Bedeutung (grün gültig, rot fehlt/ungültig, orange offen, cyan akzeptiert), immer mit dem Wort
+daneben. Schriften (Source Serif 4, JetBrains Mono, Caveat) kommen von Google Fonts; ohne
+Internet fällt die Seite auf Georgia/Monospace zurück und funktioniert unverändert.
+
+**Geführt:** Jeder Schritt beginnt mit einem Blatt „Was jetzt?“ – wie viele Punkte offen sind,
+welcher als Nächstes kommt, und ein großer Knopf „Ersten offenen Punkt öffnen“ (ist nichts mehr
+offen: „Schritt bestätigen und weiter“). Die große Ansicht zeigt oben „Zu tun auf dieser Seite“:
+je offenem Punkt eine Karte mit eigenen großen Knöpfen (Box um die Nummer ziehen, einseitig 1/1,
+Tournummer übernehmen, vorhanden/fehlt …); alle übrigen Angaben stehen eingeklappt darunter. Ist
+die Seite erledigt: „Nächste offene Seite →“. Im Abschluss führt das Blatt durch
+① Name → ② Fehlliste bestätigen → ③ Speichern → ④ Abschluss erzeugen.
+
 Ein Assistent in fünf Schritten. Ein Schritt öffnet sich erst, wenn der vorige bestätigt ist;
 zurück geht immer. Eine Bestätigung gilt, solange das Ergebnis des Schritts gleich bleibt (verladene/gestrichene
 TAs, Nummern, gültig/ungültig, Archivkopie): ändert eine Korrektur es, zeigt der Schritt „!“ und
@@ -110,6 +124,19 @@ Bestätigung wieder. Ebenso „Gespeichert“: ändert sich danach etwas, steht 
 veraltet“ in der Kopfzeile. Die Leiste mit „Noch offen“ und „Schritt bestätigen“ bleibt unten
 am Bildschirm stehen. „Bestätigen“ heißt „angesehen“, nicht „alles ok“ – Offenes
 lässt sich mit Grund „trotzdem akzeptieren“.
+
+**Pflicht-Prüfungen** (damit nicht einfach durchbestätigt wird):
+- Schritt 0, **Unterschrift & Stempel**: jede CMR-/Lieferschein-Seite, auf der das Modell eine
+  Unterschrift oder einen Stempel nicht sicher gefunden hat, als große Karte mit dem Prüfbereich;
+  je Objekt „✓ vorhanden“ / „✗ fehlt“ – auch wenn die Antwort dem Modell entspricht, muss sie
+  einmal gegeben werden (`objects_checked` in `entscheidung.json`). Gerade nicht erkannte
+  Unterschriften auf CMR fallen so vor dem eigentlichen Abgleich auf.
+- Schritt 2, **Lieferscheine ohne Unterschrift**: Lieferscheine ohne Unterschrift auf allen
+  Seiten (gültig nur durch den Stempel) stehen als Gruppe oben und werden als Gruppe bestätigt
+  (`no_signature_confirmed`); kommt einer dazu, ist die Gruppe neu zu bestätigen.
+- Schritt 2/3, **Doppelte Seiten**: jede Gruppe gleicher Nummer groß nebeneinander, die
+  archivierte Kopie grün markiert, „diese archivieren“ tauscht; die Auswahl wird je Gruppe
+  bestätigt (`duplicates_confirmed`).
 
 0. **Seiten zuordnen** (entfällt, wenn nichts unklar ist): Dokumenttyp unsicher, Tournummer
    nicht gelesen, andere Tour (Zuladung), Abholschein, Sammelbestätigung. Darunter, eingeklappt,

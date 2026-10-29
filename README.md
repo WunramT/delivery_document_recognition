@@ -298,6 +298,12 @@ sonst aus einer Sicherung im Tour-Ordner (z. B. `_annotations.coco.alt.json`), s
 Editor von `make relabel` (dort steht der Stand vor dem Bearbeiten). Achtung: Die Datei enthält
 die Scans – nur intern weitergeben.
 
+Ohne Befehl geht es mit `scripts/coco_viewer.html` (Doppelklick, Chrome/Edge, offline): Bilder-Ordner
+und COCO-Datei wählen (eine `*.coco.json` im Ordner wird automatisch genommen), optional eine ältere
+COCO-Datei zum Vergleich. Die Seite zeigt alle Bilder mit Boxen, Filter je Klasse („mit“/„ohne
+unterschrift“) und markiert Boxen als neu / geändert / entfernt („nur Bilder mit Unterschieden“).
+Bei mehreren Touren den Ordner `labels/` wählen; zugeordnet wird über den Pfad im `file_name`.
+
 ## Experimente vergleichen (z. B. eine Tour neu gelabelt)
 
 Alle Ordner in `labels/` lassen, nur die überarbeitete Datei austauschen, und den neuen Lauf in
