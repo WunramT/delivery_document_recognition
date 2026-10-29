@@ -134,8 +134,7 @@ UI = {
         "steps_nav": "Schritte", "g_label": "Was jetzt?",
         "s0_obj_h": "Unterschrift & Stempel – vom Modell nicht sicher gefunden", "s0_obj_p": "Jede Seite ansehen: ist die Unterschrift bzw. der Stempel doch da? Ein Klick je Objekt. Bild anklicken = große Ansicht (zoomen, Box ziehen).",
         "iss_obj0": "{cls} prüfen", "model_no": "Modell: fehlt", "model_unsure": "Modell: unsicher", "checked_y": "vorhanden", "checked_n": "fehlt",
-        "s0_types_h": "Seiten zuordnen", "nosig_h": "Lieferscheine ohne Unterschrift", "nosig_p": "Gültig nur durch den Stempel (oder gar nicht). Bitte ansehen und als Gruppe bestätigen.",
-        "nosig_ok": "Geprüft: {n} ohne Unterschrift bestätigen", "nosig_done": "{n} ohne Unterschrift bestätigt", "iss_nosig": "Lieferscheine ohne Unterschrift bestätigen",
+        "s0_types_h": "Seiten zuordnen",
         "dup_h": "Doppelte Seiten – welche wird archiviert?", "dup_p": "Dieselbe Nummer wurde mehrfach gescannt. Archiviert wird eine Kopie – Auswahl prüfen und je Gruppe bestätigen.",
         "dup_ok": "Auswahl bestätigen", "dup_done": "Auswahl bestätigt", "iss_dupg": "Doppelte Seiten: Auswahl bestätigen", "copy_m": "Kopie – nicht archiviert", "g4_name": "Ihren Namen eintragen", "g4_name_b": "Weiter",
         "g4_list": "Fehlliste durchsehen und bestätigen", "g4_save": "Entscheidung speichern", "g4_fin": "Abschluss erzeugen",
@@ -272,8 +271,7 @@ UI = {
         "steps_nav": "Kroki", "g_label": "Co teraz?",
         "s0_obj_h": "Podpis i pieczątka – model nie znalazł ich na pewno", "s0_obj_p": "Obejrzyj każdą stronę: czy podpis lub pieczątka jednak są? Jedno kliknięcie na obiekt. Kliknięcie obrazu = duży widok.",
         "iss_obj0": "sprawdź: {cls}", "model_no": "model: brak", "model_unsure": "model: niepewne", "checked_y": "jest", "checked_n": "brak",
-        "s0_types_h": "Przypisanie stron", "nosig_h": "Dowody dostawy bez podpisu", "nosig_p": "Ważne tylko dzięki pieczątce (albo wcale). Obejrzyj i potwierdź jako grupę.",
-        "nosig_ok": "Sprawdzone: potwierdź {n} bez podpisu", "nosig_done": "potwierdzono {n} bez podpisu", "iss_nosig": "potwierdź dowody dostawy bez podpisu",
+        "s0_types_h": "Przypisanie stron",
         "dup_h": "Podwójne strony – która będzie archiwizowana?", "dup_p": "Ten sam numer zeskanowano kilka razy. Archiwizowana jest jedna kopia – sprawdź wybór i potwierdź dla każdej grupy.",
         "dup_ok": "potwierdź wybór", "dup_done": "wybór potwierdzony", "iss_dupg": "podwójne strony: potwierdź wybór", "copy_m": "kopia – nie archiwizowana", "g4_name": "Wpisz swoje imię i nazwisko", "g4_name_b": "Dalej",
         "g4_list": "Przejrzyj i potwierdź listę braków", "g4_save": "Zapisz decyzję", "g4_fin": "Utwórz zamknięcie",
@@ -846,7 +844,6 @@ function stepIssues(k) {
     if (dupOf(p, e) != null) out.push({p, step: 1, text: T.iss_dup});
   }
   if (k === 1) { const c = pagesConflict(llPages(), llPageOf); for (const p of c) out.push({p, step: 1, text: fmt(T.iss_pages_conflict, {list: c.map(q => fmt(T.page, {n: q.n}) + " " + llPageOf(q).join("/")).join(", ")})}); }
-  if (k === 2) { const ns = noSigDocs(); if (ns.length && JSON.stringify(ns) !== JSON.stringify(S.nosig || null)) out.push({p: lsByNumber()[ns[0]][0], step: 2, text: T.iss_nosig}); }
   for (const d of k === 2 ? dupGroups("ls") : k === 3 ? dupGroups("cmr") : []) if (!dupDone(d)) out.push({p: d.pages[0], step: k, text: T.iss_dupg});
   if (k === 2) for (const pgs of Object.values(lsByNumber())) { const c = pagesConflict(pgs, lsPage); for (const p of c) out.push({p, step: 2, text: fmt(T.iss_pages_conflict, {list: c.map(q => fmt(T.page, {n: q.n}) + " " + lsPage(q).join("/")).join(", ")})}); }
   for (const key in FERR) if (FERR[key].step === k) out.push({p: byN[FERR[key].n], step: k, text: T.iss_bad});
@@ -1236,15 +1233,6 @@ function lsRow(label, num, pages, accKey, extraKey) {
   const cells = pages.length ? lsRowCells(num, pages) : phHtml(T.no_ls, accKey);
   return `<div class="row"><div class="lab">${lab}</div><div class="cells">${cells}</div></div>`;
 }
-function noSigHtml() {
-  const ns = noSigDocs(); if (!ns.length) return "";
-  const ok = JSON.stringify(ns) === JSON.stringify(S.nosig || null), by = lsByNumber();
-  return `<section class="grp${ok ? "" : " todo"}" id="nosig"><h3>${hl(ok ? "ok" : "open", esc(T.nosig_h) + " (" + ns.length + ")")}</h3><p class="lede">${T.nosig_p}</p>
-    <div class="glist cols">${ns.map(n => `<div class="gitem"><div class="th"><b>${esc((T.dt.lieferschein || "") + " " + n)}</b>${hl(docValid(n) === true ? "ok" : "bad", docValid(n) === true ? T.v_ok : T.v_bad)}</div>
-      <div class="gpages">${by[n].map(q => `<div class="gp" data-open="${q.n}" data-step="2"><div class="small muted">${fmt(T.page, {n: q.n})} · ${stIcons(q, true)}</div>${thumbHtml(q, q.view || [0, 0.4, 1, 1])}</div>`).join("")}</div></div>`).join("")}</div>
-    <div class="gfoot">${ok ? `${hl("ok", "✓ " + esc(fmt(T.nosig_done, {n: ns.length})))} <a class="lnk small" data-nosig="0">${T.undo}</a>`
-      : `<button class="big primary" data-nosig="1">${esc(fmt(T.nosig_ok, {n: ns.length}))}</button>`}</div></section>`;
-}
 function dupHtml(kind, step) {
   const ds = dupGroups(kind); if (!ds.length) return "";
   const open = ds.filter(d => !dupDone(d)).length;
@@ -1267,7 +1255,7 @@ function lsRowOk(num, pages) {   // nothing to look at: valid, all pages there a
   return pgs.every(Boolean) && !missingPages(pgs).length && !pages.some(p => pageIssues(p).some(x => x.step === 2));
 }
 function render2() {
-  let h = stepHead(2, T.s2_intro) + dupHtml("ls", 2) + noSigHtml();
+  let h = stepHead(2, T.s2_intro) + dupHtml("ls", 2);
   const all = lsPagesThisTour(), unread = all.filter(p => !lsNumber(p));
   if (unread.length) h += `<h3 class="issues">${esc(T.s2_unread)}</h3><div class="tiles">${unread.map(p => tileHtml(p, 2, {full: true})).join("")}</div>`;
   const byNum = {};
@@ -1668,10 +1656,14 @@ function setObj(p, c, v) {
 }
 const looked = (p, c) => !!(((S.pages[p.n] || {}).chk || {})[c] || ((S.pages[p.n] || {}).v || {})[c] != null);
 // signature / stamp the model did not find for sure: the person looks at each one in step 0
-const objToCheck = p => REVIEW.includes(docType(p)) && !otherTour(p) && archive(p) ? rule(p).require.filter(c => proposal(p, c) !== true && !looked(p, c)) : [];
-function noSigDocs() {   // Lieferscheine without a signature on any page (valid by the stamp, or not at all)
-  if (!((D.rules.lieferschein || {}).require || []).includes("unterschrift")) return [];
-  const by = lsByNumber(); return Object.keys(by).filter(n => !by[n].some(q => val(q, "unterschrift") === true)).sort();
+function objToCheck(p) {
+  if (!REVIEW.includes(docType(p)) || otherTour(p) || !archive(p)) return [];
+  if (rule(p).mode === "any" && unitHasOne(p)) return [];   // Lieferschein: one stamp or signature is enough
+  return rule(p).require.filter(c => proposal(p, c) !== true && !looked(p, c));
+}
+function unitHasOne(p) {   // "any" rule: a required object on the page or on another page of its Lieferschein
+  const ps = docType(p) === "lieferschein" && lsNumber(p) ? lsByNumber()[lsNumber(p)] || [p] : [p];
+  return ps.some(q => rule(q).require.some(c => val(q, c) === true));
 }
 function dupGroups(kind) {   // the same number scanned more than once
   const g = groups();
@@ -1820,7 +1812,7 @@ $("cmp").addEventListener("click", e => {
 // ------------------------------------------------------------ events on the main page
 document.addEventListener("click", e => {
   if (e.target.closest("select,input,.accform") && !e.target.closest("button") || e.target.closest("#ov") || e.target.closest("#cmp")) return;
-  const t = e.target.closest("[data-acc],[data-accok],[data-acccancel],[data-unacc],[data-mreset],#mconfirm,[data-confirm],[data-step-go],[data-strike],[data-delta],[data-lldraw],[data-cmp],[data-tazoom],[data-tavp],[data-setpage],[data-carrier],[data-keep],[data-revert],[data-tazoomll],[data-gofirst],[data-act],[data-o0],[data-nosig],[data-dupok],[data-arch],#save2,#discard2,#fin2,[data-open]");
+  const t = e.target.closest("[data-acc],[data-accok],[data-acccancel],[data-unacc],[data-mreset],#mconfirm,[data-confirm],[data-step-go],[data-strike],[data-delta],[data-lldraw],[data-cmp],[data-tazoom],[data-tavp],[data-setpage],[data-carrier],[data-keep],[data-revert],[data-tazoomll],[data-gofirst],[data-act],[data-o0],[data-dupok],[data-arch],#save2,#discard2,#fin2,[data-open]");
   if (!t) return;
   if (t.dataset.acc != null) { accOpen = t.dataset.acc; rerender(); }
   else if (t.dataset.acccancel != null) { accOpen = null; rerender(); }
@@ -1843,7 +1835,6 @@ document.addEventListener("click", e => {
   else if (t.id === "discard2") discardAll();
   else if (t.dataset.gofirst != null) goFirst(+t.dataset.gofirst);
   else if (t.dataset.o0) { const [n, c, v] = t.dataset.o0.split(":"); setObj(byN[+n], c, v === "1"); rerender(); }
-  else if (t.dataset.nosig != null) { S.nosig = t.dataset.nosig === "1" ? noSigDocs() : null; touched(); rerender(); }
   else if (t.dataset.dupok) { const d = [...dupGroups("ls"), ...dupGroups("cmr")].find(x => x.key === t.dataset.dupok); if (d) { S.dupok = S.dupok || {}; S.dupok[d.key] = (d.pages.find(archive) || {}).n; touched(); rerender(); } }
   else if (t.dataset.arch) { archiveThis(byN[+t.dataset.arch]); changed(S.cur); rerender(); }
   else if (t.dataset.act) { const a = t.dataset.act;
@@ -1970,7 +1961,7 @@ async function finalizeRun() {   // make finalize on the server: PDFs, mail draf
 }
 function goFirst(k) {   // the first open point of step k: the large view of its page (step 1: the row in the list)
   const x = stepIssues(k)[0]; if (!x) return;
-  const card = x.obj ? $("oc" + x.p.n) : x.text === T.iss_nosig ? $("nosig") : x.text === T.iss_dupg ? document.querySelector(".grp.todo") : null;
+  const card = x.obj ? $("oc" + x.p.n) : x.text === T.iss_dupg ? document.querySelector(".grp.todo") : null;
   if (card) { card.scrollIntoView({block: "center", behavior: "smooth"}); const b = card.querySelector("button.big:not(.on)"); if (b) setTimeout(() => b.focus(), 350); return; }
   if (k === 1 && LV[x.p.n]) {
     const l = $("lll" + x.p.n); l.scrollIntoView({block: "center", behavior: "smooth"});
@@ -1985,7 +1976,7 @@ function decision() {   // the content of entscheidung.json (without the time it
     reviewer: (S.reviewer || "").trim(), steps: [0, 1, 2, 3].map(stepDone).concat([true]),
     open: D.pages.filter(p => reviewable(p) && !pageConfirmed(p)).length, pages: {},
     accepted: S.accepted || {}, missing_keys: missingKeys(items), missing_confirmed: mconf,
-    no_signature_confirmed: S.nosig || [], duplicates_confirmed: S.dupok || {}};
+    duplicates_confirmed: S.dupok || {}};
   for (const p of D.pages) {
     const s = S.pages[p.n] || {}, fb = finalBoxes(p);
     const e = {doc_type: docType(p), archive: archive(p), archive_set: true, confirmed: pageConfirmed(p),

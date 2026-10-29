@@ -130,10 +130,9 @@ lässt sich mit Grund „trotzdem akzeptieren“.
   Unterschrift oder einen Stempel nicht sicher gefunden hat, als große Karte mit dem Prüfbereich;
   je Objekt „✓ vorhanden“ / „✗ fehlt“ – auch wenn die Antwort dem Modell entspricht, muss sie
   einmal gegeben werden (`objects_checked` in `entscheidung.json`). Gerade nicht erkannte
-  Unterschriften auf CMR fallen so vor dem eigentlichen Abgleich auf.
-- Schritt 2, **Lieferscheine ohne Unterschrift**: Lieferscheine ohne Unterschrift auf allen
-  Seiten (gültig nur durch den Stempel) stehen als Gruppe oben und werden als Gruppe bestätigt
-  (`no_signature_confirmed`); kommt einer dazu, ist die Gruppe neu zu bestätigen.
+  Unterschriften auf CMR fallen so vor dem eigentlichen Abgleich auf. Lieferscheine nur, wenn auf
+  keiner ihrer Seiten ein Stempel oder eine Unterschrift sicher gefunden wurde – eins von beiden
+  reicht je Lieferschein, ein Lieferschein nur mit Stempel muss nicht eigens bestätigt werden.
 - Schritt 2/3, **Doppelte Seiten**: jede Gruppe gleicher Nummer groß nebeneinander, die
   archivierte Kopie grün markiert, „diese archivieren“ tauscht; die Auswahl wird je Gruppe
   bestätigt (`duplicates_confirmed`).
