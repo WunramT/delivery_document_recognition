@@ -88,7 +88,7 @@ def export(cfg: dict, run_dir: Path, out_dir: Path, classes: list[str], log=prin
     shutil.rmtree(tmp, ignore_errors=True)
     meta = {"classes": classes, "resolution": int(model.model.resolution), "size": cfg["detector"]["size"],
             "checkpoint": str(best_checkpoint(run_dir)),
-            "input": "input [1,3,res,res] RGB, bilinear resize, ImageNet mean/std",
+            "input": "input [1,3,res,res] RGB, bilinear resize with antialiasing (PIL BILINEAR), ImageNet mean/std",
             "outputs": "dets [1,300,4] cxcywh normalized; labels [1,300,C+1] logits (sigmoid, drop last)"}
     (out_dir / "detector.json").write_text(json.dumps(meta, indent=2))
     log(f"[export] {onnx_path} ({onnx_path.stat().st_size / 1e6:.1f} MB), res {meta['resolution']}")
@@ -101,7 +101,9 @@ def parity(cfg: dict, run_dir: Path, onnx_dir: Path, images: list[Path], log=pri
     raw: identical input tensor -> max |diff| of normalized boxes / sigmoid scores over the
          top-50 queries with score >= parity.raw_min_score, each matched to its closest ONNX query.
     e2e: rfdetr.predict() vs. our ONNX pipeline (incl. own preprocessing),
-         detections >= score_threshold matched by class + IoU.
+         detections >= score_threshold matched by class + IoU. predict() gets the page already
+         shrunk to res x res by PIL (as in training): its own resize has no antialiasing,
+         ours follows the training (see onnx_detector).
     """
     import copy
 
@@ -154,8 +156,9 @@ def parity(cfg: dict, run_dir: Path, onnx_dir: Path, images: list[Path], log=pri
         raw_n += len(top)
         raw_box, raw_score = max(raw_box, db), max(raw_score, ds)
 
-        W, H = im.size
-        det = model.predict(im.convert("RGB"), threshold=thr)
+        small = im.convert("RGB").resize((onnx.res, onnx.res), Image.BILINEAR)
+        W, H = small.size
+        det = model.predict(small, threshold=thr)
         pt = [{"cls_id": int(c), "score": float(s),
                "box": [float(b[0]) / W, float(b[1]) / H, float(b[2]) / W, float(b[3]) / H]}
               for b, c, s in zip(det.xyxy, det.class_id, det.confidence)]

@@ -51,7 +51,7 @@ UI = {
         "s1_intro": "TA-Box anklicken = gestrichen / nicht verladen (nochmal = zurück). Unlesbare TA eintippen. "
                     "Fehlt eine TA ganz: „TA-Box zeichnen“, Box um die Zeile ziehen, Nummer eintragen.",
         "s1_none": "Keine Ladeliste im Stapel – ohne Ladeliste gibt es keinen TA-Abgleich.",
-        "ta_draw": "TA-Box zeichnen", "ta_read": "gelesen", "ta_unread": "unlesbar – eintippen",
+        "ta_draw": "TA-Box zeichnen", "ta_read": "gelesen", "ta_fixed": "gelesen „{text}“ – eine Ziffer zu viel, gekürzt (so auf CMR/Lieferschein)", "ta_unread": "unlesbar – eintippen",
         "ta_drawn": "gezeichnet", "struck": "gestrichen", "strike": "streichen", "unstrike": "zurück",
         "loaded_n": "{n} TA verladen", "struck_n": "{n} gestrichen", "ll_missing": "Ladeliste Seite {i} von {n} fehlt",
         "s2_unread": "Lieferscheinnummer nicht gelesen – Seite anklicken, Nummer eintragen",
@@ -164,7 +164,7 @@ UI = {
         "s1_intro": "Kliknij ramkę TA = skreślone / nie jedzie (ponownie = cofnij). Nieczytelne TA wpisać. "
                     "Brak TA: „narysuj ramkę TA”, zaznacz wiersz, wpisz numer.",
         "s1_none": "Brak listy załadunkowej – bez niej nie ma porównania TA.",
-        "ta_draw": "narysuj ramkę TA", "ta_read": "odczytano", "ta_unread": "nieczytelne – wpisać",
+        "ta_draw": "narysuj ramkę TA", "ta_read": "odczytano", "ta_fixed": "odczytano „{text}” – o jedną cyfrę za dużo, skrócono (tak jak na CMR/dowodzie dostawy)", "ta_unread": "nieczytelne – wpisać",
         "ta_drawn": "narysowano", "struck": "skreślone", "strike": "skreśl", "unstrike": "cofnij",
         "loaded_n": "załadowano TA: {n}", "struck_n": "skreślono: {n}",
         "ll_missing": "Brak strony {i} z {n} listy załadunkowej",
@@ -601,7 +601,7 @@ function unitValid(p) { return docType(p) === "lieferschein" && lsNumber(p) && a
 // ------------------------------------------------------------ loading list
 function llEntries(p) {
   const s = us(p);
-  if (!s.tl) s.tl = [...(p.ta || []).map(t => ({ta: t.ta, orig: t.ta, box: t.box || null, src: "model", mark: !!t.mark})),
+  if (!s.tl) s.tl = [...(p.ta || []).map(t => ({ta: t.ta, orig: t.ta, box: t.box || null, src: "model", mark: !!t.mark, fixed: t.fixed || ""})),
                      ...(p.ta_unread || []).map(u => ({ta: "", orig: "", box: u.box, src: "model", unread: true, mark: !!u.mark})),
                      ...(p.ta_missed || []).map(u => ({ta: u.ta, orig: u.ta, box: u.box, src: "model", found: true, mark: !!u.mark}))]
                     .sort((a, b) => (a.box ? a.box[1] : 2) - (b.box ? b.box[1] : 2));
@@ -940,7 +940,7 @@ function llList(p) {
       const st = e.struck ? T.struck : e.bad != null ? `<span class="issues">${T.bad_number}</span>` : ask ? `<span class="stale">${e.found ? "✚ " + T.found_q : "✎ " + T.mark_q}</span>`
         : dup != null ? `<span class="issues">${fmt(T.dup_ta, {i: dup})}</span>` : e.kept && e.mark ? `<span class="stale">${T.kept_mark}</span>`
         : e.ocr ? `<span class="ocrtag">${T.ocr_check}</span>` : e.typed ? T.ta_typed : e.src === "person" ? (OCRBUSY && !e.ta ? T.ocr_busy : e.ocrt != null && !e.ta ? esc(fmt(T.ocr_none, {text: e.ocrt})) : T.ta_drawn)
-        : !okTA(e.ta) ? T.ta_unread : T.ta_read;
+        : !okTA(e.ta) ? T.ta_unread : e.fixed && e.ta === e.orig ? esc(fmt(T.ta_fixed, {text: e.fixed})) : T.ta_read;
       return `<tr data-row="${p.n}:${i}" class="${e.struck ? "struck" : ""}${ask ? " mark" : ""}"><td><input class="ta${bad ? " need" : ""}" data-ll="${p.n}" data-i="${i}" value="${esc(e.bad != null ? e.bad : e.ta)}" placeholder="${esc(T.ph_ta)}"></td>
     <td class="small ${bad ? "issues" : "muted"}">${st}${(e.typed || e.bad != null) && e.orig ? ` <a class="lnk" data-revert="${p.n}" data-i="${i}">${T.revert}</a>` : ""}</td>
     <td style="white-space:nowrap"><button class="small" data-strike="${p.n}" data-i="${i}" title="${esc(T.strike_t)}">${e.struck ? T.unstrike : T.strike}</button>${ask ? ` <button class="small" data-keep="${p.n}" data-i="${i}" title="${esc(T.keep_t)}">${e.found ? T.take : T.keep}</button>` : ""}${e.src === "person" || e.found ? ` <button class="small" data-delta="${p.n}" data-i="${i}" title="${esc(T.remove)}">${T.discard_row}</button>` : ""}</td></tr>

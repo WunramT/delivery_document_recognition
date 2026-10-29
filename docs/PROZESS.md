@@ -266,6 +266,9 @@ Dokumenttyp „Sammelbestätigung“ markieren.
 Umgesetzt (Stand 15.10.2026):
 
 1. ✓ TA-Nummern nur aus `ta_nummer`-Boxen (8 Ziffern), nicht mehr per Ganzseiten-OCR.
+   Ladeliste: liest die OCR 9–10 Ziffern („ZlecenieN 121685946“), gilt der 8-stellige Teil, der
+   auch auf einem CMR oder als Lieferscheinnummer vorkommt (Prüfseite: „eine Ziffer zu viel,
+   gekürzt“); eine TA-Box neben der TA-Spalte der Seite (z. B. auf der Bestellnummer) wird verworfen.
 2. ✓ Prüfseite: Ladeliste mit allen gelesenen TAs; die Person streicht TAs und bestätigt die
    Liste; der Abgleich (CMR in beide Richtungen, Lieferschein über seine Nummer = TA) läuft
    live auf der Seite und beim Abschluss.

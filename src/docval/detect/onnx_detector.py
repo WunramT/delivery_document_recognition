@@ -1,9 +1,15 @@
 """RF-DETR inference with onnxruntime (the model that later runs in the browser).
 
-Pre/post-processing mirrors rfdetr 1.10 (detr.py / models/postprocess.py):
-  RGB -> [0,1] -> bilinear resize to res x res (no letterbox) -> ImageNet norm,
+Pre/post-processing mirrors rfdetr 1.10 (models/postprocess.py, datasets/_torchvision.py):
+  RGB -> bilinear resize to res x res WITH antialiasing (no letterbox) -> [0,1] -> ImageNet norm,
   sigmoid(logits) without background slot -> top-k over queries x classes,
   boxes cxcywh (normalized) -> xyxy.
+
+The resize is the one the model is trained with (PIL BILINEAR, which widens the filter when
+shrinking), not the one of rfdetr's predict() (bilinear without antialiasing). A page is shrunk
+by ~2.7 in height; without antialiasing whole pixel rows are skipped. Smooth grey scans survive
+that, scans saved with few grey levels (hard-edged text) do not: small text boxes (Lieferschein /
+tour / TA number) dropped from ~0.9 to < 0.03 on such pages while the model knew them.
 """
 
 from __future__ import annotations
@@ -18,12 +24,50 @@ MEAN = np.array([0.485, 0.456, 0.406], np.float32)
 STD = np.array([0.229, 0.224, 0.225], np.float32)
 
 
-def preprocess(im: Image.Image, res: int) -> np.ndarray:
-    import cv2
+def resample_taps(n_in: int, n_out: int) -> tuple[np.ndarray, np.ndarray]:
+    """PIL's BILINEAR taps for one axis: per output pixel the input indices and normalized
+    weights (triangle filter, widened by the scale when shrinking), zero-padded to equal length."""
+    scale = n_in / n_out
+    fscale = max(scale, 1.0)
+    support = fscale            # bilinear support 1.0 x filter scale
+    k = int(np.ceil(support)) * 2 + 1
+    idx = np.zeros((n_out, k), np.int64)
+    w = np.zeros((n_out, k), np.float64)
+    for o in range(n_out):
+        center = (o + 0.5) * scale
+        lo = max(0, int(center - support + 0.5))
+        hi = min(n_in, int(center + support + 0.5))
+        x = np.arange(lo, hi)
+        ww = np.clip(1.0 - np.abs((x - center + 0.5) / fscale), 0.0, None)
+        if ww.sum() > 0:
+            ww = ww / ww.sum()
+        idx[o, :hi - lo] = x
+        w[o, :hi - lo] = ww
+    return idx, w
 
-    a = np.asarray(im.convert("RGB"), dtype=np.float32) / 255.0
-    a = cv2.resize(a, (res, res), interpolation=cv2.INTER_LINEAR)
-    a = (a - MEAN) / STD
+
+def resize_bilinear(a: np.ndarray, width: int, height: int) -> np.ndarray:
+    """uint8 H x W x C -> uint8 height x width x C like PIL Image.resize(BILINEAR): horizontal
+    pass, rounded to 8 bit, then vertical pass, rounded (max. 1 grey level off PIL)."""
+    def axis(x, taps, ax):
+        idx, w = taps
+        out = 0.0
+        for j in range(idx.shape[1]):
+            shape = [1] * x.ndim
+            shape[ax] = -1
+            out = out + np.take(x, idx[:, j], axis=ax).astype(np.float32) * w[:, j].astype(np.float32).reshape(shape)
+        return np.clip(np.floor(out + 0.5), 0, 255).astype(np.uint8)
+
+    if a.shape[1] != width:
+        a = axis(a, resample_taps(a.shape[1], width), 1)
+    if a.shape[0] != height:
+        a = axis(a, resample_taps(a.shape[0], height), 0)
+    return a
+
+
+def preprocess(im: Image.Image, res: int) -> np.ndarray:
+    a = resize_bilinear(np.asarray(im.convert("RGB"), dtype=np.uint8), res, res)
+    a = (a.astype(np.float32) / 255.0 - MEAN) / STD
     return a.transpose(2, 0, 1)[None].astype(np.float32)
 
 

@@ -12,6 +12,13 @@ Die Produktion läuft später im Browser (ONNX Runtime Web). Deshalb wertet `mak
 DB-Textdetektion, Zonen- und Regel-Logik) sind selbst implementiert – ohne Python-Tricks,
 damit sie 1:1 nach JavaScript portiert werden können.
 
+Die Detektor-Eingabe wird wie im RF-DETR-Training verkleinert: bilinear **mit** Glättung
+(wie PIL `BILINEAR`, `resize_bilinear` in `detect/onnx_detector.py`), nicht wie in
+`rfdetr.predict()` ohne Glättung. Ohne Glättung überspringt die Verkleinerung (Seite ~2,7× in
+der Höhe) ganze Pixelzeilen; bei Scans mit wenigen Graustufen (harte Kanten) verschwindet dann
+kleine Schrift – LS-/Tour-/TA-Nummer fielen auf solchen Seiten von ~0,9 auf < 0,03. Der
+Paritätstest gibt `predict()` deshalb die schon verkleinerte Seite.
+
 ## Setup
 
 ### Variante A: Devcontainer (empfohlen)

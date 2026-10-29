@@ -7,7 +7,8 @@ from PIL import Image
 from docval.process.finalize import apply_decision, run_finalize
 from docval.process.organize import organize, page_valid
 from docval.process.review import write_review
-from docval.process.run import normalize_tour, numbers8, parse_page_of, pen_mark, tour_from_name
+from docval.process.run import (drop_off_column, normalize_tour, numbers8, parse_page_of, pen_mark,
+                                ta_from_long, tour_from_name)
 from docval.process.texts import render_check
 
 TOUR = "503/01.09.2026/4000"
@@ -444,3 +445,31 @@ def test_pen_mark_on_loading_list_row():
     d.line([(90, 505), (1150, 515)], fill=(200, 20, 20), width=5)   # struck out in red
     assert pen_mark(im, box)
     assert not pen_mark(im, [box[0], 0.6, box[2], 0.62])            # another row: untouched
+
+
+def test_ta_box_beside_the_loading_list_column_dropped():
+    # tour 613, loading list page 2: eight TA boxes at x 0.50-0.58, one in the order-number column
+    col = [{"cls": "ta_nummer", "box": [0.50, y, 0.58, y + 0.025], "score": 0.96} for y in (0.23, 0.33, 0.40, 0.50)]
+    beside = {"cls": "ta_nummer", "box": [0.5881, 0.4041, 0.6784, 0.4272], "score": 0.479}
+    wide = {"cls": "ta_nummer", "box": [0.4954, 0.1114, 0.5813, 0.135], "score": 0.928}
+    other = {"cls": "tour_nummer", "box": [0.70, 0.09, 0.84, 0.10], "score": 0.95}
+    kept = drop_off_column(col + [beside, wide, other])
+    assert beside not in kept and wide in kept and other in kept and all(d in kept for d in col)
+    assert drop_off_column(col[:1] + [beside]) == col[:1] + [beside]     # < 3 boxes: column unknown
+
+
+def test_ta_read_with_an_extra_digit_fixed_from_cmr():
+    box = [0.50, 0.19, 0.58, 0.21]
+    ll = {"n": 3, "doc_type": "loading_list", "ta": [{"ta": "12285669", "excluded": False, "box": [0.5, 0.62, 0.58, 0.64],
+                                                      "score": 0.82}],
+          "ta_unread": [{"box": box, "text": "ZlecenieN 121685946", "score": 0.94, "mark": False},
+                        {"box": [0.5, 0.26, 0.58, 0.28], "text": "Zlecenie 99999999 9", "score": 0.9},
+                        {"box": [0.5, 0.30, 0.58, 0.32], "text": "Zlecenie 777", "score": 0.9}]}
+    cmr = {"n": 19, "doc_type": "cmr", "ta": [{"ta": "12168594"}]}
+    ls = {"n": 30, "doc_type": "lieferschein", "ta": [], "ls_number": "12287408"}
+    assert ta_from_long([ll, cmr, ls]) == [3]
+    assert [t["ta"] for t in ll["ta"]] == ["12168594", "12285669"]              # reading order
+    assert ll["ta"][0]["fixed"] == "ZlecenieN 121685946" and ll["ta"][0]["box"] == box
+    assert [u["text"] for u in ll["ta_unread"]] == ["Zlecenie 99999999 9", "Zlecenie 777"]   # not on CMR/LS: unread
+    ll2 = {"n": 4, "doc_type": "loading_list", "ta": [], "ta_unread": [{"box": box, "text": "122874083", "score": 0.7}]}
+    assert ta_from_long([ll2, ls]) == [4] and ll2["ta"][0]["ta"] == "12287408"   # Lieferschein number counts too

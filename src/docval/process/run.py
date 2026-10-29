@@ -36,6 +36,8 @@ from .organize import REVIEW_TYPES, majority_tour, organize
 IMAGE_EXT = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp")
 # 8 digits, a single space inside allowed ("1228 8834"), not part of a longer number
 NUMBER8 = r"(?<!\d)(?:\d ?){7}\d(?!\d)"
+# 9 or 10 digits: a TA read with an extra digit next to it ("121685946")
+NUMBER_LONG = r"(?<!\d)(?:\d ?){8,9}\d(?!\d)"
 PAGE_OF = r"(?<!\d)(\d{1,2})\s*/\s*(\d{1,2})(?!\d)"
 
 
@@ -166,6 +168,52 @@ def pen_mark(im, box, band: float = 0.012, min_frac: float = 0.002) -> bool:
                    dtype=np.int16)
     sat = (a.max(2) - a.min(2) > 90) & (a.max(2) > 80)
     return bool(sat.mean() >= min_frac)
+
+
+def drop_off_column(dets: list[dict], min_overlap: float = 0.5) -> list[dict]:
+    """Loading list: the TA boxes form one column (one box per row). A ta_nummer box that overlaps
+    that column (median left/right edge of the page's TA boxes) by less than `min_overlap` of its
+    width sits in a neighbouring column - seen: the order number (61624820) read as a TA - and is
+    dropped. Needs at least three TA boxes, otherwise the column is not known."""
+    ta = [d for d in dets if d["cls"] == "ta_nummer"]
+    if len(ta) < 3:
+        return dets
+    x1 = sorted(d["box"][0] for d in ta)[len(ta) // 2]
+    x2 = sorted(d["box"][2] for d in ta)[len(ta) // 2]
+
+    def in_column(b):
+        return max(0.0, min(b[2], x2) - max(b[0], x1)) >= min_overlap * (b[2] - b[0])
+
+    return [d for d in dets if d["cls"] != "ta_nummer" or in_column(d["box"])]
+
+
+def ta_from_long(pages: list[dict]) -> list[int]:
+    """Loading-list TA boxes read as 9-10 digits ("ZlecenieN 121685946" = TA 12168594 plus a digit
+    next to it): an 8-digit part that is also a TA on a CMR or a Lieferschein number of this scan
+    becomes the TA (`fixed` = the OCR text, shown on the review page). Only an unambiguous match
+    counts; everything else stays unread. Moves the entries from ta_unread to ta; returns the pages."""
+    known = {t["ta"] for p in pages if p["doc_type"] != "loading_list" for t in p.get("ta") or []}
+    known |= {p["ls_number"] for p in pages if p.get("ls_number")}
+    fixed = []
+    for p in pages:
+        if p["doc_type"] != "loading_list" or not p.get("ta_unread"):
+            continue
+        have = {t["ta"] for t in p["ta"]}
+        rest = []
+        for u in p["ta_unread"]:
+            runs = [m.group(0).replace(" ", "") for m in re.finditer(NUMBER_LONG, u.get("text") or "")]
+            hits = {r[i:i + 8] for r in runs for i in range(len(r) - 7)} & (known - have)
+            if len(hits) == 1:
+                ta = hits.pop()
+                p["ta"].append({"ta": ta, "excluded": False, "box": u["box"], "score": u["score"],
+                                "mark": u.get("mark", False), "fixed": u.get("text") or ""})
+                have.add(ta)
+                fixed.append(p["n"])
+            else:
+                rest.append(u)
+        p["ta_unread"] = rest
+        p["ta"].sort(key=lambda t: (t["box"][1], t["box"][0]))   # reading order, as in Pipeline.ta
+    return sorted(set(fixed))
 
 
 def ta_missed(ocr, im, ta_boxes: list, known: set) -> list[dict]:
@@ -408,6 +456,8 @@ class Pipeline:
         im = to_rgb(Image.open(path))
         dt_ = self.doc_type(im)
         dets, masked = self.detect(im, dt_["doc_type"])
+        if dt_["doc_type"] == "loading_list":
+            dets = drop_off_column(dets)
         props = self.proposals(dets)
         reviewable = dt_["doc_type"] in REVIEW_TYPES or dt_["doc_type"] == UNCERTAIN
         rec = {"w": im.width, "h": im.height, "doc_type": dt_["doc_type"], "doc_reason": dt_["reason"],
@@ -517,6 +567,9 @@ def run_process(cfg, src: str, tour_arg: str | None, out_name: str | None, log) 
             f"tour={(rec['tour'] or {}).get('text', '-') if rec['tour'] else '-'} "
             f"{'CMR ' + '/'.join(map(str, cc)) if cc else ''} "
             f"{' '.join(f'{c}={v}' for c, v in rec['proposal'].items())} ({time.time() - t1:.1f} s)")
+    fixed = ta_from_long(pages)
+    if fixed:
+        log(f"[process] TA mit einer Ziffer zu viel gelesen, über CMR/Lieferschein korrigiert: S. {', '.join(map(str, fixed))}")
     if not tour:
         tour = majority_tour(pages)
         tour_source = "häufigste gelesene Tournummer" if tour else None
