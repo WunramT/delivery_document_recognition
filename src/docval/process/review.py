@@ -123,7 +123,7 @@ UI = {
         "suggestion": "Vorschlag",
         "fin_title": "Abschluss erzeugt", "fin_files": "Dateien im Ordner „freigabe“ der Tour:", "fin_prot": "Protokoll anzeigen",
         "fin_todo": "{n} Punkte unter „Zu tun“ im Protokoll", "fin_again": "neu erzeugen", "lvl_err": "Fehler", "lvl_hint": "Hinweis",
-        "to_list": "→ Fehlliste", "kept_mark": "behalten trotz Handvermerk", "keep_t": "TA zählt als verladen – braucht CMR und Lieferschein",
+        "to_list": "→ Fehlliste", "keep_t": "TA zählt als verladen – braucht CMR und Lieferschein",
         "strike_t": "TA nicht verladen – kein CMR/Lieferschein nötig", "discard_row": "verwerfen", "dup_ta": "doppelt (auch Zeile {i})",
         "iss_dup": "TA steht doppelt in der Liste – eine Zeile verwerfen", "need_reason": "Bitte einen Grund wählen.",
         "acc_title": "Trotzdem akzeptieren – Grund:", "go_on": "Weiter →", "wheel_hint": "Strg + Mausrad zoomt",
@@ -152,7 +152,7 @@ UI = {
         "t_carrier_p": "Erst prüfen, dann bestätigen.", "draw_box": "Box ziehen", "draw_num": "Box um die Nummer ziehen",
         "take_tour": "{tour} übernehmen", "page_done": "Auf dieser Seite ist alles erledigt.", "next_open": "Nächste offene Seite",
         "back_list": "Zur Übersicht", "all_fields": "Alle Angaben dieser Seite", "v_ok": "gültig", "v_bad": "ungültig", "v_open": "offen",
-        "iss_mark": "Handvermerk in der Zeile – streichen oder behalten", "mark_q": "Handvermerk – gestrichen?",
+        "mark_note": "Handvermerk in der Zeile – zählt als verladen, bei Bedarf streichen",
         "keep": "behalten", "kept": "behalten", "iss_bad": "ungültige Eingabe korrigieren", "revert": "↺ gelesener Wert",
         "bad_page": "Bitte als i/n eintragen, z. B. 2/2.", "bad_cmr": "Bitte als i/n eintragen, z. B. 3/7.",
         "bad_ta": "Nur 8-stellige Nummern, mit Komma getrennt.",
@@ -260,7 +260,7 @@ UI = {
         "suggestion": "propozycja",
         "fin_title": "Zamknięcie utworzone", "fin_files": "Pliki w folderze „freigabe” trasy:", "fin_prot": "pokaż protokół",
         "fin_todo": "{n} punktów w „Do zrobienia” w protokole", "fin_again": "utwórz ponownie", "lvl_err": "błąd", "lvl_hint": "uwaga",
-        "to_list": "→ lista braków", "kept_mark": "zostawione mimo uwagi", "keep_t": "TA liczy się jako załadowane – potrzebuje CMR i WZ",
+        "to_list": "→ lista braków", "keep_t": "TA liczy się jako załadowane – potrzebuje CMR i WZ",
         "strike_t": "TA nie załadowane – CMR/WZ niepotrzebne", "discard_row": "odrzuć", "dup_ta": "podwójnie (też wiersz {i})",
         "iss_dup": "TA podwójnie na liście – odrzuć jeden wiersz", "need_reason": "Proszę wybrać powód.",
         "acc_title": "Mimo to zaakceptuj – powód:", "go_on": "Dalej →", "wheel_hint": "Ctrl + kółko myszy = zoom",
@@ -289,7 +289,7 @@ UI = {
         "t_carrier_p": "Najpierw sprawdź, potem potwierdź.", "draw_box": "zaznacz ramkę", "draw_num": "zaznacz ramkę wokół numeru",
         "take_tour": "przejmij {tour}", "page_done": "Na tej stronie wszystko gotowe.", "next_open": "Następna otwarta strona",
         "back_list": "Do przeglądu", "all_fields": "Wszystkie dane strony", "v_ok": "ważny", "v_bad": "nieważny", "v_open": "otwarte",
-        "iss_mark": "odręczna uwaga w wierszu – skreślić lub zostawić", "mark_q": "odręczna uwaga – skreślone?",
+        "mark_note": "odręczna uwaga w wierszu – liczy się jako załadowane, w razie potrzeby skreśl",
         "keep": "zostaw", "kept": "zostawione", "iss_bad": "popraw nieprawidłowy wpis", "revert": "↺ odczytana wartość",
         "bad_page": "Proszę wpisać jako i/n, np. 2/2.", "bad_cmr": "Proszę wpisać jako i/n, np. 3/7.",
         "bad_ta": "Tylko numery 8-cyfrowe, oddzielone przecinkiem.",
@@ -525,7 +525,7 @@ details summary:hover{color:var(--fn-ink)}
 .ll col.c1{width:136px} .ll col.c3{width:236px} .ll td:last-child{white-space:normal!important}
 .ll input.ta{width:128px}
 .ll tr.struck input{text-decoration:line-through;color:var(--fn-pencil)}
-.ll tr.mark td{background:color-mix(in srgb,var(--fn-hl-orange) 35%,transparent)}
+.ll tr.mark td{background:color-mix(in srgb,var(--fn-hl-orange) 35%,transparent)} .ll tr.note td{background:color-mix(in srgb,var(--fn-hl-orange) 12%,transparent)}
 .ll tr[data-row]:hover td{background:color-mix(in srgb,var(--fn-hl-blue) 45%,transparent)}
 .ll .rowcrop{margin:.2rem 0 .35rem;cursor:zoom-in}
 
@@ -840,7 +840,7 @@ function stepIssues(k) {
     if (e.struck) continue;
     if (e.bad != null) out.push({p, step: 1, text: T.iss_bad});
     else if (!okTA(e.ta)) out.push({p, step: 1, text: T.iss_ta});
-    if ((e.mark || e.found) && !e.kept) out.push({p, step: 1, text: e.found ? T.iss_found : T.iss_mark});
+    if (e.found && !e.kept) out.push({p, step: 1, text: T.iss_found});
     if (dupOf(p, e) != null) out.push({p, step: 1, text: T.iss_dup});
   }
   if (k === 1) { const c = pagesConflict(llPages(), llPageOf); for (const p of c) out.push({p, step: 1, text: fmt(T.iss_pages_conflict, {list: c.map(q => fmt(T.page, {n: q.n}) + " " + llPageOf(q).join("/")).join(", ")})}); }
@@ -1148,15 +1148,15 @@ function llList(p) {
     ${!po && llPages().length > 1 ? (() => { const pos = llPages().map(llPageOf), total = Math.max(0, ...pos.filter(Boolean).map(x => x[1])), miss = missingPages(pos).slice(0, 3);
       return miss.length ? `<div class="tiles">${miss.map(i => pageQ(p, (p.page_read || {}).text, i, total, "page_of")).join("")}</div>` : ""; })() : ""}
     ${iss.length ? `<p class="issues small">${iss.map(x => esc(x.text)).join(" · ")}</p>` : ""}<table><colgroup><col class="c1"><col><col class="c3"></colgroup>${es.map((e, i) => {
-      const ask = (e.mark || e.found) && !e.struck && !e.kept, dup = dupOf(p, e), bad = !e.struck && (e.bad != null || !okTA(e.ta) || dup != null);
-      const st = e.struck ? T.struck : e.bad != null ? `<span class="issues">${T.bad_number}</span>` : ask ? `<span class="stale">${e.found ? "✚ " + T.found_q : "✎ " + T.mark_q}</span>`
-        : dup != null ? `<span class="issues">${fmt(T.dup_ta, {i: dup})}</span>` : e.kept && e.mark ? `<span class="stale">${T.kept_mark}</span>`
+      const ask = e.found && !e.struck && !e.kept, note = e.mark && !e.struck && !ask, dup = dupOf(p, e), bad = !e.struck && (e.bad != null || !okTA(e.ta) || dup != null);
+      const st = e.struck ? T.struck : e.bad != null ? `<span class="issues">${T.bad_number}</span>` : ask ? `<span class="stale">✚ ${T.found_q}</span>`
+        : dup != null ? `<span class="issues">${fmt(T.dup_ta, {i: dup})}</span>` : note ? `<span class="stale">✎ ${T.mark_note}</span>`
         : e.ocr ? `<span class="ocrtag">${T.ocr_check}</span>` : e.typed ? T.ta_typed : e.src === "person" ? (OCRBUSY && !e.ta ? T.ocr_busy : e.ocrt != null && !e.ta ? esc(fmt(T.ocr_none, {text: e.ocrt})) : T.ta_drawn)
         : !okTA(e.ta) ? T.ta_unread : e.fixed && e.ta === e.orig ? esc(fmt(T.ta_fixed, {text: e.fixed})) : T.ta_read;
-      return `<tr data-row="${p.n}:${i}" class="${e.struck ? "struck" : ""}${ask ? " mark" : ""}"><td><input class="ta${bad ? " need" : ""}" data-ll="${p.n}" data-i="${i}" value="${esc(e.bad != null ? e.bad : e.ta)}" placeholder="${esc(T.ph_ta)}"></td>
+      return `<tr data-row="${p.n}:${i}" class="${e.struck ? "struck" : ""}${ask ? " mark" : note ? " note" : ""}"><td><input class="ta${bad ? " need" : ""}" data-ll="${p.n}" data-i="${i}" value="${esc(e.bad != null ? e.bad : e.ta)}" placeholder="${esc(T.ph_ta)}"></td>
     <td class="small ${bad ? "issues" : "muted"}">${st}${(e.typed || e.bad != null) && e.orig ? ` <a class="lnk" data-revert="${p.n}" data-i="${i}">${T.revert}</a>` : ""}</td>
     <td style="white-space:nowrap"><button class="small" data-strike="${p.n}" data-i="${i}" title="${esc(T.strike_t)}">${e.struck ? T.unstrike : T.strike}</button>${ask ? ` <button class="small" data-keep="${p.n}" data-i="${i}" title="${esc(T.keep_t)}">${e.found ? T.take : T.keep}</button>` : ""}${e.src === "person" || e.found ? ` <button class="small" data-delta="${p.n}" data-i="${i}" title="${esc(T.remove)}">${T.discard_row}</button>` : ""}</td></tr>
-    ${e.box && (ask || e.struck || e.unread || e.mark || e.found || e.src === "person" || bad) ? `<tr data-row="${p.n}:${i}" class="${ask ? "mark" : ""}"><td colspan="3"><div class="rowcrop" data-tazoomll="${p.n}:${i}">${cropHtml(p, rowCrop(e.box), 480, 62, 0)}</div></td></tr>` : ""}`; }).join("")}</table>
+    ${e.box && (ask || e.struck || e.unread || e.mark || e.found || e.src === "person" || bad) ? `<tr data-row="${p.n}:${i}" class="${ask ? "mark" : note ? "note" : ""}"><td colspan="3"><div class="rowcrop" data-tazoomll="${p.n}:${i}">${cropHtml(p, rowCrop(e.box), 480, 62, 0)}</div></td></tr>` : ""}`; }).join("")}</table>
     <p><button data-lldraw="${p.n}" data-cls="ta_nummer">${T.ta_draw}</button> <button data-lldraw="${p.n}" data-cls="seitenzahl">${T.page_draw}</button></p>`;
 }
 function mountLL() {
@@ -1184,7 +1184,7 @@ function contentBox(p) {   // the area with the found boxes (printed part of the
 }
 function llBoxes(p) {
   const out = [];
-  llEntries(p).forEach((e, i) => { if (e.box) out.push({key: "e:" + i, box: e.box, cls: "ta_nummer", label: e.struck ? T.struck : (e.ta || "?"), style: (e.struck ? "struck" : okTA(e.ta) ? "" : "rej") + ((e.mark || e.found) && !e.kept && !e.struck ? " ask" : "") + (HL === p.n + ":" + i ? " hl" : ""), person: e.src === "person"}); });
+  llEntries(p).forEach((e, i) => { if (e.box) out.push({key: "e:" + i, box: e.box, cls: "ta_nummer", label: e.struck ? T.struck : (e.ta || "?"), style: (e.struck ? "struck" : okTA(e.ta) ? "" : "rej") + (e.found && !e.kept && !e.struck ? " ask" : "") + (HL === p.n + ":" + i ? " hl" : ""), person: e.src === "person"}); });
   for (const b of finalBoxes(p).pos) if (b.cls !== "ta_nummer") out.push({key: "x", box: b.box, cls: b.cls, label: T.cls[b.cls] || b.cls, person: b.src === "person", style: "weak"});
   return out;
 }

@@ -156,8 +156,9 @@ lässt sich mit Grund „trotzdem akzeptieren“.
    Mausrad blättert die Seite, Strg + Mausrad zoomt die Ladeliste. Steht eine TA doppelt in der
    Liste, ist das ein offener Punkt („verwerfen“ entfernt die Zeile). Farbige
    Handvermerke in der Zeile (rot durchgestrichen, „nie jedzie“ – `pen_mark` in `run.py`, nur
-   farbige Tinte) markieren die Zeile „Handvermerk – gestrichen?“: offener Punkt, bis die Person
-   „streichen“ oder „behalten“ klickt. Zeilen, für die das Modell keine TA-Box hat: die
+   farbige Tinte; ein farbiger Haken zählt genauso) sind nur ein Hinweis: die Zeile ist leicht
+   hinterlegt, zeigt „Handvermerk in der Zeile – zählt als verladen, bei Bedarf streichen“ und den
+   Ausschnitt; die TA zählt als verladen, ohne Klick. Gestrichen wird nur mit „streichen“. Zeilen, für die das Modell keine TA-Box hat: die
    Verarbeitung liest die TA-Spalte (x-Bereich der gefundenen TA-Boxen) zusätzlich mit OCR
    (`ta_missed` in `run.py`); eine 8-stellige Nummer ohne Box erscheint als „ohne Box gefunden –
    übernehmen?“ (übernehmen = TA zählt, ihre Box geht ins Training; × = löschen). Widersprechen
